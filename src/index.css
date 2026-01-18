@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Personalização da barra de scroll */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #0a0c10; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
