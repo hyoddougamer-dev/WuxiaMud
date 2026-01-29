@@ -129,15 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) return { error: error.message };
 
-      // 2. Cria perfil (vai ser criado automaticamente por trigger na BD)
-      // 3. Cria slots de personagem vazios
-      if (data.user) {
-        await supabase.from('player_data').insert({
-          user_id: data.user.id,
-          character_slots: [],
-          settings: {},
-        });
-      }
+      // Profile is automatically created by database trigger (handle_new_user)
+      // Character slots are created when user creates characters
 
       return {};
     } catch (error: any) {
