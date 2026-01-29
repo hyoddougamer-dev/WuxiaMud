@@ -88,20 +88,25 @@ DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow trigger to insert profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Profiles are viewable by owner or admin" ON public.profiles;
 
-CREATE POLICY "Users can view own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+-- Helper function to get user role without RLS (prevents recursion)
+-- Must be in PUBLIC schema (not auth) due to Supabase permissions
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
--- Admins can view all profiles
-CREATE POLICY "Admins can view all profiles" ON public.profiles
+-- SINGLE SELECT POLICY: Users see own profile, admins see all
+-- This prevents the 406 error from multiple matching policies
+CREATE POLICY "Profiles are viewable by owner or admin" ON public.profiles
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'owner', 'moderator')
-    )
+    auth.uid() = id 
+    OR public.get_my_role() IN ('admin', 'owner', 'moderator')
   );
 
--- SECURITY: Users can only update specific fields, NOT role, is_banned, etc.
+-- SECURITY: Users can only update their own profile, cannot change role/ban status
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (
@@ -114,14 +119,12 @@ CREATE POLICY "Users can update own profile" ON public.profiles
 -- Admins can update any profile (for banning, role changes)
 CREATE POLICY "Admins can update all profiles" ON public.profiles
   FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role IN ('admin', 'owner')
-    )
+    public.get_my_role() IN ('admin', 'owner')
   );
 
-CREATE POLICY "Users can insert own profile" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
+-- Allow the trigger to insert profiles (runs as SECURITY DEFINER)
+CREATE POLICY "Allow trigger to insert profiles" ON public.profiles
+  FOR INSERT WITH CHECK (TRUE);
 
 -- ============================================
 -- 2. CHARACTERS TABLE (game saves)

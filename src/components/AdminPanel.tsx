@@ -14,9 +14,14 @@ import {
   getCheatLogs,
   unbanPlayer,
   EVENT_PRESETS,
+  getEventsByCategory,
+  SUGGESTED_CALENDAR,
   type GameConfig,
   type PlayerProfile,
-  type CheatLogEntry
+  type CheatLogEntry,
+  type EventCategory,
+  type EventPreset,
+  type EventMechanic
 } from '../services/adminService';
 
 interface AdminPanelProps {
@@ -27,6 +32,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'events' | 'players' | 'logs'>('events');
+  const [eventCategory, setEventCategory] = useState<EventCategory | 'all'>('all');
   
   // State
   const [config, setConfig] = useState<GameConfig | null>(null);
@@ -218,24 +224,160 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 )}
               </div>
 
-              {/* Quick Events */}
+              {/* Quick Events by Category */}
               <div>
-                <h3 className="text-lg font-bold text-white mb-3">⚡ Quick Events</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {(Object.keys(EVENT_PRESETS) as (keyof typeof EVENT_PRESETS)[]).map(key => {
-                    const preset = EVENT_PRESETS[key];
-                    return (
+                <h3 className="text-lg font-bold text-white mb-3">⚡ Eventos Dinâmicos</h3>
+                
+                {/* Category Filter */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {[
+                    { id: 'all', label: '📋 Todos', color: 'gray' },
+                    { id: 'combat', label: '⚔️ Combate', color: 'red' },
+                    { id: 'exploration', label: '🗺️ Exploração', color: 'green' },
+                    { id: 'progression', label: '📈 Progressão', color: 'blue' },
+                    { id: 'social', label: '🤝 Social', color: 'purple' },
+                    { id: 'economy', label: '💰 Economia', color: 'yellow' },
+                    { id: 'challenge', label: '🏆 Desafio', color: 'orange' },
+                    { id: 'seasonal', label: '🎄 Sazonal', color: 'pink' }
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setEventCategory(cat.id as EventCategory | 'all')}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        eventCategory === cat.id 
+                          ? `bg-${cat.color}-600 text-white` 
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mechanic Legend */}
+                <div className="mb-4 p-2 bg-gray-800/50 rounded text-xs text-gray-400">
+                  <span className="font-bold text-gray-300">Mecânicas: </span>
+                  <span className="text-red-400">🐉 World Boss</span> • 
+                  <span className="text-yellow-400"> 🎁 Coleção</span> • 
+                  <span className="text-purple-400"> ⚡ Realm Rush</span> • 
+                  <span className="text-orange-400"> 🔥 Elemento</span> • 
+                  <span className="text-cyan-400"> 🗼 Survival</span> • 
+                  <span className="text-green-400"> 🔮 Mistério</span> • 
+                  <span className="text-pink-400"> 🎲 Risco</span>
+                </div>
+
+                {/* Events Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2">
+                  {Object.entries(EVENT_PRESETS)
+                    .filter(([_, preset]) => eventCategory === 'all' || preset.category === eventCategory)
+                    .map(([key, preset]) => (
                       <button
                         key={key}
-                        onClick={() => handlePresetEvent(key)}
-                        className="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-left border border-gray-700 hover:border-yellow-600 transition-colors"
+                        onClick={() => handlePresetEvent(key as keyof typeof EVENT_PRESETS)}
+                        className={`p-3 bg-gradient-to-r ${preset.color} bg-opacity-20 hover:bg-opacity-30 rounded-lg text-left border border-gray-700 hover:border-yellow-500 transition-all group relative overflow-hidden`}
                       >
-                        <div className="font-bold text-white">{preset.name}</div>
-                        <div className="text-xs text-gray-400 mt-1">{preset.description}</div>
-                        <div className="text-xs text-gray-500 mt-1">Duration: {preset.hours}h</div>
+                        {/* Rarity + Mechanic indicators */}
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            preset.mechanic === 'world_boss' ? 'bg-red-500/80' :
+                            preset.mechanic === 'collection' ? 'bg-yellow-500/80' :
+                            preset.mechanic === 'survival' ? 'bg-cyan-500/80' :
+                            preset.mechanic === 'mystery' ? 'bg-purple-500/80' :
+                            preset.mechanic === 'double_or_nothing' ? 'bg-pink-500/80' :
+                            preset.mechanic === 'secret_realm' ? 'bg-emerald-500/80' :
+                            'bg-gray-500/80'
+                          } text-white`}>
+                            {preset.mechanic === 'world_boss' ? '🐉' :
+                             preset.mechanic === 'collection' ? '🎁' :
+                             preset.mechanic === 'survival' ? '🗼' :
+                             preset.mechanic === 'mystery' ? '🔮' :
+                             preset.mechanic === 'double_or_nothing' ? '🎲' :
+                             preset.mechanic === 'secret_realm' ? '🏯' :
+                             preset.mechanic === 'element_surge' ? '🔥' :
+                             preset.mechanic === 'community_goal' ? '🌍' :
+                             '⚡'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            preset.rarity === 'legendary' ? 'bg-yellow-500/80 text-black' :
+                            preset.rarity === 'epic' ? 'bg-purple-500/80 text-white' :
+                            preset.rarity === 'rare' ? 'bg-blue-500/80 text-white' :
+                            'bg-gray-500/80 text-white'
+                          }`}>
+                            {preset.rarity}
+                          </span>
+                        </div>
+                        
+                        <div className="font-bold text-white flex items-center gap-2 pr-20">
+                          <span className="text-lg">{preset.icon}</span>
+                          <span className="text-sm truncate">{preset.name.replace(preset.icon + ' ', '')}</span>
+                        </div>
+                        
+                        <div className="text-xs text-gray-300 mt-1 line-clamp-2">{preset.description}</div>
+                        
+                        {/* How to participate */}
+                        <div className="text-[10px] text-blue-300 mt-2 italic line-clamp-1">
+                          💡 {preset.howToParticipate}
+                        </div>
+                        
+                        {/* Stats */}
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {preset.expMult !== 1.0 && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-orange-500/30 text-orange-300 rounded">
+                              EXP {preset.expMult}x
+                            </span>
+                          )}
+                          {preset.dropMult !== 1.0 && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/30 text-cyan-300 rounded">
+                              Drops {preset.dropMult}x
+                            </span>
+                          )}
+                          {preset.stonesMult !== 1.0 && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-yellow-500/30 text-yellow-300 rounded">
+                              Stones {preset.stonesMult}x
+                            </span>
+                          )}
+                          <span className="text-[9px] px-1.5 py-0.5 bg-gray-500/30 text-gray-300 rounded">
+                            ⏱️ {preset.hours}h
+                          </span>
+                        </div>
+                        
+                        {/* Special mechanics preview */}
+                        {preset.specialMechanics && (
+                          <div className="text-[9px] text-gray-400 mt-1">
+                            {preset.specialMechanics.bossName && `👹 Boss: ${preset.specialMechanics.bossName}`}
+                            {preset.specialMechanics.collectibleItems && `🎁 ${preset.specialMechanics.collectibleItems.length} items para colecionar`}
+                            {preset.specialMechanics.waveCount && `🗼 ${preset.specialMechanics.waveCount} waves`}
+                            {preset.specialMechanics.targetElement && `🔥 Elemento: ${preset.specialMechanics.targetElement}`}
+                            {preset.specialMechanics.goalTarget && `🎯 Meta: ${preset.specialMechanics.goalTarget.toLocaleString()}`}
+                          </div>
+                        )}
                       </button>
-                    );
-                  })}
+                    ))}
+                </div>
+                
+                {/* Recommended Schedule */}
+                <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <h4 className="text-sm font-bold text-yellow-400 mb-2">📅 Calendário Sugerido</h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-400 font-bold mb-1">Semanal:</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between"><span className="text-blue-400">Segunda:</span><span className="text-gray-300">💎 Spiritual Vein</span></div>
+                        <div className="flex justify-between"><span className="text-purple-400">Quarta:</span><span className="text-gray-300">🎲 Fortune Gamble</span></div>
+                        <div className="flex justify-between"><span className="text-green-400">Sexta:</span><span className="text-gray-300">🦊 Beast Hunt</span></div>
+                        <div className="flex justify-between"><span className="text-orange-400">Fim-de-semana:</span><span className="text-gray-300">🗼 Endless Tower</span></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 font-bold mb-1">Mensal:</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between"><span className="text-red-400">1ª Semana:</span><span className="text-gray-300">🐉 World Boss</span></div>
+                        <div className="flex justify-between"><span className="text-teal-400">2ª Semana:</span><span className="text-gray-300">🏯 Secret Realm</span></div>
+                        <div className="flex justify-between"><span className="text-amber-400">3ª Semana:</span><span className="text-gray-300">🔨 Crafting Week</span></div>
+                        <div className="flex justify-between"><span className="text-purple-400">4ª Semana:</span><span className="text-gray-300">⚔️ Community Goal</span></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
