@@ -20,6 +20,8 @@ interface SettingsMenuProps {
   onLogout?: () => void;
   onResetGame?: () => void;
   playerName?: string;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
 }
 
 // Toggle component
@@ -60,6 +62,8 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
   onLogout,
   onResetGame,
   playerName = 'Cultivator',
+  isAdmin = false,
+  onOpenAdminPanel,
 }) => {
   const { settings, updateSetting, resetSettings } = useSettings();
   const { volume, isMuted, setVolume, toggleMute, nextTrack, currentTrack } = useMusic();
@@ -148,6 +152,25 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
                   <Users size={14} />
                   Character
                 </h3>
+                
+                {/* Admin Panel Button - Only visible to admins */}
+                {isAdmin && onOpenAdminPanel && (
+                  <button
+                    onClick={onOpenAdminPanel}
+                    className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-yellow-900/30 to-amber-900/20 border border-yellow-500/50 rounded-xl hover:border-yellow-400 transition-all group animate-pulse-subtle"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-yellow-500/30 flex items-center justify-center">
+                        <span className="text-xl">👑</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors">Admin Panel</div>
+                        <div className="text-xs text-yellow-600">Manage events, players & logs</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="text-yellow-500 group-hover:text-yellow-400 transition-colors" size={20} />
+                  </button>
+                )}
                 
                 <button
                   onClick={() => { onSwitchCharacter(); onClose(); }}

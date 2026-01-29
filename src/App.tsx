@@ -98,6 +98,9 @@ import { CharacterSelectionScreen } from './components/CharacterSelectionScreen'
 import { SettingsMenu, SettingsButton } from './components/SettingsMenu';
 import { FleeConfirmModal } from './components/FleeConfirmModal';
 import { ZoneInfoPanel } from './components/ZoneInfoPanel';
+import { AdminPanel } from './components/AdminPanel';
+import { isAdmin } from './services/adminService';
+import { EventBanner } from './components/EventBanner';
 import { useRewardAnimation } from './components/RewardClaimAnimation';
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { LeaderboardPanel } from './components/LeaderboardPanel';
@@ -906,6 +909,21 @@ const App = () => {
 
   // Global Settings Menu State
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  
+  // Admin Panel State
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
+  
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const adminStatus = await isAdmin();
+      setIsUserAdmin(adminStatus);
+    };
+    if (user) {
+      checkAdminStatus();
+    }
+  }, [user]);
 
   // Save player data to Supabase (cloud persistence) - only when in game
   useEffect(() => {
@@ -4880,7 +4898,20 @@ const App = () => {
           }}
           onResetGame={hardReset}
           playerName={player.name}
+          isAdmin={isUserAdmin}
+          onOpenAdminPanel={() => {
+            setShowSettingsMenu(false);
+            setShowAdminPanel(true);
+          }}
         />
+        
+        {/* ADMIN PANEL */}
+        {showAdminPanel && (
+          <AdminPanel onClose={() => setShowAdminPanel(false)} />
+        )}
+        
+        {/* EVENT BANNER - Shows active events */}
+        <EventBanner />
         
         {/* TAB NAVIGATION */}
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} player={player} onOpenSettings={() => setShowSettingsMenu(true)} />
