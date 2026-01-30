@@ -1856,10 +1856,12 @@ const App = () => {
                   const isCritical = Math.random() < critChance;
                   
                   // Use new function with feedback (includes crit damage from secondary stats)
+                  // Get mob element from mob data (defaults to 'None' if not defined)
+                  const mobElement = currentCombat.mob.element || 'None';
                   elementResult = calculateDamageWithFeedback(
                     pDmg,
                     playerElement,
-                    'Fire', // TODO: Get mob element from mob data
+                    mobElement,
                     mobResists,
                     isCritical,
                     currentCombatStats.critDamage || 150 // Use crit damage from secondary stats

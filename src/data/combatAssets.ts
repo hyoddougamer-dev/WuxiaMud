@@ -34,9 +34,9 @@ export const mobSprites: Record<number, string> = {
   5: '/assets/combat/characters/enemies/mob_pestilent_worm.png',
   6: '/assets/combat/characters/enemies/mob_herb_spirit.png',
   7: '/assets/combat/characters/enemies/mob_novice_cultivator.png',
-  8: '/assets/combat/characters/enemies/mob_medidation_monk.png', // Note: typo in filename
+  8: '/assets/combat/characters/enemies/mob_meditation_monk.png',
   9: '/assets/combat/characters/enemies/mob_sect_guard.png',
-  10: '/assets/combat/characters/enemies/mob_junior disciple.png', // Note: space in filename
+  10: '/assets/combat/characters/enemies/mob_junior_disciple.png',
   11: '/assets/combat/characters/enemies/mob_bandit_thug.png',
   12: '/assets/combat/characters/enemies/mob_bandit_archer.png',
   13: '/assets/combat/characters/enemies/mob_mountain_ape.png',
@@ -54,7 +54,7 @@ export const mobSprites: Record<number, string> = {
   23: '/assets/combat/characters/enemies/mob_iron_claw_chief.png',
   24: '/assets/combat/characters/enemies/mob_shadow_assassin.png',
   25: '/assets/combat/characters/enemies/mob_stone_guardian.png',
-  26: '/assets/combat/characters/enemies/mob_abyssal_serpentt.png', // Note: typo in filename (double t)
+  26: '/assets/combat/characters/enemies/mob_abyssal_serpent.png',
   27: '/assets/combat/characters/enemies/mob_ancient_lich.png',
   28: '/assets/combat/characters/enemies/mob_celestial_phoenix.png',
   29: '/assets/combat/characters/enemies/mob_corrupted_elder_tree.png',

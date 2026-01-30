@@ -97,6 +97,9 @@ export const itemDatabase = [
     // NOTE: Weapons are in gearItems.ts, Rings and Necklaces are in accessoryItems.ts
 ];
 
+// Element types for mobs based on their nature/theme
+export type MobElement = 'Fire' | 'Ice' | 'Lightning' | 'Wood' | 'Void' | 'None';
+
 export const mobDefinitions = [
     // ============================================
     // QI CONDENSATION REALM (Levels 1-9)
@@ -104,32 +107,32 @@ export const mobDefinitions = [
     // ============================================
     
     // Lvl 1-3: Starter Mobs (HP: 100-350)
-    { id: 1, name: "Spirit Rat", level: 1, quality: "Normal", hp: 100, atk: 6, def: 5, exp: 15, stones: 8, drop: "Rat Tail" },
-    { id: 2, name: "Garden Spider", level: 1, quality: "Normal", hp: 110, atk: 7, def: 4, exp: 12, stones: 7, drop: "Spider Silk" },
-    { id: 3, name: "Sect Servant", level: 2, quality: "Normal", hp: 140, atk: 10, def: 7, exp: 25, stones: 12, drop: "Broom" },
-    { id: 4, name: "Training Dummy", level: 2, quality: "Normal", hp: 160, atk: 4, def: 8, exp: 15, stones: 10, drop: "Wood Scraps" },
-    { id: 5, name: "Pestilent Worm", level: 2, quality: "Normal", hp: 170, atk: 11, def: 9, exp: 30, stones: 15, drop: "Poison Sac" },
-    { id: 6, name: "Herb Spirit", level: 3, quality: "Normal", hp: 220, atk: 13, def: 10, exp: 40, stones: 20, drop: "Spirit Essence" },
+    { id: 1, name: "Spirit Rat", level: 1, quality: "Normal", hp: 100, atk: 6, def: 5, exp: 15, stones: 8, drop: "Rat Tail", element: "None" as MobElement },
+    { id: 2, name: "Garden Spider", level: 1, quality: "Normal", hp: 110, atk: 7, def: 4, exp: 12, stones: 7, drop: "Spider Silk", element: "Wood" as MobElement },
+    { id: 3, name: "Sect Servant", level: 2, quality: "Normal", hp: 140, atk: 10, def: 7, exp: 25, stones: 12, drop: "Broom", element: "None" as MobElement },
+    { id: 4, name: "Training Dummy", level: 2, quality: "Normal", hp: 160, atk: 4, def: 8, exp: 15, stones: 10, drop: "Wood Scraps", element: "None" as MobElement },
+    { id: 5, name: "Pestilent Worm", level: 2, quality: "Normal", hp: 170, atk: 11, def: 9, exp: 30, stones: 15, drop: "Poison Sac", element: "Wood" as MobElement },
+    { id: 6, name: "Herb Spirit", level: 3, quality: "Normal", hp: 220, atk: 13, def: 10, exp: 40, stones: 20, drop: "Spirit Essence", element: "Wood" as MobElement },
     
     // Lvl 4-6: Early Students (HP: 250-480)
-    { id: 7, name: "Novice Cultivator", level: 4, quality: "Normal", hp: 260, atk: 15, def: 11, exp: 50, stones: 24, drop: "Cultivation Manual" },
-    { id: 8, name: "Meditation Monk", level: 4, quality: "Normal", hp: 280, atk: 14, def: 12, exp: 48, stones: 22, drop: "Meditation Stone" },
-    { id: 9, name: "Sect Guard", level: 5, quality: "Normal", hp: 340, atk: 18, def: 14, exp: 70, stones: 32, drop: "Guard Badge" },
-    { id: 10, name: "Junior Disciple", level: 5, quality: "Trainee", hp: 380, atk: 21, def: 15, exp: 75, stones: 35, drop: "Disciple Token" },
+    { id: 7, name: "Novice Cultivator", level: 4, quality: "Normal", hp: 260, atk: 15, def: 11, exp: 50, stones: 24, drop: "Cultivation Manual", element: "None" as MobElement },
+    { id: 8, name: "Meditation Monk", level: 4, quality: "Normal", hp: 280, atk: 14, def: 12, exp: 48, stones: 22, drop: "Meditation Stone", element: "None" as MobElement },
+    { id: 9, name: "Sect Guard", level: 5, quality: "Normal", hp: 340, atk: 18, def: 14, exp: 70, stones: 32, drop: "Guard Badge", element: "None" as MobElement },
+    { id: 10, name: "Junior Disciple", level: 5, quality: "Trainee", hp: 380, atk: 21, def: 15, exp: 75, stones: 35, drop: "Disciple Token", element: "None" as MobElement },
     
     // Lvl 6-8: Bandits & Nature (HP: 420-700)
-    { id: 11, name: "Bandit Thug", level: 6, quality: "Normal", hp: 420, atk: 24, def: 16, exp: 90, stones: 40, drop: "Stolen Purse" },
-    { id: 12, name: "Bandit Archer", level: 6, quality: "Trainee", hp: 450, atk: 28, def: 13, exp: 95, stones: 42, drop: "Arrowhead" },
-    { id: 13, name: "Mountain Ape", level: 6, quality: "Normal", hp: 480, atk: 26, def: 15, exp: 88, stones: 38, drop: "Ape Hide" },
-    { id: 14, name: "Poison Spider", level: 7, quality: "Normal", hp: 520, atk: 30, def: 17, exp: 110, stones: 48, drop: "Poison Fang" },
-    { id: 15, name: "Rock Serpent", level: 7, quality: "Normal", hp: 540, atk: 29, def: 18, exp: 115, stones: 50, drop: "Serpent Scale" },
-    { id: 16, name: "Bandit Captain", level: 7, quality: "Trainee", hp: 580, atk: 34, def: 19, exp: 120, stones: 55, drop: "Captain's Insignia" },
-    { id: 17, name: "Corrupted Disciple", level: 8, quality: "Trainee", hp: 640, atk: 36, def: 20, exp: 130, stones: 58, drop: "Corrupted Essence" },
-    { id: 18, name: "Crystal Golem", level: 8, quality: "Elite", hp: 700, atk: 32, def: 28, exp: 150, stones: 68, drop: "Crystal Shard" },
+    { id: 11, name: "Bandit Thug", level: 6, quality: "Normal", hp: 420, atk: 24, def: 16, exp: 90, stones: 40, drop: "Stolen Purse", element: "None" as MobElement },
+    { id: 12, name: "Bandit Archer", level: 6, quality: "Trainee", hp: 450, atk: 28, def: 13, exp: 95, stones: 42, drop: "Arrowhead", element: "None" as MobElement },
+    { id: 13, name: "Mountain Ape", level: 6, quality: "Normal", hp: 480, atk: 26, def: 15, exp: 88, stones: 38, drop: "Ape Hide", element: "None" as MobElement },
+    { id: 14, name: "Poison Spider", level: 7, quality: "Normal", hp: 520, atk: 30, def: 17, exp: 110, stones: 48, drop: "Poison Fang", element: "Wood" as MobElement },
+    { id: 15, name: "Rock Serpent", level: 7, quality: "Normal", hp: 540, atk: 29, def: 18, exp: 115, stones: 50, drop: "Serpent Scale", element: "None" as MobElement },
+    { id: 16, name: "Bandit Captain", level: 7, quality: "Trainee", hp: 580, atk: 34, def: 19, exp: 120, stones: 55, drop: "Captain's Insignia", element: "None" as MobElement },
+    { id: 17, name: "Corrupted Disciple", level: 8, quality: "Trainee", hp: 640, atk: 36, def: 20, exp: 130, stones: 58, drop: "Corrupted Essence", element: "Void" as MobElement },
+    { id: 18, name: "Crystal Golem", level: 8, quality: "Elite", hp: 700, atk: 32, def: 28, exp: 150, stones: 68, drop: "Crystal Shard", element: "Ice" as MobElement },
     
     // Lvl 9: Peak of Qi Condensation (HP: 750-850)
-    { id: 19, name: "Forest Guardian", level: 9, quality: "Elite", hp: 800, atk: 40, def: 30, exp: 180, stones: 82, drop: "Guardian Core" },
-    { id: 20, name: "Frost Wolf", level: 9, quality: "Elite", hp: 750, atk: 42, def: 26, exp: 170, stones: 78, drop: "Frost Fang" },
+    { id: 19, name: "Forest Guardian", level: 9, quality: "Elite", hp: 800, atk: 40, def: 30, exp: 180, stones: 82, drop: "Guardian Core", element: "Wood" as MobElement },
+    { id: 20, name: "Frost Wolf", level: 9, quality: "Elite", hp: 750, atk: 42, def: 26, exp: 170, stones: 78, drop: "Frost Fang", element: "Ice" as MobElement },
     
     // ============================================
     // FOUNDATION ESTABLISHMENT REALM (Levels 10-19)
@@ -137,28 +140,28 @@ export const mobDefinitions = [
     // ============================================
     
     // Lvl 10-12: Early Foundation (HP: 900-1200)
-    { id: 21, name: "Ghost Cultivator", level: 10, quality: "Elite", hp: 900, atk: 48, def: 32, exp: 200, stones: 95, drop: "Spirit Essence" },
-    { id: 22, name: "Corrupted Monk", level: 10, quality: "Elite", hp: 950, atk: 50, def: 31, exp: 210, stones: 98, drop: "Dark Scepter" },
-    { id: 23, name: "Iron Claw Chief", level: 11, quality: "Elite", hp: 1050, atk: 55, def: 35, exp: 240, stones: 110, drop: "Iron Claw" },
-    { id: 24, name: "Shadow Assassin", level: 11, quality: "Elite", hp: 900, atk: 60, def: 28, exp: 250, stones: 115, drop: "Shadow Dagger" },
-    { id: 25, name: "Stone Guardian", level: 12, quality: "Elite", hp: 1150, atk: 50, def: 45, exp: 270, stones: 125, drop: "Stone Heart" },
-    { id: 26, name: "Abyssal Serpent", level: 12, quality: "Elite", hp: 1200, atk: 62, def: 36, exp: 280, stones: 130, drop: "Abyssal Venom" },
+    { id: 21, name: "Ghost Cultivator", level: 10, quality: "Elite", hp: 900, atk: 48, def: 32, exp: 200, stones: 95, drop: "Spirit Essence", element: "Void" as MobElement },
+    { id: 22, name: "Corrupted Monk", level: 10, quality: "Elite", hp: 950, atk: 50, def: 31, exp: 210, stones: 98, drop: "Dark Scepter", element: "Void" as MobElement },
+    { id: 23, name: "Iron Claw Chief", level: 11, quality: "Elite", hp: 1050, atk: 55, def: 35, exp: 240, stones: 110, drop: "Iron Claw", element: "None" as MobElement },
+    { id: 24, name: "Shadow Assassin", level: 11, quality: "Elite", hp: 900, atk: 60, def: 28, exp: 250, stones: 115, drop: "Shadow Dagger", element: "Void" as MobElement },
+    { id: 25, name: "Stone Guardian", level: 12, quality: "Elite", hp: 1150, atk: 50, def: 45, exp: 270, stones: 125, drop: "Stone Heart", element: "None" as MobElement },
+    { id: 26, name: "Abyssal Serpent", level: 12, quality: "Elite", hp: 1200, atk: 62, def: 36, exp: 280, stones: 130, drop: "Abyssal Venom", element: "Void" as MobElement },
     
     // Lvl 13-15: Mid Foundation (HP: 1250-1550)
-    { id: 27, name: "Ancient Lich", level: 13, quality: "Epic", hp: 1300, atk: 68, def: 40, exp: 310, stones: 145, drop: "Lich Crown" },
-    { id: 28, name: "Celestial Phoenix", level: 14, quality: "Epic", hp: 1450, atk: 72, def: 42, exp: 350, stones: 165, drop: "Phoenix Feather" },
-    { id: 29, name: "Corrupted Elder Tree", level: 14, quality: "Elite", hp: 1380, atk: 60, def: 44, exp: 330, stones: 155, drop: "Elder Bark" },
-    { id: 30, name: "Cursed Jade Guardian", level: 15, quality: "Epic", hp: 1520, atk: 70, def: 48, exp: 380, stones: 180, drop: "Jade Stone" },
+    { id: 27, name: "Ancient Lich", level: 13, quality: "Epic", hp: 1300, atk: 68, def: 40, exp: 310, stones: 145, drop: "Lich Crown", element: "Void" as MobElement },
+    { id: 28, name: "Celestial Phoenix", level: 14, quality: "Epic", hp: 1450, atk: 72, def: 42, exp: 350, stones: 165, drop: "Phoenix Feather", element: "Fire" as MobElement },
+    { id: 29, name: "Corrupted Elder Tree", level: 14, quality: "Elite", hp: 1380, atk: 60, def: 44, exp: 330, stones: 155, drop: "Elder Bark", element: "Wood" as MobElement },
+    { id: 30, name: "Cursed Jade Guardian", level: 15, quality: "Epic", hp: 1520, atk: 70, def: 48, exp: 380, stones: 180, drop: "Jade Stone", element: "None" as MobElement },
     
     // Lvl 16-18: High Foundation (HP: 1600-1850)
-    { id: 31, name: "Flame Demon", level: 16, quality: "Epic", hp: 1600, atk: 75, def: 44, exp: 410, stones: 195, drop: "Flame Core" },
-    { id: 32, name: "Ice Queen", level: 16, quality: "Epic", hp: 1650, atk: 72, def: 46, exp: 420, stones: 200, drop: "Ice Scepter" },
-    { id: 33, name: "Lightning Elemental", level: 17, quality: "Epic", hp: 1700, atk: 78, def: 42, exp: 440, stones: 210, drop: "Thunder Core" },
-    { id: 34, name: "Divine Beast", level: 18, quality: "Epic", hp: 1850, atk: 82, def: 48, exp: 470, stones: 225, drop: "Divine Horn" },
+    { id: 31, name: "Flame Demon", level: 16, quality: "Epic", hp: 1600, atk: 75, def: 44, exp: 410, stones: 195, drop: "Flame Core", element: "Fire" as MobElement },
+    { id: 32, name: "Ice Queen", level: 16, quality: "Epic", hp: 1650, atk: 72, def: 46, exp: 420, stones: 200, drop: "Ice Scepter", element: "Ice" as MobElement },
+    { id: 33, name: "Lightning Elemental", level: 17, quality: "Epic", hp: 1700, atk: 78, def: 42, exp: 440, stones: 210, drop: "Thunder Core", element: "Lightning" as MobElement },
+    { id: 34, name: "Divine Beast", level: 18, quality: "Epic", hp: 1850, atk: 82, def: 48, exp: 470, stones: 225, drop: "Divine Horn", element: "None" as MobElement },
     
     // Lvl 19: Peak of Foundation (HP: 1900-2000)
-    { id: 35, name: "Shadow Lord", level: 19, quality: "Epic", hp: 1950, atk: 88, def: 50, exp: 500, stones: 240, drop: "Shadow Essence" },
-    { id: 36, name: "Soul Reaver", level: 19, quality: "Epic", hp: 2000, atk: 90, def: 48, exp: 510, stones: 245, drop: "Soul Fragment" },
+    { id: 35, name: "Shadow Lord", level: 19, quality: "Epic", hp: 1950, atk: 88, def: 50, exp: 500, stones: 240, drop: "Shadow Essence", element: "Void" as MobElement },
+    { id: 36, name: "Soul Reaver", level: 19, quality: "Epic", hp: 2000, atk: 90, def: 48, exp: 510, stones: 245, drop: "Soul Fragment", element: "Void" as MobElement },
     
     // ============================================
     // GOLDEN CORE REALM (Levels 20-29)
@@ -166,19 +169,19 @@ export const mobDefinitions = [
     // ============================================
     
     // Lvl 20-22: Early Golden Core (HP: 2100-2400)
-    { id: 37, name: "Void Beast", level: 20, quality: "Legendary", hp: 2150, atk: 95, def: 52, exp: 550, stones: 260, drop: "Void Matter" },
-    { id: 38, name: "Stone Colossus", level: 21, quality: "Legendary", hp: 2350, atk: 92, def: 62, exp: 600, stones: 285, drop: "Granite Heart" },
-    { id: 39, name: "Thunder Dragon Whelp", level: 22, quality: "Epic", hp: 2400, atk: 105, def: 50, exp: 650, stones: 310, drop: "Dragon Scale" },
+    { id: 37, name: "Void Beast", level: 20, quality: "Legendary", hp: 2150, atk: 95, def: 52, exp: 550, stones: 260, drop: "Void Matter", element: "Void" as MobElement },
+    { id: 38, name: "Stone Colossus", level: 21, quality: "Legendary", hp: 2350, atk: 92, def: 62, exp: 600, stones: 285, drop: "Granite Heart", element: "None" as MobElement },
+    { id: 39, name: "Thunder Dragon Whelp", level: 22, quality: "Epic", hp: 2400, atk: 105, def: 50, exp: 650, stones: 310, drop: "Dragon Scale", element: "Lightning" as MobElement },
     
     // Lvl 23-26: Mid Golden Core (HP: 2450-2750)
-    { id: 40, name: "Infernal Phoenix", level: 23, quality: "Legendary", hp: 2500, atk: 110, def: 54, exp: 700, stones: 335, drop: "Phoenix Heart" },
-    { id: 41, name: "Eternal Guardian", level: 24, quality: "Legendary", hp: 2600, atk: 108, def: 60, exp: 750, stones: 360, drop: "Guardian Heart" },
+    { id: 40, name: "Infernal Phoenix", level: 23, quality: "Legendary", hp: 2500, atk: 110, def: 54, exp: 700, stones: 335, drop: "Phoenix Heart", element: "Fire" as MobElement },
+    { id: 41, name: "Eternal Guardian", level: 24, quality: "Legendary", hp: 2600, atk: 108, def: 60, exp: 750, stones: 360, drop: "Guardian Heart", element: "None" as MobElement },
     
     // These remaining slots are filled with duplicates/variants for now
     // In full implementation would have more unique legendaries
-    { id: 42, name: "Void Sovereign", level: 25, quality: "Legendary", hp: 2700, atk: 115, def: 56, exp: 800, stones: 380, drop: "Void Crown" },
-    { id: 43, name: "Three-Headed Thunder Dragon", level: 26, quality: "Legendary", hp: 2850, atk: 130, def: 58, exp: 900, stones: 430, drop: "Dragon Heart" },
-    { id: 44, name: "Undead Emperor", level: 28, quality: "Legendary", hp: 3100, atk: 135, def: 64, exp: 1000, stones: 480, drop: "Emperor's Crown" }
+    { id: 42, name: "Void Sovereign", level: 25, quality: "Legendary", hp: 2700, atk: 115, def: 56, exp: 800, stones: 380, drop: "Void Crown", element: "Void" as MobElement },
+    { id: 43, name: "Three-Headed Thunder Dragon", level: 26, quality: "Legendary", hp: 2850, atk: 130, def: 58, exp: 900, stones: 430, drop: "Dragon Heart", element: "Lightning" as MobElement },
+    { id: 44, name: "Undead Emperor", level: 28, quality: "Legendary", hp: 3100, atk: 135, def: 64, exp: 1000, stones: 480, drop: "Emperor's Crown", element: "Void" as MobElement }
 ];
 
 export const levelingTable = [
