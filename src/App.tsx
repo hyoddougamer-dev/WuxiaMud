@@ -4922,8 +4922,56 @@ const App = () => {
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {activeTab === 'world' && (
             <WorldPage>
-              {/* QUICK STATUS BAR */}
-              <div className="bg-[#0a0c10] border-b border-[#2a2f3a] px-4 py-2 flex items-center justify-between">
+              {/* QUICK STATUS BAR - Mobile Responsive */}
+              <div className="bg-[#0a0c10] border-b border-[#2a2f3a] px-2 sm:px-4 py-1.5 sm:py-2">
+                {/* Mobile Layout */}
+                <div className="flex md:hidden flex-col gap-1.5">
+                  {/* Row 1: Avatar, Name, Resources */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        onClick={() => setAvatarModalOpen(true)}
+                        className="w-8 h-8 rounded-full border-2 border-amber-500/50 overflow-hidden flex-shrink-0"
+                      >
+                        <img src={player.avatar} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-serif font-bold text-amber-400 block">{player.name}</span>
+                        <span className="text-[9px] text-cyan-400">{player.realm}</span>
+                      </div>
+                    </div>
+                    {/* Compact Resources */}
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-amber-400">💎{formatNumber(player.spiritStones)}</span>
+                      <span className="text-red-400">⚗️{hpPillCount}</span>
+                      <span className="text-cyan-400">🧪{qiPillCount}</span>
+                    </div>
+                  </div>
+                  {/* Row 2: Vital Bars */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-1">
+                      <ResourceIcon type="hp" size={10} />
+                      <div className="flex-1 h-1.5 bg-[#1a1d24] rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{width: `${(player.hp / player.maxHp) * 100}%`}}></div>
+                      </div>
+                    </div>
+                    <div className="flex-1 flex items-center gap-1">
+                      <ResourceIcon type="qi" size={10} />
+                      <div className="flex-1 h-1.5 bg-[#1a1d24] rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400" style={{width: `${(player.qi / player.maxQi) * 100}%`}}></div>
+                      </div>
+                    </div>
+                    <div className="flex-1 flex items-center gap-1">
+                      <ResourceIcon type="exp" size={10} />
+                      <div className="flex-1 h-1.5 bg-[#1a1d24] rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400" style={{width: `${Math.min(100, (player.exp / (getLevelInfo(player.level)?.req || 2200)) * 100)}%`}}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden md:flex items-center justify-between">
                 {/* LEFT: Avatar & Identity */}
                 <div className="flex items-center gap-3">
                   <div 
@@ -5247,21 +5295,22 @@ const App = () => {
                     );
                   })()}
                 </div>
+                </div>
               </div>
 
               {/* MAIN WORLD CONTENT */}
-              <main className="flex-1 flex flex-col min-w-0 bg-black relative">
-                <div className="flex-1 relative bg-[#151820] overflow-hidden group">
+              <main className="flex-1 flex flex-col min-w-0 bg-black relative overflow-auto">
+                <div className="flex-1 relative bg-[#151820] overflow-hidden group min-h-[300px]">
                     <div className="absolute inset-0 bg-cover bg-center transition-all duration-700 opacity-60" style={{backgroundImage: `url('${getCurrentLocation().img}')`}}></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-                    <div className="absolute top-4 left-4 z-10">
-                        <div className="flex items-center gap-2 mb-1"><span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase flex items-center gap-1 ${getCurrentLocation().tier===1 ? 'bg-emerald-900/80 border-emerald-500/50 text-emerald-400' : getCurrentLocation().tier===2 ? 'bg-amber-900/80 border-amber-500/50 text-amber-400' : 'bg-red-900/80 border-red-500/50 text-red-400'}`}>{getCurrentLocation().tier === 1 ? <Shield size={8}/> : <Skull size={8}/>} Tier {getCurrentLocation().tier}</span><div className="flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded border border-white/10"><span className="text-[9px] text-gray-400 font-bold uppercase mr-1">Quality</span><QualityStars quality={getCurrentLocation().quality} /></div></div>
-                        <h2 className="text-3xl font-serif font-bold text-white drop-shadow-md">{getCurrentLocation().name}</h2>
-                        <div className="text-sm text-gray-300 font-serif italic max-w-md drop-shadow-md mt-1">{getCurrentLocation().desc}</div>
+                    <div className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-auto z-10">
+                        <div className="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap"><span className={`text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded border uppercase flex items-center gap-1 ${getCurrentLocation().tier===1 ? 'bg-emerald-900/80 border-emerald-500/50 text-emerald-400' : getCurrentLocation().tier===2 ? 'bg-amber-900/80 border-amber-500/50 text-amber-400' : 'bg-red-900/80 border-red-500/50 text-red-400'}`}>{getCurrentLocation().tier === 1 ? <Shield size={8}/> : <Skull size={8}/>} T{getCurrentLocation().tier}</span><div className="flex items-center gap-1 bg-black/60 px-1.5 sm:px-2 py-0.5 rounded border border-white/10"><span className="text-[8px] sm:text-[9px] text-gray-400 font-bold uppercase mr-1">Q</span><QualityStars quality={getCurrentLocation().quality} /></div></div>
+                        <h2 className="text-lg sm:text-2xl md:text-3xl font-serif font-bold text-white drop-shadow-md">{getCurrentLocation().name}</h2>
+                        <div className="text-xs sm:text-sm text-gray-300 font-serif italic max-w-[200px] sm:max-w-md drop-shadow-md mt-1 line-clamp-2 sm:line-clamp-none">{getCurrentLocation().desc}</div>
                         
                         {/* ZONE INFO PANEL - Monster info for combat zones */}
                         {!getCurrentLocation().safeZone && bestiaryMap[`${coords.x},${coords.y}`] && (
-                          <div className="mt-3">
+                          <div className="mt-2 sm:mt-3 hidden sm:block">
                             <ZoneInfoPanel 
                               coords={coords} 
                               playerLevel={player.level} 
@@ -5272,7 +5321,7 @@ const App = () => {
                         
                         {/* QUEST TRACKER */}
                         {player.questLog?.active && player.questLog.active.length > 0 && (
-                          <div className="mt-3">
+                          <div className="mt-2 sm:mt-3 hidden sm:block">
                             <QuestHudTracker 
                               activeQuests={player.questLog.active}
                               maxDisplay={2}
@@ -5285,19 +5334,19 @@ const App = () => {
                         {/* MAIN QUEST PROMPT - Show when player has no active quests */}
                         {(!player.questLog?.active || player.questLog.active.length === 0) && 
                          (!player.questLog?.completed || player.questLog.completed.length === 0) && (
-                          <div className="mt-3 bg-gradient-to-r from-yellow-900/80 to-amber-900/60 border border-yellow-500/50 rounded-lg p-3 max-w-xs animate-pulse">
-                            <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm mb-1">
-                              <Star size={16} /> Begin Your Journey
+                          <div className="mt-2 sm:mt-3 bg-gradient-to-r from-yellow-900/80 to-amber-900/60 border border-yellow-500/50 rounded-lg p-2 sm:p-3 max-w-[200px] sm:max-w-xs animate-pulse hidden sm:block">
+                            <div className="flex items-center gap-2 text-yellow-400 font-bold text-xs sm:text-sm mb-1">
+                              <Star size={14} /> Begin Your Journey
                             </div>
-                            <p className="text-xs text-yellow-200/80">
-                              Visit <span className="text-yellow-400 font-bold">Elder Qingfeng</span> at the Main Hall to start your cultivation path!
+                            <p className="text-[10px] sm:text-xs text-yellow-200/80">
+                              Visit <span className="text-yellow-400 font-bold">Elder Qingfeng</span> to start!
                             </p>
                           </div>
                         )}
                     </div>
                     
-                    {/* MINI MAP & QUICK ACCESS PANEL */}
-                    <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-3">
+                    {/* MINI MAP & QUICK ACCESS PANEL - Hidden on Mobile */}
+                    <div className="absolute top-4 right-4 z-10 flex-col items-end gap-3 hidden md:flex">
                         {/* Mini Map */}
                         <div className="bg-black/80 p-1 rounded border border-white/10">
                             <MiniMap />
@@ -6339,7 +6388,7 @@ const App = () => {
                     
                     {/* SLASH EFFECT when attacking */}
                     {combatAnimations.playerAttacking && (
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 pointer-events-none z-30">
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-48 sm:w-96 h-16 sm:h-32 pointer-events-none z-30">
                             <div 
                                 className="w-full h-full animate-slash-effect"
                                 style={{
@@ -6355,13 +6404,13 @@ const App = () => {
                     <div 
                         className="absolute pointer-events-auto"
                         style={{
-                            left: '5%',
-                            bottom: '200px',
+                            left: '3%',
+                            bottom: 'max(100px, 25%)',
                             zIndex: combatAnimations.playerAttacking ? 15 : 10,
                             transform: combatAnimations.playerAttacking 
-                                ? 'translateX(80px) scale(1.1)' 
+                                ? 'translateX(40px) scale(1.1)' 
                                 : combatAnimations.playerHit 
-                                ? 'translateX(-20px) scale(0.95)'
+                                ? 'translateX(-10px) scale(0.95)'
                                 : 'translateX(0) scale(1)',
                             transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                             animation: !combatAnimations.playerAttacking && !combatAnimations.playerHit 
@@ -6371,7 +6420,7 @@ const App = () => {
                         >
                             <img 
                                 src={player.selectedClass ? getPlayerSprite(player.selectedClass) : player.avatar} 
-                                className="h-64 lg:h-80 w-auto object-contain"
+                                className="h-32 sm:h-48 md:h-64 lg:h-80 w-auto object-contain max-w-[40vw]"
                                 style={{ 
                                     filter: combatAnimations.playerHit 
                                         ? 'brightness(2) saturate(0.3)' 
@@ -6385,7 +6434,7 @@ const App = () => {
                             
                             {/* Shadow/Glow under character */}
                             <div 
-                                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-28 h-6 rounded-full blur-lg"
+                                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 sm:w-28 h-4 sm:h-6 rounded-full blur-lg"
                                 style={{
                                     backgroundColor: combatAnimations.playerAttacking 
                                         ? 'rgba(234, 179, 8, 0.6)' 
@@ -6396,7 +6445,7 @@ const App = () => {
                             />
                             
                             {/* Green selection ring (like Broken Ranks) */}
-                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-24 h-8">
+                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-16 sm:w-24 h-6 sm:h-8">
                                 <div className="w-full h-full border-2 border-green-500/60 rounded-[50%] animate-pulse" 
                                     style={{ boxShadow: '0 0 15px rgba(34, 197, 94, 0.5)' }}
                                 />
@@ -6443,13 +6492,13 @@ const App = () => {
                     <div 
                         className="absolute pointer-events-auto"
                         style={{
-                            right: '5%',
-                            bottom: '200px',
+                            right: '3%',
+                            bottom: 'max(100px, 25%)',
                             zIndex: combatAnimations.enemyAttacking ? 15 : 10,
                             transform: combatAnimations.enemyAttacking 
-                                ? 'translateX(-80px) scale(1.1)' 
+                                ? 'translateX(-40px) scale(1.1)' 
                                 : combatAnimations.enemyHit 
-                                ? 'translateX(20px) scale(0.95)'
+                                ? 'translateX(10px) scale(0.95)'
                                 : 'translateX(0) scale(1)',
                             transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                             animation: !combatAnimations.enemyAttacking && !combatAnimations.enemyHit 
@@ -6459,7 +6508,7 @@ const App = () => {
                     >
                         <img 
                             src={getMobSprite(combat.mob.id)} 
-                            className="h-64 lg:h-80 w-auto object-contain"
+                            className="h-32 sm:h-48 md:h-64 lg:h-80 w-auto object-contain max-w-[40vw]"
                             style={{ 
                                 filter: combatAnimations.enemyHit 
                                     ? 'brightness(2) saturate(0.3)' 
@@ -6471,7 +6520,7 @@ const App = () => {
                         
                         {/* Shadow/Glow under character */}
                         <div 
-                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-28 h-6 rounded-full blur-lg"
+                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 sm:w-28 h-4 sm:h-6 rounded-full blur-lg"
                                 style={{
                                     backgroundColor: combatAnimations.enemyAttacking 
                                         ? 'rgba(234, 88, 12, 0.6)' 
@@ -6482,14 +6531,14 @@ const App = () => {
                             />
                             
                             {/* Red selection ring (enemy) */}
-                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-24 h-8">
+                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-16 sm:w-24 h-6 sm:h-8">
                                 <div className="w-full h-full border-2 border-red-500/60 rounded-[50%] animate-pulse" 
                                     style={{ boxShadow: '0 0 15px rgba(239, 68, 68, 0.5)' }}
                                 />
                             </div>
                             
                             {/* Level badge */}
-                            <div className="absolute -top-2 -right-2 bg-gradient-to-br from-red-600 to-red-900 text-white text-xs font-bold px-2 py-1 rounded-full border-2 border-red-400 shadow-lg">
+                            <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 bg-gradient-to-br from-red-600 to-red-900 text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full border-2 border-red-400 shadow-lg">
                                 Lv.{combat.mob.level}
                             </div>
                             

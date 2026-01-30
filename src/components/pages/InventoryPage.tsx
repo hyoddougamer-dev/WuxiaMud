@@ -109,70 +109,70 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-auto">
       {/* LEFT: Resources & Filters */}
-      <aside className="w-64 bg-[#0a0c10] border-r border-[#2a2f3a] p-4 flex flex-col gap-4 overflow-y-auto">
-        {/* Wealth */}
+      <aside className="w-full md:w-56 lg:w-64 bg-[#0a0c10] border-b md:border-b-0 md:border-r border-[#2a2f3a] p-3 md:p-4 flex flex-col gap-3 md:gap-4 overflow-visible md:overflow-y-auto flex-shrink-0">
+        {/* Wealth - Horizontal on Mobile */}
         <div>
-          <div className="flex items-center gap-2 border-b border-[#2a2f3a] pb-2 mb-3">
+          <div className="flex items-center gap-2 border-b border-[#2a2f3a] pb-2 mb-2 md:mb-3">
             <Coins size={14} className="text-amber-500" />
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Wealth</h3>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 bg-[#151820] p-3 rounded-lg border border-white/5">
+          <div className="flex md:flex-col gap-2 md:space-y-2">
+            <div className="flex items-center gap-2 md:gap-3 bg-[#151820] p-2 md:p-3 rounded-lg border border-white/5 flex-1">
               <SpiritStoneIcon size="md" />
               <div>
-                <div className="text-[10px] text-gray-500">Spirit Stones</div>
-                <div className="text-lg font-bold text-cyan-400">{spiritStones.toLocaleString()}</div>
+                <div className="text-[9px] md:text-[10px] text-gray-500">Spirit Stones</div>
+                <div className="text-sm md:text-lg font-bold text-cyan-400">{spiritStones.toLocaleString()}</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 bg-[#151820] p-3 rounded-lg border border-white/5">
+            <div className="flex items-center gap-2 md:gap-3 bg-[#151820] p-2 md:p-3 rounded-lg border border-white/5 flex-1">
               <Scroll size={16} className="text-purple-400" />
               <div>
-                <div className="text-[10px] text-gray-500">Contribution</div>
-                <div className="text-lg font-bold text-purple-400">{contribution.toLocaleString()}</div>
+                <div className="text-[9px] md:text-[10px] text-gray-500">Contribution</div>
+                <div className="text-sm md:text-lg font-bold text-purple-400">{contribution.toLocaleString()}</div>
               </div>
             </div>
           </div>
         </div>
         
-        {/* Filters */}
+        {/* Filters - Horizontal scroll on mobile */}
         <div>
-          <div className="border-b border-[#2a2f3a] pb-2 mb-3">
+          <div className="border-b border-[#2a2f3a] pb-2 mb-2 md:mb-3">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filters</h3>
           </div>
-          <div className="space-y-1">
+          <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible scrollbar-hide pb-1 md:pb-0 md:space-y-1">
             <button 
               onClick={() => setFilter('all')} 
-              className={`w-full text-left px-3 py-2 rounded text-sm ${filter === 'all' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'text-gray-400 hover:bg-white/5'}`}
+              className={`whitespace-nowrap text-left px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm flex-shrink-0 md:w-full ${filter === 'all' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'text-gray-400 hover:bg-white/5 border border-transparent'}`}
             >
-              All Items ({inventory.length})
+              All ({inventory.length})
             </button>
             <button 
               onClick={() => setFilter('gear')} 
-              className={`w-full text-left px-3 py-2 rounded text-sm ${filter === 'gear' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30' : 'text-gray-400 hover:bg-white/5'}`}
+              className={`whitespace-nowrap text-left px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm flex-shrink-0 md:w-full ${filter === 'gear' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30' : 'text-gray-400 hover:bg-white/5 border border-transparent'}`}
             >
               Gear ({gearItems.length})
             </button>
             <button 
               onClick={() => setFilter('material')} 
-              className={`w-full text-left px-3 py-2 rounded text-sm ${filter === 'material' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:bg-white/5'}`}
+              className={`whitespace-nowrap text-left px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm flex-shrink-0 md:w-full ${filter === 'material' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:bg-white/5 border border-transparent'}`}
             >
               Materials ({materialItems.length})
             </button>
             <button 
               onClick={() => setFilter('junk')} 
-              className={`w-full text-left px-3 py-2 rounded text-sm ${filter === 'junk' ? 'bg-gray-600/20 text-gray-300 border border-gray-500/30' : 'text-gray-400 hover:bg-white/5'}`}
+              className={`whitespace-nowrap text-left px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm flex-shrink-0 md:w-full ${filter === 'junk' ? 'bg-gray-600/20 text-gray-300 border border-gray-500/30' : 'text-gray-400 hover:bg-white/5 border border-transparent'}`}
             >
               Junk ({junkItems.length})
             </button>
             <button 
               onClick={() => setFilter('quest')} 
-              className={`w-full text-left px-3 py-2 rounded text-sm ${filter === 'quest' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'text-gray-400 hover:bg-white/5'}`}
+              className={`whitespace-nowrap text-left px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm flex-shrink-0 md:w-full ${filter === 'quest' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'text-gray-400 hover:bg-white/5 border border-transparent'}`}
             >
-              <span className="flex items-center gap-2">
-                <ScrollText size={14} className="text-amber-500" />
-                Quest Items ({questItems.length})
+              <span className="flex items-center gap-1 md:gap-2">
+                <ScrollText size={12} className="text-amber-500" />
+                Quest ({questItems.length})
               </span>
             </button>
           </div>
@@ -216,38 +216,38 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({
       </aside>
 
       {/* CENTER: Inventory/Bank Grid */}
-      <main className="flex-1 flex flex-col p-6 overflow-y-auto">
-        <div className="flex justify-between items-center border-b border-[#2a2f3a] pb-4 mb-4">
-          <div className="flex items-center gap-4">
+      <main className="flex-1 flex flex-col p-3 md:p-6 overflow-y-auto">
+        <div className="flex flex-wrap justify-between items-center border-b border-[#2a2f3a] pb-3 md:pb-4 mb-3 md:mb-4 gap-2">
+          <div className="flex items-center gap-1 md:gap-4 overflow-x-auto scrollbar-hide">
             <button 
               onClick={() => setViewMode('inventory')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'inventory' ? 'bg-green-600/20 border border-green-500/30' : 'text-gray-500 hover:text-white'}`}
+              className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 rounded-lg transition-all flex-shrink-0 ${viewMode === 'inventory' ? 'bg-green-600/20 border border-green-500/30' : 'text-gray-500 hover:text-white'}`}
             >
-              <Package size={20} className={viewMode === 'inventory' ? 'text-green-400' : 'text-gray-500'} />
-              <span className={`font-serif font-bold ${viewMode === 'inventory' ? 'text-green-400' : 'text-gray-500'}`}>Inventory</span>
+              <Package size={16} className={viewMode === 'inventory' ? 'text-green-400' : 'text-gray-500'} />
+              <span className={`font-serif font-bold text-xs md:text-sm ${viewMode === 'inventory' ? 'text-green-400' : 'text-gray-500'}`}>Inventory</span>
             </button>
             <button 
               onClick={() => setViewMode('bank')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'bank' ? 'bg-amber-600/20 border border-amber-500/30' : 'text-gray-500 hover:text-white'}`}
+              className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 rounded-lg transition-all flex-shrink-0 ${viewMode === 'bank' ? 'bg-amber-600/20 border border-amber-500/30' : 'text-gray-500 hover:text-white'}`}
             >
-              <Landmark size={20} className={viewMode === 'bank' ? 'text-amber-400' : 'text-gray-500'} />
-              <span className={`font-serif font-bold ${viewMode === 'bank' ? 'text-amber-400' : 'text-gray-500'}`}>Personal Vault</span>
+              <Landmark size={16} className={viewMode === 'bank' ? 'text-amber-400' : 'text-gray-500'} />
+              <span className={`font-serif font-bold text-xs md:text-sm ${viewMode === 'bank' ? 'text-amber-400' : 'text-gray-500'}`}>Vault</span>
             </button>
             <button 
               onClick={() => setViewMode('vendor')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'vendor' ? 'bg-green-600/20 border border-green-500/30' : 'text-gray-500 hover:text-white'}`}
+              className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 rounded-lg transition-all flex-shrink-0 ${viewMode === 'vendor' ? 'bg-green-600/20 border border-green-500/30' : 'text-gray-500 hover:text-white'}`}
             >
-              <ShoppingBag size={20} className={viewMode === 'vendor' ? 'text-green-400' : 'text-gray-500'} />
-              <span className={`font-serif font-bold ${viewMode === 'vendor' ? 'text-green-400' : 'text-gray-500'}`}>Vendor</span>
+              <ShoppingBag size={16} className={viewMode === 'vendor' ? 'text-green-400' : 'text-gray-500'} />
+              <span className={`font-serif font-bold text-xs md:text-sm ${viewMode === 'vendor' ? 'text-green-400' : 'text-gray-500'}`}>Sell</span>
               {junkItems.length > 0 && (
-                <span className="px-2 py-0.5 bg-green-500/20 rounded-full text-[10px] text-green-400">{junkItems.length}</span>
+                <span className="px-1.5 md:px-2 py-0.5 bg-green-500/20 rounded-full text-[8px] md:text-[10px] text-green-400">{junkItems.length}</span>
               )}
             </button>
             <button 
               onClick={() => setViewMode('quest')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'quest' ? 'bg-amber-600/20 border border-amber-500/30' : 'text-gray-500 hover:text-white'}`}
+              className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 rounded-lg transition-all flex-shrink-0 ${viewMode === 'quest' ? 'bg-amber-600/20 border border-amber-500/30' : 'text-gray-500 hover:text-white'}`}
             >
-              <ScrollText size={20} className={viewMode === 'quest' ? 'text-amber-400' : 'text-gray-500'} />
+              <ScrollText size={16} className={viewMode === 'quest' ? 'text-amber-400' : 'text-gray-500'} />
               <span className={`font-serif font-bold ${viewMode === 'quest' ? 'text-amber-400' : 'text-gray-500'}`}>Quest Items</span>
               {questItems.length > 0 && (
                 <span className="px-2 py-0.5 bg-amber-500/20 rounded-full text-[10px] text-amber-400">{questItems.length}</span>

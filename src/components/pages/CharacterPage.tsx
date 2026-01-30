@@ -251,20 +251,20 @@ export const CharacterPage: React.FC<CharacterPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-auto">
       {/* LEFT: Base Attributes + Combat Stats */}
-      <aside className="w-80 bg-[#0a0c10] border-r border-[#2a2f3a] p-4 flex flex-col gap-4 overflow-y-auto">
+      <aside className="w-full md:w-72 lg:w-80 bg-[#0a0c10] border-b md:border-b-0 md:border-r border-[#2a2f3a] p-3 md:p-4 flex flex-col gap-3 md:gap-4 overflow-visible md:overflow-y-auto flex-shrink-0">
         {/* Player Header */}
-        <div className="flex items-center gap-3 p-3 bg-[#151820] rounded-lg border border-[#2a2f3a]">
-          <div className="w-12 h-12 bg-gradient-to-br from-amber-600 to-amber-800 rounded-full flex items-center justify-center text-2xl">
+        <div className="flex items-center gap-3 p-2 md:p-3 bg-[#151820] rounded-lg border border-[#2a2f3a]">
+          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-600 to-amber-800 rounded-full flex items-center justify-center text-2xl flex-shrink-0">
             {player.avatar ? <img src={player.avatar} className="w-full h-full rounded-full object-cover" /> : <User size={24} className="text-white" />}
           </div>
-          <div>
-            <h2 className="text-lg font-serif font-bold text-amber-400">{player.name}</h2>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base md:text-lg font-serif font-bold text-amber-400 truncate">{player.name}</h2>
             <div className="flex items-center gap-2 text-[10px] text-gray-400">
               <span>Lv.{player.level}</span>
               <span>•</span>
-              <span className="text-purple-300">{player.realm}</span>
+              <span className="text-purple-300 truncate">{player.realm}</span>
             </div>
           </div>
         </div>
@@ -347,14 +347,14 @@ export const CharacterPage: React.FC<CharacterPageProps> = ({
       </aside>
 
       {/* CENTER: Martial Path + Skills */}
-      <main className="flex-1 flex flex-col p-6 overflow-y-auto bg-gradient-to-b from-[#0a0c10] to-[#050608]">
+      <main className="flex-1 flex flex-col p-3 md:p-6 overflow-y-auto bg-gradient-to-b from-[#0a0c10] to-[#050608]">
         {/* Martial Path */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center border-b border-[#2a2f3a] pb-2 mb-4">
-            <h3 className="flex items-center gap-2 text-lg font-serif font-bold text-amber-400">
+        <div className="mb-4 md:mb-6">
+          <div className="flex flex-wrap justify-between items-center border-b border-[#2a2f3a] pb-2 mb-3 md:mb-4 gap-2">
+            <h3 className="flex items-center gap-2 text-base md:text-lg font-serif font-bold text-amber-400">
               <Sword size={18} /> Martial Path
             </h3>
-            <button onClick={onOpenClassSelector} className="text-sm text-amber-500 hover:text-amber-300 font-bold px-3 py-1 bg-amber-600/10 border border-amber-500/30 rounded hover:bg-amber-600/20 transition-all">
+            <button onClick={onOpenClassSelector} className="text-xs md:text-sm text-amber-500 hover:text-amber-300 font-bold px-2 md:px-3 py-1 bg-amber-600/10 border border-amber-500/30 rounded hover:bg-amber-600/20 transition-all">
               {currentClass ? 'Change Path' : 'Select Path'}
             </button>
           </div>
