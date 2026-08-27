@@ -15,7 +15,7 @@ números, é o mesmo número passar a custar alguma coisa.
 
 ---
 
-## Fase 0 · Parar de repetir o mesmo dia
+## Fase 0 · Parar de repetir o mesmo dia — ✅ feita (1.5.0)
 *meia sessão*
 
 Antes de tudo, porque mina qualquer conteúdo que venha depois. A seed é
@@ -28,7 +28,7 @@ modo que a use.
 
 ---
 
-## Fase 1 · O mundo deixa de ser um número
+## Fase 1 · O mundo deixa de ser um número — ✅ feita (1.5.0)
 *3–4 sessões · a maior*
 
 Responde a «o mundo». Hoje uma estrada é vida ×1,38 e um nome bonito. Passa a
@@ -61,6 +61,19 @@ valem mais que oito ocas.
   sítios com nome, regra e o que cai lá.
 
 → **Sai APK.** Pela primeira vez há um mundo, e uma razão para escolher parte dele.
+
+**O que saiu, contra o que estava escrito.** Cinco regiões com nomes próprios,
+13 inimigos novos (previa ~12), 5 bosses, tabelas de drop por região sem nenhum
+item partilhado entre elas, e o seletor passou a mapa. Dois desvios: o pântano
+abranda 15%, mas a escarpa ganhou vento que **roda** em vez de empurrar sempre
+para o mesmo lado — um empurrão fixo aprende-se numa corrida e deixa de ser
+regra. E o mercado divide **uma** vez em vez de duas, porque a dois a região era
+uma parede de 22 segundos. Ambos medidos em `tools/regions.mts`, não estimados.
+
+**Um erro meu que vale registar.** Pus vida ×0,4 por degrau *e* bestiários
+pesados por região, a multiplicar um pelo outro. Uma personagem de nível
+apropriado fazia literalmente zero mortes no passo. Passou para ×0,18: um sítio
+é difícil pelo que lá vive, o multiplicador só inclina a balança.
 
 ---
 
