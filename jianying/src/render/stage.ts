@@ -16,6 +16,8 @@ export interface Stage {
   overlay: Container
   width: number
   height: number
+  /** 'webgl' | 'webgpu' — surfaced on the HUD so a device fallback is visible. */
+  rendererType: string
 }
 
 export async function createStage(host: HTMLElement): Promise<Stage> {
@@ -59,6 +61,7 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     overlay,
     width: app.screen.width,
     height: app.screen.height,
+    rendererType: app.renderer.name ?? 'unknown',
   }
 
   const onResize = () => {

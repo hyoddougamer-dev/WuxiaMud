@@ -8,6 +8,7 @@
  * a description and need to be looked at on a real screen.
  */
 import { Container, Graphics } from 'pixi.js'
+import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng } from './core/rng'
 import { easing, expDecay, lerp } from './core/tween'
@@ -16,6 +17,51 @@ import { palette } from './render/palette'
 import { createStage } from './render/stage'
 
 const BUILD = '0.1.0 · fase 0'
+
+/**
+ * Dismisses the native splash screen.
+ *
+ * Forgetting this is what made the first APK a black screen: the splash is a
+ * native view sitting ON TOP of the webview, so the game was running and
+ * rendering the whole time, entirely hidden behind it.
+ *
+ * Safe to call more than once, and a no-op in a browser where the plugin is
+ * not implemented — hence the swallowed error rather than a guard.
+ */
+async function hideSplash(): Promise<void> {
+  try {
+    await SplashScreen.hide()
+  } catch {
+    // Web build, or the plugin is unavailable. Nothing to hide.
+  }
+}
+
+/**
+ * Puts a failure on the screen instead of leaving a silent black rectangle.
+ *
+ * On a phone there is no console to open, so an uncaught error during boot is
+ * indistinguishable from a crash, a hang, or a blank canvas. Rendering the
+ * message is the only diagnostic channel that survives the trip to a device.
+ */
+function showFatal(err: unknown): void {
+  const bootScreen = document.getElementById('boot')
+  if (!bootScreen) return
+  bootScreen.classList.remove('gone')
+  bootScreen.style.opacity = '1'
+  bootScreen.innerHTML = ''
+
+  const title = document.createElement('div')
+  title.textContent = '剑影 não arrancou'
+  title.style.cssText = 'color:#c1272d;font-size:16px;margin-bottom:12px'
+
+  const detail = document.createElement('pre')
+  detail.textContent = err instanceof Error ? `${err.message}\n\n${err.stack ?? ''}` : String(err)
+  detail.style.cssText =
+    'color:#e8dcc0;font-size:11px;white-space:pre-wrap;word-break:break-word;' +
+    'max-width:88vw;max-height:70vh;overflow:auto;text-align:left;opacity:0.8'
+
+  bootScreen.append(title, detail)
+}
 
 async function boot(): Promise<void> {
   const host = document.getElementById('stage')!
@@ -186,7 +232,12 @@ async function boot(): Promise<void> {
   const hudTick = () => {
     hudTimer++
     if (hudTimer % 20 === 0) {
-      hud.textContent = `${loop.stats.fps} fps · ${Math.round(stage.width)}×${Math.round(stage.height)} · ${BUILD}`
+      // The renderer type is on the HUD deliberately: if a device ever falls
+      // back or fails, that single word is the difference between diagnosing it
+      // from a photo and guessing.
+      hud.textContent =
+        `${loop.stats.fps} fps · ${Math.round(stage.width)}×${Math.round(stage.height)} · ` +
+        `${stage.rendererType} · ${BUILD}`
     }
     requestAnimationFrame(hudTick)
   }
@@ -204,10 +255,23 @@ async function boot(): Promise<void> {
 
   // Signals to the screenshot harness that the first real frame is on screen.
   document.body.dataset.ready = '1'
+
+  // Only now, with a frame actually presented, is it safe to drop the splash.
+  await hideSplash()
 }
+
+// A watchdog independent of boot(): if the game hangs before ever reaching the
+// hide call, the splash still comes down and whatever is on the webview —
+// an error, a blank canvas — becomes visible and reportable.
+setTimeout(() => void hideSplash(), 4000)
 
 boot().catch((err) => {
   console.error(err)
-  const bootScreen = document.getElementById('boot')
-  if (bootScreen) bootScreen.textContent = String(err)
+  showFatal(err)
+  void hideSplash()
 })
+
+// Errors thrown after boot resolves (inside the loop, a plugin callback) would
+// otherwise leave a frozen picture with no explanation.
+window.addEventListener('error', (e) => showFatal(e.error ?? e.message))
+window.addEventListener('unhandledrejection', (e) => showFatal(e.reason))
