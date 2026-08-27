@@ -119,6 +119,14 @@
         opacity: 0;
         transition: opacity 420ms ease;
       }
+      /* A class selector beats the user-agent's [hidden] { display: none },
+         so `display: grid` above would keep this panel laid out even while
+         hidden — invisible at opacity 0, but still swallowing every touch
+         across the whole screen. That shipped once: the game ran and the
+         sword killed, but the joystick never received a single pointer. */
+      .over[hidden] {
+        display: none;
+      }
       .over.shown {
         opacity: 1;
       }

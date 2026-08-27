@@ -323,6 +323,13 @@ async function boot(): Promise<void> {
       hud.textContent =
         `${loop.stats.fps} fps · ${swarm.count} · ${stage.rendererType} · ${BUILD}`
       hint.style.opacity = joystick.idleTime() > 3 && !run.over ? '0.55' : '0'
+      // Published so the screenshot harness can assert that a synthetic drag
+      // actually moved the player. An invisible overlay once swallowed every
+      // touch on the device while the game itself kept running perfectly, and
+      // nothing in the pipeline noticed — a screenshot of a stationary
+      // character looks identical to a screenshot of a moving one.
+      document.body.dataset.px = String(Math.round(player.x))
+      document.body.dataset.py = String(Math.round(player.y))
     }
     requestAnimationFrame(hudTick)
   }

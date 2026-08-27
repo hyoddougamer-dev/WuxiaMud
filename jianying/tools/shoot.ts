@@ -136,8 +136,20 @@ async function main(): Promise<void> {
       [10, -75, 'cima'],
     ]
 
+    /** Player position as the page reports it, in world units. */
+    const readPos = async (): Promise<[number, number]> => {
+      const d = await page.evaluate(() => [
+        Number(document.body.dataset.px ?? '0'),
+        Number(document.body.dataset.py ?? '0'),
+      ])
+      return [d[0]!, d[1]!]
+    }
+
+    let moved = 0
     for (let i = 0; i < strides.length; i++) {
       const [dx, dy] = strides[i]!
+      const before = await readPos()
+
       await page.touchscreen.tap(cx, cy) // settle any prior gesture
       await page.mouse.move(cx, cy)
       await page.mouse.down()
@@ -147,7 +159,21 @@ async function main(): Promise<void> {
       await page.screenshot({ path: join(OUT, `frame-${i + 1}.png`) })
       await page.mouse.up()
       await page.waitForTimeout(250)
+
+      const after = await readPos()
+      moved = Math.max(moved, Math.hypot(after[0] - before[0], after[1] - before[1]))
     }
+
+    // A screenshot cannot tell a moving character from a stationary one, so
+    // input has to be asserted separately. It was not, and a full-screen
+    // invisible overlay that ate every touch shipped to a device: the game ran,
+    // the sword killed, and the player could not move a step.
+    if (moved < 20) {
+      console.error(`\ninput is not reaching the game — player moved ${moved.toFixed(1)} units`)
+      process.exitCode = 1
+      return
+    }
+    console.log(`input:  ok (moved ${moved.toFixed(0)} world units)`)
 
     await page.waitForTimeout(1500)
     const fps = await readFps(page)
