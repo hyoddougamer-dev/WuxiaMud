@@ -1,0 +1,103 @@
+name: Jianying · Android APK
+
+# The build machine that writes this game has no Android SDK and no route to
+# dl.google.com, so the APK cannot be produced there. GitHub's runners have
+# both, which makes this workflow the only path from source to something
+# installable — and the reason it is set up in phase 0, before any gameplay
+# exists, rather than left until the end.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+    paths:
+      - 'jianying/**'
+      - '.github/workflows/jianying-android.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: jianying
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jianying/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build web bundle
+        run: npx vite build
+
+      # Java 21 is what Android Gradle Plugin 8.7+ expects; 17 still works but
+      # warns, and the runner ships both.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Capacitor 8 generates a project on AGP 8.13 / Gradle 8.14.3 targeting
+      # compileSdk 36, so those components have to be present and licensed.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'tools platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Generate the native Android project
+        # android/ is not vendored — it is fully derived from capacitor.config.ts
+        # plus dist/, so generating it here keeps the repo free of a large tree
+        # of files nobody edits by hand. Guarded so a cached or pre-existing
+        # platform does not fail the run.
+        run: |
+          [ -d android ] || npx cap add android
+          npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: jianying/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Name the APK with the commit
+        id: rename
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "out/jianying-${GITHUB_SHA::7}.apk"
+          echo "name=jianying-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.rename.outputs.name }}
+          path: jianying/out/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "### APK pronto"
+            echo ""
+            echo "Descarrega \`${{ steps.rename.outputs.name }}\` na secção **Artifacts** desta execucao,"
+            echo "extrai o zip no telemovel e instala o APK."
+            echo ""
+            echo "E um build de debug, por isso o Android vai pedir para permitir"
+            echo "instalacao de fontes desconhecidas na primeira vez."
+          } >> "$GITHUB_STEP_SUMMARY"

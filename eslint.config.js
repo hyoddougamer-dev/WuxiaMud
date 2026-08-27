@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // jianying/ is a self-contained project with its own eslint config and its
+  // own TypeScript rules; linting it from here would apply the wrong ones.
+  globalIgnores(['dist', 'jianying']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

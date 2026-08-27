@@ -1,0 +1,9 @@
+node_modules/
+dist/
+shots/
+*.local
+.DS_Store
+
+# Capacitor generates the native project from capacitor.config.ts + dist.
+# CI runs `cap add android` on a clean checkout, so the platform is not vendored.
+android/
