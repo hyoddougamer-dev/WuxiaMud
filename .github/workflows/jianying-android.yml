@@ -87,19 +87,31 @@ jobs:
         env:
           PASSPHRASE: ${{ secrets.DEBUG_KEYSTORE_PASSPHRASE }}
         run: |
+          # This FAILS rather than warns when the passphrase is missing. The
+          # first version only warned, and the resulting APK looked completely
+          # healthy — green build, correct code inside — while being signed with
+          # a throwaway key, so it refused to install over the previous build and
+          # the phone silently kept running old code. A red build is far cheaper
+          # than that, and this is the only step that can detect it.
           if [ -z "$PASSPHRASE" ]; then
-            echo "::warning::DEBUG_KEYSTORE_PASSPHRASE nao esta definido."
-            echo "::warning::Este APK sera assinado com uma chave nova e NAO instala por cima do anterior."
-            exit 0
+            echo "::error::DEBUG_KEYSTORE_PASSPHRASE nao esta definido neste repositorio."
+            echo "::error::Sem ele o APK e assinado com uma chave nova e NAO instala por cima do anterior."
+            echo "::error::Define-o em Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
           fi
           mkdir -p "$HOME/.android"
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
             -in ci/debug.keystore.enc \
             -out "$HOME/.android/debug.keystore" \
             -pass "pass:$PASSPHRASE"
-          # Fail loudly rather than silently falling back to a fresh key.
-          keytool -list -keystore "$HOME/.android/debug.keystore" \
-            -storepass android -alias androiddebugkey > /dev/null
+          # The fingerprint is public information, and printing it is what makes
+          # "is this build signed with the stable key?" answerable from the log.
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey \
+            | grep "SHA256:" || {
+              echo "::error::A keystore desencriptou mas nao contem androiddebugkey."
+              exit 1
+            }
           echo "Keystore estavel restaurada."
 
       - name: Assemble debug APK
