@@ -21,14 +21,29 @@ faz:
 código  →  push  →  GitHub Actions  →  APK  →  telemóvel
 ```
 
-1. No telemóvel, abre o repositório no GitHub → separador **Actions**.
-2. Escolhe a execução mais recente de **Jianying · Android APK**.
-3. Em **Artifacts**, descarrega `jianying-<sha>`.
-4. Extrai o zip e abre o `.apk`. Na primeira vez o Android pede autorização para
-   instalar de fontes desconhecidas.
+**Link fixo, sempre a versão mais recente:**
 
-É um build de *debug*, não assinado para distribuição. A assinatura de release
-entra na Fase 6, com a keystore em GitHub Secrets.
+https://github.com/hyoddougamer-dev/WuxiaMud/releases/tag/jianying-latest
+
+1. Abre o link no telemóvel.
+2. Toca no ficheiro `.apk`.
+3. Na primeira vez, o Android pede autorização para instalar desta origem, e o
+   Play Protect avisa. É um build de *debug* não assinado para loja, por isso o
+   aviso é esperado — **Instalar mesmo assim**.
+
+Sem login e sem extrair zip. Cada build substitui o APK no mesmo link, por isso
+nunca é preciso procurar a execução certa.
+
+<details>
+<summary>Alternativa: o artifact da execução</summary>
+
+O mesmo APK fica também em **Actions → a execução → Artifacts**, mas isso é um
+zip e exige sessão iniciada — sete passos no telemóvel em vez de três. Só vale a
+pena para ir buscar um build antigo em concreto.
+
+</details>
+
+A assinatura de release entra na Fase 6, com a keystore em GitHub Secrets.
 
 ---
 

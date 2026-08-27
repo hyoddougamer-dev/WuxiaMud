@@ -24,6 +24,9 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Needed to publish the rolling release below. Nothing else is written.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -90,14 +93,49 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # A GitHub artifact is a zip and needs a logged-in session to fetch, which
+      # makes installing from a phone a seven-step chore. A release asset on a
+      # public repo is a direct .apk link with no login and no unzip — so the
+      # install becomes: open link, tap, install.
+      #
+      # The tag is fixed rather than per-commit, so the link never changes and
+      # each build replaces the previous APK in place.
+      - name: Publish the rolling install link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="jianying-latest"
+          APK="out/${{ steps.rename.outputs.name }}.apk"
+
+          NOTES=$(cat <<'MD'
+          APK de desenvolvimento do 剑影 Jiànyǐng, reconstruido a cada alteracao.
+          Este link e sempre o mais recente.
+
+          **Instalar:** toca no ficheiro `.apk` abaixo. Na primeira vez o Android
+          pede para permitires instalacao desta origem, e o Play Protect avisa —
+          e um build de debug nao assinado para loja, por isso o aviso e esperado.
+          MD
+          )
+
+          # `gh release create` fails if the tag already exists, so delete the
+          # previous release first. The tag itself is recreated by --target.
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" "$APK" \
+            --title "剑影 Jiànyǐng · build mais recente" \
+            --notes "$NOTES" \
+            --prerelease \
+            --target "$GITHUB_SHA"
+
       - name: Summary
         run: |
           {
             echo "### APK pronto"
             echo ""
-            echo "Descarrega \`${{ steps.rename.outputs.name }}\` na secção **Artifacts** desta execucao,"
-            echo "extrai o zip no telemovel e instala o APK."
+            echo "**Instala num toque:**"
+            echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/jianying-latest"
             echo ""
-            echo "E um build de debug, por isso o Android vai pedir para permitir"
-            echo "instalacao de fontes desconhecidas na primeira vez."
+            echo "Abre esse link no telemovel, toca no \`.apk\` e instala."
+            echo "Nao precisas de login nem de extrair zip nenhum."
+            echo ""
+            echo "O mesmo APK esta tambem em **Artifacts** como \`${{ steps.rename.outputs.name }}\`."
           } >> "$GITHUB_STEP_SUMMARY"
