@@ -1,39 +1,40 @@
 /**
- * Phase 0.3 — framed like the genre, driven by a thumb.
+ * Phase 1 — a game you can lose.
  *
- * The camera now owns framing. Until this version the figure's own scale
- * doubled as the zoom, so making the character readable also pinned the camera
- * right on top of it and the visible field shrank to almost nothing. A
- * survivors-like lives on seeing the swarm arrive, so the world is now measured
- * in world units and the camera decides how many of them fit on screen.
- *
- * Everything inside `stage.world` is therefore positioned in WORLD coordinates;
- * the container itself carries the camera transform. No manual world-to-screen
- * conversion is done anywhere below, which is what previously invited drift
- * between the character, its shadow and the ground.
+ * Enemies chase, the sword answers on its own, contact hurts, and the run ends.
+ * The one design decision worth recording here is that the blade aims at the
+ * nearest enemy rather than along the direction of travel. Aiming along
+ * movement was the original plan and the headless simulation killed it: enemies
+ * chase, so they sit BEHIND a moving player, and a forward arc swept empty
+ * ground for zero kills in every play style except standing perfectly still.
  */
 import { Container, Graphics } from 'pixi.js'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
-import { Rng } from './core/rng'
-import { clamp01, easing, expDecay, lerp } from './core/tween'
+import { Rng, dailySeed } from './core/rng'
+import { clamp01, easing, lerp } from './core/tween'
+import { ENEMY_KINDS } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
+import { buildEnemyArt } from './render/enemyArt'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
-import { palette } from './render/palette'
+import { mixColor, palette } from './render/palette'
 import { createStage } from './render/stage'
+import { Swarm } from './sim/enemies'
+import {
+  PLAYER_MAX_HP,
+  SLASH_HALF_ANGLE,
+  SLASH_RANGE,
+  SLASH_VISUAL,
+  createRun,
+  updateCombat,
+} from './sim/combat'
 import { createPlayer, MAX_SPEED, playerSpeedRatio, updatePlayer } from './sim/player'
+import { createHud } from './ui/hud'
 import { createJoystick } from './ui/joystick'
 import { strings } from './ui/strings'
 
-const BUILD = '0.3.0'
+const BUILD = '1.0.0'
 
-/**
- * Dismisses the native splash screen.
- *
- * Forgetting this is what made the first APK a black screen: the splash is a
- * native view sitting ON TOP of the webview, so the game was running and
- * rendering the whole time, entirely hidden behind it.
- */
 async function hideSplash(): Promise<void> {
   try {
     await SplashScreen.hide()
@@ -71,6 +72,7 @@ async function boot(): Promise<void> {
   const host = document.getElementById('stage')!
   const hud = document.getElementById('hud')!
   const hint = document.getElementById('hint')!
+  const uiRoot = document.getElementById('ui')!
   const bootScreen = document.getElementById('boot')!
 
   hint.textContent = strings.moveHint
@@ -78,27 +80,39 @@ async function boot(): Promise<void> {
   const stage = await createStage(host)
   const sashRng = new Rng(1337)
 
-  // The figure is built once in world units. Its on-screen size is now purely a
-  // function of camera zoom, which is what lets framing be tuned without
-  // redrawing anything.
   const figure = buildSwordsmanTopDown(7, 1)
   const bladeStrokes = buildBlade(2, 1)
+  const enemyArt = buildEnemyArt(ENEMY_KINDS)
 
   const player = createPlayer(0, 0)
   const camera = createCamera(0, 0)
+  const runSeed = dailySeed()
+  const swarm = new Swarm(new Rng(runSeed))
+  let run = createRun()
+
   resetCamera(camera, 0, 0)
   fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
+  const ui = createHud(uiRoot)
 
   // ---- Scene ------------------------------------------------------------
 
-  // A soft wash under the feet, outside the character container so the body's
-  // lean and bob do not distort it — a shadow that leans with its owner reads
-  // as wrong immediately.
+  // One Graphics for the whole swarm, cleared and redrawn each frame.
+  // Hundreds of individual display objects would cost more in transform and
+  // draw-call overhead than redrawing the geometry does.
+  const enemyGfx = new Graphics()
+  enemyGfx.zIndex = -2
+  stage.world.addChild(enemyGfx)
+
   const shadow = new Graphics()
   shadow.ellipse(0, 0, 15, 5).fill({ color: palette.inkSoft, alpha: 0.18 })
   shadow.zIndex = -1
   stage.world.addChild(shadow)
+
+  // The sweep, drawn as an ink wedge that fades over its short life.
+  const slashGfx = new Graphics()
+  slashGfx.zIndex = 1
+  stage.world.addChild(slashGfx)
 
   const character = new Container()
   const sashGfx = new Graphics()
@@ -116,41 +130,55 @@ async function boot(): Promise<void> {
     bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
   }
 
-  // Depth inside the character is dynamic, not fixed: a blade aimed away from
-  // the camera has to pass BEHIND the body, and a sash streaming toward the
-  // camera has to fall in FRONT of it. With a static order, aiming upward drew
-  // the sword straight through the swordsman's head.
+  // Depth inside the character is dynamic: a blade aimed away from the camera
+  // passes BEHIND the body, a sash streaming toward it falls in FRONT.
   character.sortableChildren = true
   bodyGfx.zIndex = 0
   character.addChild(sashGfx, bodyGfx, bladeGfx)
+  character.zIndex = 2
   stage.world.addChild(character)
 
   /** Chest height, in world units — where the blade pivots. */
   const BLADE_PIVOT_Y = -26
 
-  // Joystick ring, drawn in the overlay so the camera never moves or scales it.
   const stickGfx = new Graphics()
   stage.overlay.addChild(stickGfx)
 
   stage.app.renderer.on('resize', () => fitCamera(camera, stage.height))
 
+  // ---- Run lifecycle ----------------------------------------------------
+
+  let gameOverShown = false
+
+  const restart = (): void => {
+    player.x = 0
+    player.y = 0
+    player.prevX = 0
+    player.prevY = 0
+    player.vx = 0
+    player.vy = 0
+    swarm.reset(runSeed)
+    run = createRun()
+    resetCamera(camera, 0, 0)
+    gameOverShown = false
+    ui.hideGameOver()
+  }
+
   // ---- Simulation -------------------------------------------------------
 
   let time = 0
-  // Aim eases toward facing so the blade sweeps around rather than snapping.
-  let aimX = 1
-  let aimY = 0
 
   const update = (dt: number): void => {
     time += dt
     joystick.tick(dt)
 
+    if (run.over) return
+
     const { x: ix, y: iy } = joystick.state
     updatePlayer(player, ix, iy, dt)
+    swarm.update(player.x, player.y, run.elapsed, dt)
+    updateCombat(run, player, swarm, dt)
     updateCamera(camera, player, MAX_SPEED, dt)
-
-    aimX = expDecay(aimX, player.faceX, 0.07, dt)
-    aimY = expDecay(aimY, player.faceY, 0.07, dt)
   }
 
   // ---- Render -----------------------------------------------------------
@@ -161,22 +189,81 @@ async function boot(): Promise<void> {
     const zoom = camera.zoom
 
     // The world container carries the whole camera transform, so everything
-    // inside it can be positioned in plain world coordinates.
+    // inside it is positioned in plain world coordinates.
     stage.world.scale.set(zoom)
     stage.world.x = stage.width / 2 - camera.x * zoom
     stage.world.y = stage.height / 2 - camera.y * zoom
 
     const ratio = playerSpeedRatio(player)
-
-    // Gentle bob, faster when moving, so the figure is never frozen.
     const bobRate = 2.0 + ratio * 6
     const bob = Math.sin(time * bobRate) * (0.6 + ratio * 1.3)
 
+    // --- enemies -------------------------------------------------------
+    enemyGfx.clear()
+    for (let i = 0; i < swarm.pool.size; i++) {
+      const e = swarm.pool.at(i)
+      const ex = lerp(e.prevX, e.x, alpha)
+      const ey = lerp(e.prevY, e.y, alpha)
+      const art = enemyArt.get(e.kind.id)
+      if (!art) continue
+
+      // A struck enemy washes toward cinnabar. It is the only feedback in the
+      // build that a hit landed, and without it the swarm just thins silently.
+      const tint = e.hitFlash > 0 ? mixColor(palette.ink, palette.cinnabar, e.hitFlash / 0.12) : palette.ink
+      // Idle sway, phase-shifted per enemy so a crowd never pulses in unison.
+      const sway = Math.sin(time * 3.4 + e.phase) * 0.6
+
+      const push = (poly: number[], a: number): void => {
+        // Translate in place rather than using a container per enemy.
+        const moved = new Array<number>(poly.length)
+        for (let k = 0; k < poly.length; k += 2) {
+          moved[k] = poly[k]! + ex + sway
+          moved[k + 1] = poly[k + 1]! + ey
+        }
+        enemyGfx.poly(moved).fill({ color: tint, alpha: a })
+      }
+      for (const s of art.bleed) push(s.poly, s.alpha)
+      for (const s of art.body) push(s.poly, s.alpha)
+    }
+
+    // --- the sweep -----------------------------------------------------
+    slashGfx.clear()
+    if (run.slashVisual > 0) {
+      const life = run.slashVisual / SLASH_VISUAL
+      const angle = Math.atan2(run.slashAimY, run.slashAimX)
+      const ease = easing.outCubic(life)
+      // A filled wedge was the first attempt and it read as a spotlight: a
+      // 200-degree cone is most of the screen, and shading all of it buries the
+      // characters. A crescent traces the same reach as a brush mark instead —
+      // the edge of the sweep, not the area it covers.
+      const reach = SLASH_RANGE * (0.72 + 0.28 * ease)
+      const width = 15 * ease
+      const steps = 20
+
+      const outer: number[] = []
+      const inner: number[] = []
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps
+        const a = angle - SLASH_HALF_ANGLE + 2 * SLASH_HALF_ANGLE * t
+        // Thickest mid-sweep, tapering to nothing at both ends, the way a blade
+        // enters and leaves the arc.
+        const w = width * Math.sin(t * Math.PI)
+        const cos = Math.cos(a)
+        const sin = Math.sin(a)
+        outer.push(wx + cos * (reach + w * 0.5), wy + sin * (reach + w * 0.5))
+        inner.push(wx + cos * (reach - w * 0.5), wy + sin * (reach - w * 0.5))
+      }
+      const band = outer.slice()
+      for (let i = inner.length - 2; i >= 0; i -= 2) band.push(inner[i]!, inner[i + 1]!)
+      slashGfx.poly(band).fill({ color: palette.ink, alpha: 0.5 * life })
+    }
+
+    // --- character -----------------------------------------------------
     character.x = wx
     character.y = wy + bob
-    // A slight lean into travel. No mirroring: the figure is symmetric, which
-    // is what removes the squash-through-zero the side profile suffered.
     character.rotation = clamp01(ratio) * (player.vx / MAX_SPEED) * 0.13
+    // Flash the swordsman while immune, so being hit is legible.
+    character.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
 
     shadow.x = wx
     shadow.y = wy
@@ -184,16 +271,13 @@ async function boot(): Promise<void> {
     shadow.scale.set(0.88 + lift * 0.16)
     shadow.alpha = 0.7 + lift * 0.3
 
-    // Blade points where the player is heading.
+    const aimX = run.aimX
+    const aimY = run.aimY
     bladeGfx.rotation = Math.atan2(aimY, aimX)
     bladeGfx.y = BLADE_PIVOT_Y
-    // Foreshortening: aimed sideways the blade shows its full length, aimed
-    // toward or away from the camera it is mostly pointing at the viewer and
-    // should read as short. Scaling local x shortens it along its own axis.
     bladeGfx.scale.x = 0.5 + 0.5 * Math.abs(aimX)
     bladeGfx.zIndex = aimY < 0 ? -1 : 2
 
-    // Sash streams opposite to travel.
     sashRng.snapshot = 1337
     const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * MAX_SPEED, 1)
     const poly = sashPoly(spine, sashRng, 1)
@@ -203,16 +287,20 @@ async function boot(): Promise<void> {
     }
     sashGfx.zIndex = -aimY > 0 ? 3 : -2
 
-    // The ground is the world seen through the same lens, so it scrolls AND
-    // scales with the camera. Scrolling it without scaling would make the paper
-    // grain drift at a different rate from everything standing on it.
+    // --- ground --------------------------------------------------------
     stage.ground.tileScale.set(zoom)
     stage.ground.tilePosition.x = -camera.x * zoom
     stage.ground.tilePosition.y = -camera.y * zoom
 
-    // Joystick, in screen space.
+    // --- ui ------------------------------------------------------------
+    ui.update(run.hp, PLAYER_MAX_HP, run.elapsed, run.kills)
+    if (run.over && !gameOverShown) {
+      gameOverShown = true
+      ui.showGameOver(run.elapsed, run.kills, restart)
+    }
+
     stickGfx.clear()
-    if (joystick.state.active) {
+    if (joystick.state.active && !run.over) {
       const s = joystick.state
       stickGfx
         .circle(s.originX, s.originY, 54)
@@ -224,8 +312,6 @@ async function boot(): Promise<void> {
   const loop = new GameLoop({ update, render })
   loop.start()
 
-  // Android suspends rAF in the background; without this the first frame back
-  // would simulate the entire time the app was away.
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) loop.resetClock()
   })
@@ -234,19 +320,14 @@ async function boot(): Promise<void> {
   const hudTick = (): void => {
     hudTimer++
     if (hudTimer % 20 === 0) {
-      // The renderer type is on the HUD deliberately: if a device ever falls
-      // back or fails, that single word is the difference between diagnosing it
-      // from a photo and guessing.
       hud.textContent =
-        `${loop.stats.fps} fps · ${Math.round(stage.width)}×${Math.round(stage.height)} · ` +
-        `${stage.rendererType} · ${BUILD}`
-      hint.style.opacity = joystick.idleTime() > 3 ? '0.55' : '0'
+        `${loop.stats.fps} fps · ${swarm.count} · ${stage.rendererType} · ${BUILD}`
+      hint.style.opacity = joystick.idleTime() > 3 && !run.over ? '0.55' : '0'
     }
     requestAnimationFrame(hudTick)
   }
   hudTick()
 
-  // Fade the boot seal out on an ease, not a cut.
   const fadeStart = performance.now()
   const fade = (): void => {
     const t = Math.min(1, (performance.now() - fadeStart) / 620)
@@ -256,10 +337,7 @@ async function boot(): Promise<void> {
   }
   requestAnimationFrame(fade)
 
-  // Signals to the screenshot harness that the first real frame is on screen.
   document.body.dataset.ready = '1'
-
-  // Only now, with a frame actually presented, is it safe to drop the splash.
   await hideSplash()
 }
 
@@ -274,7 +352,5 @@ boot().catch((err) => {
   void hideSplash()
 })
 
-// Errors thrown after boot resolves (inside the loop, a plugin callback) would
-// otherwise leave a frozen picture with no explanation.
 window.addEventListener('error', (e) => showFatal(e.error ?? e.message))
 window.addEventListener('unhandledrejection', (e) => showFatal(e.reason))

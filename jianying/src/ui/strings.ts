@@ -11,6 +11,11 @@ export const strings = {
   moveHint: 'drag anywhere to move',
   /** Title on the fatal-error screen. */
   fatalTitle: 'Jiànyǐng failed to start',
+  /** End-of-run screen. */
+  runOver: 'Your road ends here',
+  survived: 'Survived',
+  felled: 'Felled',
+  again: 'Walk it again',
 } as const
 
 export type StringKey = keyof typeof strings
