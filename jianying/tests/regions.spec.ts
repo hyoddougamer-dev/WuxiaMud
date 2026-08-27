@@ -195,6 +195,24 @@ describe('the market makes everything come apart', () => {
     expect(swarm.count).toBe(effigy.splitCount! + region('market').rule.splitAll!)
   })
 
+  it('marks what it produces as a splinter, so the place cannot pay for itself', () => {
+    // Loot is rolled once per corpse. A region that manufactures corpses would
+    // therefore pay roughly two and a half times the equipment of anywhere else
+    // at the same depth — rewarding exactly the habit the Ghost Market exists
+    // to punish. Splinters are flagged here and refused a roll in combat.
+    const swarm = new Swarm(new Rng(3), region('market'))
+    const leech = KIND_BY_ID.get('leech')!
+    const parent = swarm.place(leech, 0, 0, 0)!
+    expect(parent.splinter).toBe(false)
+
+    swarm.splitOnDeath(parent, 0)
+    swarm.kill(0)
+    expect(swarm.count).toBeGreaterThan(0)
+    for (let i = 0; i < swarm.count; i++) {
+      expect(swarm.pool.at(i).splinter).toBe(true)
+    }
+  })
+
   it('does not split the scraps, so a kill cannot cascade forever', () => {
     const swarm = new Swarm(new Rng(3), region('market'))
     const scrap = KIND_BY_ID.get('scrap')!

@@ -74,6 +74,20 @@ export interface Enemy {
   /** Locked direction, used by the charger's dash and the darter's weave. */
   dirX: number
   dirY: number
+  /**
+   * True when this arrived by something else coming apart, rather than walking
+   * in from the ring.
+   *
+   * It exists for exactly one reason: a splinter must not roll for equipment.
+   * Loot is rolled per corpse, so without this the Ghost Market — where the
+   * region rule splits everything — pays roughly two and a half times the loot
+   * of anywhere else at the same depth, purely because it manufactures corpses.
+   * That rewards the behaviour the place was built to punish: its whole rule is
+   * that killing is not automatically right, and paying extra for each cut says
+   * the opposite. Qi is deliberately left alone — a scrap is worth 1, which is
+   * a rounding error, and stripping it would make the market unlevellable.
+   */
+  splinter: boolean
 }
 
 const GRID_CELL = 28
@@ -150,6 +164,7 @@ export class Swarm {
         state: CHARGE_IDLE,
         dirX: 1,
         dirY: 0,
+        splinter: false,
       }),
       (e) => {
         e.hp = 1
@@ -193,7 +208,13 @@ export class Swarm {
   }
 
   /** Places one enemy of `kind` at a world position. Returns it, or null. */
-  place(kind: EnemyKind, x: number, y: number, elapsed: number): Enemy | null {
+  place(
+    kind: EnemyKind,
+    x: number,
+    y: number,
+    elapsed: number,
+    splinter = false,
+  ): Enemy | null {
     const e = this.pool.spawn()
     if (!e) return null
     e.x = x
@@ -209,6 +230,7 @@ export class Swarm {
     // Staggered, so a wave of shooters does not volley in perfect unison.
     e.timer = this.rng.range(0, kind.fireInterval ?? 1)
     e.state = CHARGE_IDLE
+    e.splinter = splinter
     const a = this.rng.next() * Math.PI * 2
     e.dirX = Math.cos(a)
     e.dirY = Math.sin(a)
@@ -255,7 +277,7 @@ export class Swarm {
       if (!child) return
       for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + this.rng.next()
-        this.place(child, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, elapsed)
+        this.place(child, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, elapsed, true)
       }
     }
 

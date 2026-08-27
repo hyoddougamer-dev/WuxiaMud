@@ -235,9 +235,12 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   // Equipment, rarely — and always from the body, before the pool recycles it.
   // A boss never leaves empty-handed: a fight that long resolving into the same
   // nothing as a bandit is the surest way to make it feel pointless.
+  // Splinters are exempt. Loot is rolled per corpse, and a region that
+  // manufactures corpses would otherwise pay for the very habit it exists to
+  // discourage — see Enemy.splinter.
   const depth = ctx.depth ?? 1
   const boss = e.kind.behaviour === 'boss'
-  if (ctx.events?.drop && (boss || ctx.rng.next() < dropChance(depth))) {
+  if (ctx.events?.drop && !e.splinter && (boss || ctx.rng.next() < dropChance(depth))) {
     const item = rollDrop(depth, ctx.rng.next(), ctx.owned ?? EMPTY_OWNED)
     if (item) ctx.events.drop(e.x, e.y, item.id)
   }
