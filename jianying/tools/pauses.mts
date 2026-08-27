@@ -13,6 +13,7 @@
 import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { WEAPONS } from '../src/data/weapons'
+import { regionAt } from '../src/data/regions'
 import { emptyAttributes } from '../src/meta/character'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
@@ -28,7 +29,7 @@ for (const weapon of WEAPONS) {
   const rows: string[] = []
   for (const seed of [4242, 90210, 31337]) {
     const player = createPlayer(0, 0)
-    const swarm = new Swarm(new Rng(seed), 1)
+    const swarm = new Swarm(new Rng(seed), regionAt(1))
     const motes = new Motes()
     const bolts = new Bolts()
     const hazards = new Hazards()

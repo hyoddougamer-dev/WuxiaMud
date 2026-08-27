@@ -50,8 +50,13 @@ const ENTRIES: readonly Entry[] = [
   },
   {
     seal: '五',
-    title: 'Growth buys deeper roads, not easier ones',
-    body: 'Each Realm opens a harder road with a larger reward. Staying on the Post Road forever remains possible; it simply pays less. Where you go is the choice the hub exists for.',
+    title: 'Growth opens the world, it does not soften it',
+    body: 'Each Realm reached opens another place on the map, harder than the last and worth more. Staying on the Post Road forever remains possible; it simply pays less.',
+  },
+  {
+    seal: '六',
+    title: 'A place is not a difficulty — it has a rule',
+    body: 'The marsh slows you. The cliff wind pushes and turns. In the Ghost Market everything you cut comes apart, so killing is not automatically right. Each place also keeps its own enemies, its own master, and gear that drops nowhere else — which is why you choose where to walk, and not merely how deep.',
   },
 ]
 

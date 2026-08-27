@@ -16,7 +16,7 @@ import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
 import { statLine, type Item } from '../data/items'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
-import { roadOf } from '../meta/depth'
+import { regionAt, type Region } from '../data/regions'
 import { realmOf } from '../meta/realms'
 import { strings } from './strings'
 
@@ -50,7 +50,8 @@ export interface Hud {
   /** Redraws the owned-technique strip. Cheap when nothing has changed. */
   updateLoadout(loadout: Loadout): void
   /** Names the road in the corner, so depth is visible during play. */
-  setDepth(depth: number): void
+  /** Names the place and its rule in the corner, so both stay visible in play. */
+  setRegion(region: Region): void
   /** Shows the end screen. `onReturn` takes the player back to the hub. */
   showGameOver(summary: RunSummary, onReturn: () => void): void
   hideGameOver(): void
@@ -164,9 +165,17 @@ export function createHud(root: HTMLElement): Hud {
       }
     },
 
-    setDepth(depth) {
-      const road = roadOf(depth)
-      roadEl.textContent = `${road.seal} ${road.name} · ${strings.depth} ${depth}`
+    setRegion(region) {
+      // The rule sits under the name for the whole expedition. A player who has
+      // to work out that they are being slowed has been given a puzzle instead
+      // of a place.
+      roadEl.innerHTML = ''
+      const name = document.createElement('div')
+      name.textContent = `${region.seal} ${region.name}`
+      const rule = document.createElement('div')
+      rule.className = 'hud-rule'
+      rule.textContent = region.ruleText
+      roadEl.append(name, rule)
     },
 
     setPlaying(playing) {
@@ -212,7 +221,7 @@ export function createHud(root: HTMLElement): Hud {
       if (reward.insight > 0) html += row(strings.fromInsight, `+${reward.insight}`)
       if (reward.depthBonus > 1) {
         html += row(
-          `${strings.fromDepth} · ${roadOf(summary.depth).name}`,
+          `${strings.fromDepth} · ${regionAt(summary.depth).name}`,
           `×${reward.depthBonus.toFixed(1)}`,
         )
       }
@@ -227,7 +236,7 @@ export function createHud(root: HTMLElement): Hud {
         }
         if (gain.depthUnlocked !== null) {
           html += `<div class="rw-road">${strings.roadOpened} · ${
-            roadOf(gain.depthUnlocked).name
+            regionAt(gain.depthUnlocked).name
           }</div>`
         }
         const points = gain.pointsGained

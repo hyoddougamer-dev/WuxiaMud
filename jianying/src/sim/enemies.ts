@@ -13,7 +13,13 @@
 import { Pool } from '../core/pool'
 import { Rng } from '../core/rng'
 import { SpatialGrid } from '../core/grid'
-import { depthHealthScale, depthSpawnScale } from '../meta/depth'
+import {
+  DEFAULT_REGION,
+  depthHealthScale,
+  depthSpawnScale,
+  pickFromRoster,
+  type Region,
+} from '../data/regions'
 import type { Hazards } from './hazards'
 import {
   BOSS_EVERY,
@@ -21,7 +27,6 @@ import {
   MAX_ENEMIES,
   type EnemyKind,
   healthScale,
-  pickEnemyKind,
   spawnRate,
 } from '../data/enemies'
 
@@ -29,6 +34,17 @@ import {
 export const CHARGE_IDLE = 0
 export const CHARGE_WINDUP = 1
 export const CHARGE_DASH = 2
+
+/**
+ * A lurker or an enrager that has woken up.
+ *
+ * Shares the `state` field with the charger phases, which is safe because no
+ * kind is ever both — a pooled enemy is recycled into any kind, so behaviour
+ * cannot live in a subtype and these numbers mean different things depending
+ * on `kind.behaviour`. Given a distinct value so a stray CHARGE_IDLE reset
+ * cannot silently wake something.
+ */
+export const ROUSED = 10
 
 export interface Enemy {
   x: number
@@ -86,12 +102,26 @@ export class Swarm {
   bossAlive = false
 
   /**
-   * The road this expedition is walking. Scales health and spawn rate, and is
-   * the reason permanent character power does not simply flatten the game: the
-   * player is expected to spend growth on deeper ground, not on an easier
-   * version of the same ground.
+   * The place this expedition is walking.
+   *
+   * It supplies the roster, the boss, and the rule that bends the simulation.
+   * Its depth also scales health and spawn rate, which is why permanent
+   * character power does not simply flatten the game: growth is meant to be
+   * spent on new ground, not on an easier version of the same ground.
    */
-  depth = 1
+  region: Region = DEFAULT_REGION
+
+  get depth(): number {
+    return this.region.depth
+  }
+
+  /**
+   * Where the formation arc currently points, in radians.
+   *
+   * Only meaningful in a region with `formationArc`. Advanced by `update` and
+   * exposed so the renderer can show the player which way the front is.
+   */
+  formationAngle = 0
 
   /**
    * Set when a boss is placed, so the run can announce it. Read-and-clear: the
@@ -100,8 +130,8 @@ export class Swarm {
    */
   private bossJustArrived = false
 
-  constructor(private rng: Rng, depth = 1) {
-    this.depth = Math.max(1, depth)
+  constructor(private rng: Rng, region: Region = DEFAULT_REGION) {
+    this.region = region
     const base = KIND_BY_ID.get('bandit')!
     this.pool = new Pool<Enemy>(
       MAX_ENEMIES,
@@ -137,20 +167,21 @@ export class Swarm {
   }
 
   /**
-   * Clears the field and rewinds the random stream.
+   * Clears the field, sets the region, and rewinds the random stream.
    *
-   * Reseeding matters: a run is meant to be fully described by its seed, so two
-   * players given the same daily seed must meet the same enemies in the same
-   * order. Without this, only the first run after launch would match.
+   * Reseeding matters: an expedition is meant to be fully described by its
+   * seed, so re-running one seed must produce the same enemies in the same
+   * order. Without this, only the first run after launch would reproduce.
    */
-  reset(seed: number, depth = this.depth): void {
+  reset(seed: number, region: Region = this.region): void {
     this.pool.clear()
     this.grid.clear()
     this.spawnCredit = 0
     this.nextBoss = 1
     this.bossAlive = false
     this.bossJustArrived = false
-    this.depth = Math.max(1, depth)
+    this.region = region
+    this.formationAngle = 0
     this.rng = new Rng(seed)
   }
 
@@ -186,8 +217,19 @@ export class Swarm {
 
   /** Places one enemy on a ring around the player, outside what the camera sees. */
   private spawnOne(playerX: number, playerY: number, elapsed: number): boolean {
-    const kind = pickEnemyKind(elapsed, this.rng.next())
-    const angle = this.rng.next() * Math.PI * 2
+    const kind = KIND_BY_ID.get(pickFromRoster(this.region, this.rng.next()))
+    if (!kind) return false
+
+    // In a region with a formation, arrivals are confined to an arc that sweeps
+    // slowly around. That is the whole difference between being surrounded and
+    // holding a line, and it changes where the player wants to stand more than
+    // any stat on this page.
+    const arc = this.region.rule.formationArc
+    const angle =
+      arc === undefined
+        ? this.rng.next() * Math.PI * 2
+        : this.formationAngle + this.rng.range(-arc, arc)
+
     const distance = SPAWN_RING + this.rng.range(0, 120)
     return (
       this.place(
@@ -199,16 +241,31 @@ export class Swarm {
     )
   }
 
-  /** Splits a dying effigy into its scraps, thrown outward from the corpse. */
+  /**
+   * Splits a dying enemy, from its own kind and from the region's rule.
+   *
+   * Two sources, and they stack. A Paper Effigy comes apart wherever it dies
+   * because that is what an effigy is; in the Ghost Market EVERYTHING comes
+   * apart, because that is what the market is. An effigy killed in the market
+   * therefore does both, which is exactly the escalation the place promises.
+   */
   splitOnDeath(e: Enemy, elapsed: number): void {
-    const childId = e.kind.splitsInto
-    if (!childId) return
-    const child = KIND_BY_ID.get(childId)
-    if (!child) return
-    const count = e.kind.splitCount ?? 2
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + this.rng.next()
-      this.place(child, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, elapsed)
+    const scatter = (childId: string, count: number): void => {
+      const child = KIND_BY_ID.get(childId)
+      if (!child) return
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + this.rng.next()
+        this.place(child, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, elapsed)
+      }
+    }
+
+    if (e.kind.splitsInto) scatter(e.kind.splitsInto, e.kind.splitCount ?? 2)
+
+    const rule = this.region.rule
+    // Scraps are exempt, or the market would produce an unbounded cascade from
+    // a single kill and the pool ceiling would become the difficulty curve.
+    if (rule.splitAll && rule.splitInto && e.kind.id !== rule.splitInto) {
+      scatter(rule.splitInto, rule.splitAll)
     }
   }
 
@@ -220,9 +277,16 @@ export class Swarm {
     dt: number,
     hazards: Hazards,
   ): void {
+    // --- the region's own weather ---------------------------------------
+    // Advanced before anything spawns, so a formation's front has already
+    // turned by the time this tick's arrivals are placed.
+    const period = this.region.rule.formationPeriod
+    if (period) this.formationAngle += ((Math.PI * 2) / period) * dt
+
     // --- boss schedule -------------------------------------------------
     if (!this.bossAlive && elapsed >= this.nextBoss * BOSS_EVERY) {
-      const boss = KIND_BY_ID.get('warlord')!
+      // Each region keeps its own, and each one asks that region's question.
+      const boss = KIND_BY_ID.get(this.region.bossId) ?? KIND_BY_ID.get('warlord')!
       const a = this.rng.next() * Math.PI * 2
       const placed = this.place(
         boss,
@@ -348,6 +412,47 @@ export class Swarm {
           break
         }
 
+        case 'lurker': {
+          // Motionless and harmless until the player comes close, then a
+          // committed chaser for the rest of its life. It never goes back to
+          // sleep: a thing that could be re-lost would teach nothing.
+          if (e.state !== ROUSED) {
+            const wake = e.kind.wakeRadius ?? 110
+            if (dist < wake) {
+              e.state = ROUSED
+              // Flashed so waking is visible. Without it, the player only
+              // learns the marsh has lurkers by taking the hit.
+              e.hitFlash = 0.25
+            }
+            speed = 0
+          } else {
+            speed = e.kind.speed * (e.kind.rousedSpeed ?? 1)
+          }
+          break
+        }
+
+        case 'enrager': {
+          // Wanders slowly and does no contact damage until it is struck; see
+          // `contactDamage` below. Once roused it is one of the faster things
+          // on the field, which is what gives cutting indiscriminately a price.
+          if (e.state === ROUSED) {
+            speed = e.kind.speed * (e.kind.rousedSpeed ?? 2.5)
+          } else {
+            // A slow drift that ignores the player entirely.
+            e.timer -= dt
+            if (e.timer <= 0) {
+              e.timer = this.rng.range(1.6, 3.4)
+              const a = this.rng.next() * Math.PI * 2
+              e.dirX = Math.cos(a)
+              e.dirY = Math.sin(a)
+            }
+            moveX = e.dirX
+            moveY = e.dirY
+            speed = e.kind.speed
+          }
+          break
+        }
+
         case 'boss': {
           e.timer -= dt
           if (e.timer <= 0) {
@@ -418,4 +523,31 @@ export class Swarm {
     if (this.pool.at(index).kind.behaviour === 'boss') this.bossAlive = false
     this.pool.release(index)
   }
+}
+
+/**
+ * Contact damage this enemy can currently do.
+ *
+ * Zero for the two behaviours that are not yet a threat: a lurker still under
+ * the water, and a pilgrim nobody has swung at. Walking through either has to
+ * be safe, or neither behaviour means anything.
+ */
+export function contactDamage(e: Enemy): number {
+  const behaviour = e.kind.behaviour
+  if ((behaviour === 'lurker' || behaviour === 'enrager') && e.state !== ROUSED) return 0
+  return e.kind.damage
+}
+
+/**
+ * Wakes an enrager that has just been struck.
+ *
+ * Called from combat rather than from the swarm, because being hit is the only
+ * thing that triggers it — and that is the whole design: the player, not the
+ * simulation, decides when a pilgrim becomes dangerous.
+ */
+export function rouse(e: Enemy): void {
+  if (e.kind.behaviour !== 'enrager' || e.state === ROUSED) return
+  e.state = ROUSED
+  // A long flash, so the moment it turns is unmistakable.
+  e.hitFlash = 0.4
 }

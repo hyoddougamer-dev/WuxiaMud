@@ -21,7 +21,7 @@
 import { Container, Graphics } from 'pixi.js'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
-import { Rng, dailySeed } from './core/rng'
+import { Rng, expeditionSeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
 import { ENEMY_KINDS, KIND_BY_ID } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
@@ -39,7 +39,7 @@ import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
-import { clampDepth, roadOf } from './meta/depth'
+import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
 import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
 import { ITEMS, ITEM_BY_ID, type Item } from './data/items'
@@ -58,7 +58,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.4.0'
+const BUILD = '1.5.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -120,8 +120,10 @@ async function boot(): Promise<void> {
 
   const player = createPlayer(0, 0)
   const camera = createCamera(0, 0)
-  const runSeed = dailySeed()
-  const swarm = new Swarm(new Rng(runSeed), character.depth)
+  // Re-rolled at the start of every expedition, so two runs in a row are two
+  // different roads rather than the same one twice.
+  let runSeed = expeditionSeed()
+  const swarm = new Swarm(new Rng(runSeed), regionAt(character.depth))
   const motes = new Motes()
   const bolts = new Bolts()
   const hazards = new Hazards()
@@ -162,8 +164,9 @@ async function boot(): Promise<void> {
   let stats = deriveStats(loadout, kit)
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
-  /** The road being walked. Chosen in the hub before every expedition. */
-  let depth = clampDepth(character.depth, character.depth)
+  /** The place being walked. Chosen in the hub before every expedition. */
+  let region = regionAt(clampDepth(character.depth, character.depth))
+  const depthOf = (): number => region.depth
 
   // The figure is rebuilt whenever equipment changes, since equipment IS the
   // geometry here — a longer hem is literally a longer silhouette.
@@ -327,14 +330,15 @@ async function boot(): Promise<void> {
   }
 
   const beginExpedition = (chosen: number): void => {
-    depth = clampDepth(chosen, character.depth)
+    region = regionAt(clampDepth(chosen, character.depth))
     player.x = 0
     player.y = 0
     player.prevX = 0
     player.prevY = 0
     player.vx = 0
     player.vy = 0
-    swarm.reset(runSeed, depth)
+    runSeed = expeditionSeed()
+    swarm.reset(runSeed, region)
     motes.clear()
     bolts.clear()
     hazards.clear()
@@ -357,12 +361,14 @@ async function boot(): Promise<void> {
     playing = true
     ui.hideGameOver()
     ui.setPlaying(true)
-    ui.setDepth(depth)
+    ui.setRegion(region)
     hub.hide()
     tutorial.reset()
 
-    const road = roadOf(depth)
-    banners.show(road.name, 'plain', `${road.seal} · ${kit.weapon.name}`)
+    // The place is announced by name, and so is its rule — a region whose rule
+    // the player has to infer from being slowed is a bug, not a discovery.
+    banners.show(region.name, 'plain', `${region.seal} · ${kit.weapon.name}`)
+    if (region.ruleText) banners.show(region.ruleText, 'gold')
   }
 
   openHub = (): void => {
@@ -388,7 +394,7 @@ async function boot(): Promise<void> {
       kills: run.kills,
       seconds: run.elapsed,
       insight: run.level,
-      depth,
+      depth: depthOf(),
     }
     const reward = rewardFor(result)
     const gain = grantXp(character, reward.total)
@@ -418,7 +424,7 @@ async function boot(): Promise<void> {
     return {
       seconds: run.elapsed,
       kills: run.kills,
-      depth,
+      depth: depthOf(),
       killedBy: run.killedBy,
       reward,
       gain,
@@ -461,7 +467,21 @@ async function boot(): Promise<void> {
     const insightBefore = run.level
 
     const { x: ix, y: iy } = joystick.state
-    updatePlayer(player, ix, iy, dt, stats.moveSpeed)
+    // The region bends the player, not the enemies, and that asymmetry is the
+    // whole design: wading slows you while the marsh does not slow what lives
+    // in it, and the cliff wind moves you whether or not your thumb agrees.
+    const rule = region.rule
+    const windAngle = rule.driftPeriod ? (time / rule.driftPeriod) * Math.PI * 2 : 0
+    const drift = rule.drift ?? 0
+    updatePlayer(
+      player,
+      ix,
+      iy,
+      dt,
+      stats.moveSpeed * (rule.playerSpeed ?? 1),
+      Math.cos(windAngle) * drift,
+      Math.sin(windAngle) * drift,
+    )
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
     updateCombat(
       {
@@ -474,7 +494,7 @@ async function boot(): Promise<void> {
         stats,
         rng: pickRng,
         events,
-        depth,
+        depth: depthOf(),
         owned: ownedThisRun,
       },
       dt,

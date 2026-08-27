@@ -21,7 +21,7 @@ import {
   emptyAttributes,
 } from './character'
 import { ITEMS } from '../data/items'
-import { MAX_DEPTH } from './depth'
+import { MAX_DEPTH } from '../data/regions'
 import { acquire, emptyInventory, equip, sanitise, type Inventory } from './inventory'
 import { SCHOOL_BY_ID, schoolById } from './schools'
 

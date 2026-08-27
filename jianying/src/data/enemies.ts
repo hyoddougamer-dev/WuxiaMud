@@ -16,10 +16,25 @@
  *   charger  — when do I move?            (telegraphs, then commits)
  *   shooter  — can I ignore the back?     (hurts from outside the sweep)
  *   splitter — is killing this a good idea? (dies into two more)
+ *   lurker   — is that ground safe?       (waits, unmoving, until you are close)
+ *   enrager  — should I swing at this?    (harmless until struck, then not)
  *   boss     — everything at once
+ *
+ * The last two exist because the regions needed questions the first six could
+ * not ask. A marsh is frightening because of what is already in the water, not
+ * because of what runs at you; and a market of paper offerings is only
+ * interesting if cutting indiscriminately is a mistake.
  */
 
-export type Behaviour = 'chaser' | 'darter' | 'charger' | 'shooter' | 'splitter' | 'boss'
+export type Behaviour =
+  | 'chaser'
+  | 'darter'
+  | 'charger'
+  | 'shooter'
+  | 'splitter'
+  | 'lurker'
+  | 'enrager'
+  | 'boss'
 
 export interface EnemyKind {
   readonly id: string
@@ -57,6 +72,10 @@ export interface EnemyKind {
   readonly splitsInto?: string
   /** splitter: how many it splits into. */
   readonly splitCount?: number
+  /** lurker: how close the player must come before it wakes. */
+  readonly wakeRadius?: number
+  /** lurker/enrager: speed multiplier once roused. */
+  readonly rousedSpeed?: number
 }
 
 /**
@@ -174,6 +193,220 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     qi: 40,
     fireInterval: 2.4,
     shotDamage: 11,
+  },
+
+  // ===================================================================
+  // Regional rosters. Every kind below has `weight: 0` in the global draw
+  // and is instead named by a region in data/regions.ts — that is what makes
+  // the marsh feel like the marsh instead of like the road with more health.
+  // ===================================================================
+
+  // --- 官道 The Post Road ---------------------------------------------
+  {
+    id: 'courier',
+    name: 'Relay Courier',
+    behaviour: 'darter',
+    hp: 8,
+    // Still carrying the imperial post, and still trying to deliver it. Fast,
+    // fragile, and worth chasing down — the road's one reason to break stance.
+    speed: 132,
+    damage: 3,
+    radius: 7.5,
+    unlockAt: 20,
+    weight: 0,
+    qi: 5,
+  },
+  {
+    id: 'roadtiger',
+    name: 'The Tiger Who Blocks the Road',
+    behaviour: 'boss',
+    hp: 900,
+    speed: 62,
+    damage: 18,
+    radius: 26,
+    unlockAt: 0,
+    weight: 0,
+    qi: 30,
+    fireInterval: 3.2,
+    shotDamage: 8,
+  },
+
+  // --- 芦荡 The Reed Marsh --------------------------------------------
+  {
+    id: 'drowned',
+    name: 'The Drowned',
+    behaviour: 'lurker',
+    hp: 26,
+    // Motionless in the water until you are almost on top of it, then quick.
+    speed: 96,
+    damage: 11,
+    radius: 10,
+    unlockAt: 0,
+    weight: 0,
+    qi: 2,
+    wakeRadius: 120,
+    rousedSpeed: 1,
+  },
+  {
+    id: 'leech',
+    name: 'Fen Leech',
+    behaviour: 'chaser',
+    // Slow and hard to finish. In a region where you are already slowed, a
+    // thing that will not die is a different problem from a thing that is fast.
+    // Down from 58: at that value the marsh cut the kill rate to a quarter of
+    // the road's, which reads as a broken weapon rather than as deep water.
+    hp: 38,
+    speed: 38,
+    damage: 9,
+    radius: 11,
+    unlockAt: 0,
+    weight: 0,
+    qi: 3,
+  },
+  {
+    id: 'reedmother',
+    name: 'Mother of Reeds',
+    behaviour: 'boss',
+    hp: 1150,
+    // Barely moves. The fight is about whether you can reach her at all while
+    // wading — which is exactly the marsh's own question, asked once, loudly.
+    speed: 22,
+    damage: 20,
+    radius: 30,
+    unlockAt: 0,
+    weight: 0,
+    qi: 36,
+    fireInterval: 2.1,
+    shotDamage: 10,
+  },
+
+  // --- 断崖 The Broken Cliff ------------------------------------------
+  {
+    id: 'hawk',
+    name: 'Cliff Hawk',
+    behaviour: 'darter',
+    hp: 9,
+    // The fastest thing in the game. On a road where the wind already moves
+    // you, something quicker than the wind is genuinely alarming.
+    speed: 158,
+    damage: 6,
+    radius: 7,
+    unlockAt: 0,
+    weight: 0,
+    qi: 2,
+  },
+  {
+    id: 'windbell',
+    name: 'Windbell Adept',
+    behaviour: 'shooter',
+    hp: 20,
+    speed: 62,
+    damage: 5,
+    radius: 9,
+    unlockAt: 0,
+    weight: 0,
+    qi: 3,
+    fireInterval: 1.7,
+    standoff: 265,
+    shotDamage: 9,
+  },
+  {
+    id: 'cliffwarden',
+    name: 'Warden of the Broken Cliff',
+    behaviour: 'boss',
+    hp: 1250,
+    speed: 48,
+    damage: 19,
+    radius: 28,
+    unlockAt: 0,
+    weight: 0,
+    qi: 38,
+    // Fires faster than the other bosses: with the wind already moving you,
+    // the ring volleys become a positional puzzle rather than a dodge.
+    fireInterval: 1.9,
+    shotDamage: 10,
+  },
+
+  // --- 鬼市 The Ghost Market ------------------------------------------
+  {
+    id: 'paperhorse',
+    name: 'Paper Horse',
+    behaviour: 'charger',
+    hp: 24,
+    speed: 44,
+    damage: 12,
+    radius: 11,
+    unlockAt: 0,
+    weight: 0,
+    qi: 2,
+    windup: 0.65,
+    dashSpeed: 7,
+    dashTime: 0.5,
+    splitsInto: 'scrap',
+    splitCount: 2,
+  },
+  {
+    id: 'pilgrim',
+    name: 'Incense Pilgrim',
+    behaviour: 'enrager',
+    hp: 34,
+    // Wanders, harmless, until something cuts it. In a market where the sweep
+    // hits everything nearby, that is a real cost to swinging without looking.
+    speed: 30,
+    damage: 16,
+    radius: 10,
+    unlockAt: 0,
+    weight: 0,
+    qi: 4,
+    rousedSpeed: 3.1,
+  },
+  {
+    id: 'papermaker',
+    name: 'The Paper Maker',
+    behaviour: 'boss',
+    hp: 1050,
+    speed: 44,
+    damage: 17,
+    radius: 27,
+    unlockAt: 0,
+    weight: 0,
+    qi: 36,
+    fireInterval: 2.6,
+    shotDamage: 9,
+    // Comes apart like everything else here, and into a great deal of it.
+    splitsInto: 'scrap',
+    splitCount: 8,
+  },
+
+  // --- 关隘 The Pass ---------------------------------------------------
+  {
+    id: 'glaive',
+    name: 'Glaive Rank',
+    behaviour: 'chaser',
+    // Down from 72. It is meant to be the thing that holds a line, not the
+    // thing a starting weapon cannot scratch.
+    hp: 46,
+    speed: 46,
+    damage: 16,
+    radius: 13,
+    unlockAt: 0,
+    weight: 0,
+    qi: 4,
+  },
+  {
+    id: 'signal',
+    name: 'Signal Arrow',
+    behaviour: 'shooter',
+    hp: 16,
+    speed: 74,
+    damage: 4,
+    radius: 8.5,
+    unlockAt: 0,
+    weight: 0,
+    qi: 3,
+    fireInterval: 2.6,
+    standoff: 300,
+    shotDamage: 7,
   },
 ] as const
 

@@ -25,10 +25,10 @@ import {
   spendPoint,
   xpForCultivation,
 } from '../meta/character'
-import { MAX_DEPTH, ROADS, depthReward, roadOf } from '../meta/depth'
+import { MAX_DEPTH, REGIONS, depthReward } from '../data/regions'
 import { schoolById } from '../meta/schools'
 import { equip, equippedIn, equippedItems, ownedInSlot } from '../meta/inventory'
-import { SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
+import { ITEM_BY_ID, SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
 import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } from '../sim/loadout'
@@ -155,7 +155,6 @@ export function createHub(
     const realm = realmOf(c.level)
     const need = xpForCultivation(c.level)
     const pct = Math.max(0, Math.min(1, c.xp / need))
-    const road = roadOf(chosenDepth)
     const unlocked = Math.min(MAX_DEPTH, c.depth)
 
     panel.innerHTML = ''
@@ -314,37 +313,51 @@ export function createHub(
     }
     panel.appendChild(gearSection)
 
-    // --- the road -------------------------------------------------------
+    // --- the map ---------------------------------------------------------
+    // Five places, not eight numbered squares. Each one shows the rule that
+    // makes it itself and what can only be found there, because those two
+    // facts are the entire reason to pick one over another — and a numbered
+    // pip communicated neither.
     const roads = document.createElement('div')
     roads.className = 'hub-section'
-    roads.innerHTML = `<div class="hub-section-head"><span>${strings.road}</span></div>`
+    roads.innerHTML = `<div class="hub-section-head"><span>${strings.theWorld}</span></div>`
 
-    const pips = document.createElement('div')
-    pips.className = 'road-pips'
-    for (let d = 1; d <= MAX_DEPTH; d++) {
-      const pip = document.createElement('button')
-      pip.type = 'button'
-      pip.className =
-        'pip' + (d === chosenDepth ? ' pip-on' : '') + (d > unlocked ? ' pip-locked' : '')
-      pip.textContent = String(d)
-      pip.disabled = d > unlocked
-      pip.setAttribute('aria-label', `${strings.depth} ${d}: ${ROADS[d - 1]!.name}`)
-      pip.addEventListener('click', () => {
-        chosenDepth = d
+    const map = document.createElement('div')
+    map.className = 'map'
+    for (const place of REGIONS) {
+      const locked = place.depth > unlocked
+      const chosen = place.depth === chosenDepth
+
+      const card = document.createElement('button')
+      card.type = 'button'
+      card.className = 'place' + (chosen ? ' place-on' : '') + (locked ? ' place-locked' : '')
+      card.disabled = locked
+
+      const found = place.drops
+        .map((id) => ITEM_BY_ID.get(id)?.name)
+        .filter(Boolean)
+        .join(' · ')
+
+      card.innerHTML = `
+        <div class="place-seal">${place.seal}</div>
+        <div class="place-body">
+          <div class="place-name">${place.name}</div>
+          <div class="place-rule">${place.ruleText}</div>
+          <div class="place-found">${found}</div>
+          ${
+            locked
+              ? `<div class="place-locked-note">${strings.opensAtRealm} ${place.depth}</div>`
+              : `<div class="place-reward">×${depthReward(place.depth).toFixed(1)} ${strings.reward}</div>`
+          }
+        </div>
+      `
+      card.addEventListener('click', () => {
+        chosenDepth = place.depth
         render()
       })
-      pips.appendChild(pip)
+      map.appendChild(card)
     }
-    roads.appendChild(pips)
-
-    const roadCard = document.createElement('div')
-    roadCard.className = 'road-card'
-    roadCard.innerHTML = `
-      <div class="road-name"><span class="road-seal">${road.seal}</span> ${road.name}</div>
-      <div class="road-blurb">${road.blurb}</div>
-      <div class="road-reward">×${depthReward(chosenDepth).toFixed(1)} ${strings.reward}</div>
-    `
-    roads.appendChild(roadCard)
+    roads.appendChild(map)
     panel.appendChild(roads)
 
     // --- set out --------------------------------------------------------

@@ -62,6 +62,17 @@ export function updatePlayer(
   inputY: number,
   dt: number,
   maxSpeed: number = MAX_SPEED,
+  /**
+   * A steady push from the region, in world units per second.
+   *
+   * Applied to POSITION and not to velocity, deliberately. Folding it into the
+   * velocity would let the exponential approach cancel it out the moment the
+   * thumb pushed back, and the wind would quietly stop existing. Displacing the
+   * position means the wind moves you whatever you are doing — which is the
+   * entire experience the Broken Cliff is built on.
+   */
+  driftX = 0,
+  driftY = 0,
 ): void {
   player.prevX = player.x
   player.prevY = player.y
@@ -81,8 +92,8 @@ export function updatePlayer(
   const decay = Math.pow(2, -dt / halfLife)
   const scale = (halfLife / Math.LN2) * (1 - decay)
 
-  player.x += targetVx * dt + (player.vx - targetVx) * scale
-  player.y += targetVy * dt + (player.vy - targetVy) * scale
+  player.x += targetVx * dt + (player.vx - targetVx) * scale + driftX * dt
+  player.y += targetVy * dt + (player.vy - targetVy) * scale + driftY * dt
 
   player.vx = targetVx + (player.vx - targetVx) * decay
   player.vy = targetVy + (player.vy - targetVy) * decay

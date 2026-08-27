@@ -42,8 +42,10 @@ export const strings = {
   pointsToSpend: 'points to spend',
   onePointToSpend: 'point to spend',
   spend: '+',
+  theWorld: 'The world',
   road: 'Road',
   depth: 'Depth',
+  opensAtRealm: 'Opens at Realm',
   setOut: 'Set out',
   reward: 'reward',
 

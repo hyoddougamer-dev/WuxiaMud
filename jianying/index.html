@@ -115,6 +115,14 @@
         letter-spacing: 0.08em;
         color: rgba(13, 13, 13, 0.42);
       }
+      /* The rule, in play. A player who has to work out that they are being
+         slowed has been given a puzzle instead of a place. */
+      .hud-rule {
+        margin-top: 1px;
+        font-size: 9.5px;
+        letter-spacing: 0.04em;
+        color: rgba(13, 13, 13, 0.34);
+      }
 
       /* Owned techniques, so what you have picked is always readable. */
       .hud-loadout {
@@ -993,58 +1001,90 @@
         font-variant-numeric: tabular-nums;
       }
 
-      .road-pips {
+      /* --- the map ------------------------------------------------------ */
+      /* Five places rather than eight numbered squares. Each card carries the
+         rule that makes the place itself and what can only be found there,
+         because those two facts are the entire reason to choose one. */
+      .map {
         display: flex;
-        gap: 6px;
-        margin-bottom: 10px;
+        flex-direction: column;
+        gap: 8px;
       }
-      .pip {
-        flex: 1;
-        min-height: 38px;
+      .place {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        padding: 13px 14px;
+        text-align: left;
         font: inherit;
-        font-size: 13px;
-        font-variant-numeric: tabular-nums;
-        color: rgba(13, 13, 13, 0.55);
-        background: rgba(13, 13, 13, 0.06);
-        border: 1px solid transparent;
+        color: var(--ink);
+        background: rgba(255, 252, 244, 0.55);
+        border: 1px solid rgba(13, 13, 13, 0.12);
+        border-left: 3px solid rgba(13, 13, 13, 0.16);
         border-radius: 2px;
         cursor: pointer;
       }
-      .pip-on {
-        color: var(--paper);
-        background: var(--ink);
+      .place-on {
+        background: rgba(255, 250, 232, 0.95);
+        border-left-color: var(--cinnabar);
       }
-      .pip-locked {
-        color: rgba(13, 13, 13, 0.18);
-        background: transparent;
-        border-color: rgba(13, 13, 13, 0.08);
+      /* Dimmed, not erased. A locked place still lists what it keeps, because
+         that list is the reason to want the realm that opens it — greying it
+         past legibility would turn the bottom of the map into dead weight. */
+      .place-locked {
+        opacity: 0.55;
         cursor: default;
       }
-      .road-card {
-        padding: 12px 14px;
-        background: rgba(255, 252, 244, 0.66);
-        border-left: 3px solid var(--cinnabar);
+      .place-seal {
+        flex: none;
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-content: center;
+        font-size: 13px;
+        line-height: 1.15;
+        text-align: center;
+        color: rgba(13, 13, 13, 0.6);
+        background: rgba(13, 13, 13, 0.06);
         border-radius: 2px;
       }
-      .road-name {
+      .place-on .place-seal {
+        color: var(--paper);
+        background: var(--cinnabar);
+      }
+      .place-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .place-name {
         font-size: 15px;
       }
-      .road-seal {
-        color: var(--cinnabar);
-        margin-right: 4px;
-      }
-      .road-blurb {
+      /* The rule is the loudest thing on the card after the name: it is what
+         the player is actually choosing between. */
+      .place-rule {
         margin-top: 3px;
-        font-size: 12px;
+        font-size: 12.5px;
         line-height: 1.4;
-        color: rgba(13, 13, 13, 0.55);
+        color: rgba(13, 13, 13, 0.62);
       }
-      .road-reward {
-        margin-top: 7px;
+      .place-found {
+        margin-top: 6px;
         font-size: 11px;
+        line-height: 1.35;
+        color: #8a6d16;
+      }
+      .place-reward {
+        margin-top: 4px;
+        font-size: 10.5px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: var(--gold);
+        color: rgba(13, 13, 13, 0.4);
+      }
+      .place-locked-note {
+        margin-top: 6px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: rgba(13, 13, 13, 0.45);
       }
 
       .hub-go {

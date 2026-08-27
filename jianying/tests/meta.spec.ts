@@ -14,13 +14,13 @@ import {
 } from '../src/meta/character'
 import {
   MAX_DEPTH,
-  ROADS,
+  REGIONS,
   clampDepth,
   depthHealthScale,
   depthReward,
   depthSpawnScale,
-  roadOf,
-} from '../src/meta/depth'
+  regionAt,
+} from '../src/data/regions'
 import {
   LEVELS_PER_REALM,
   REALMS,
@@ -169,7 +169,7 @@ describe('cultivation curve', () => {
     // Enough to run off the end of the named ladder several times over.
     grantXp(c, 50_000_000)
     expect(c.depth).toBeLessThanOrEqual(MAX_DEPTH)
-    expect(roadOf(c.depth)).toBeTruthy()
+    expect(regionAt(c.depth)).toBeTruthy()
   })
 })
 
@@ -284,9 +284,9 @@ describe('attributes feed combat', () => {
 
 describe('expedition depth', () => {
   it('names every road it can unlock', () => {
-    expect(ROADS.length).toBe(MAX_DEPTH)
+    expect(REGIONS.length).toBe(MAX_DEPTH)
     for (let d = 1; d <= MAX_DEPTH; d++) {
-      expect(roadOf(d).name.trim().length).toBeGreaterThan(0)
+      expect(regionAt(d).name.trim().length).toBeGreaterThan(0)
     }
   })
 
@@ -690,7 +690,7 @@ describe('save', () => {
 describe('depth holds permanent power in check', () => {
   const survive = (spent: Attributes, depth: number, seed = 90210): number => {
     const player = createPlayer(0, 0)
-    const swarm = new Swarm(new Rng(seed), depth)
+    const swarm = new Swarm(new Rng(seed), regionAt(depth))
     const motes = new Motes()
     const bolts = new Bolts()
     const hazards = new Hazards()

@@ -183,6 +183,20 @@ async function main(): Promise<void> {
       console.warn('warn:   no attribute point available to spend')
     }
 
+    // The map sits below the fold, so a top-of-hub screenshot cannot show it.
+    // It is the screen where the player decides where to walk, which makes it
+    // worth its own still — and worth asserting it has all five places on it.
+    const places = page.locator('.place')
+    const placeCount = await places.count()
+    if (placeCount > 0) {
+      await places.last().scrollIntoViewIfNeeded()
+      await page.waitForTimeout(200)
+      await page.screenshot({ path: join(OUT, 'hub-map.png') })
+      await page.locator('.hub').evaluate((el) => (el.scrollTop = 0))
+      await page.waitForTimeout(200)
+    }
+    console.log(`map:    ${placeCount} places`)
+
     const levelBefore = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
 
     await page.locator('.hub-go').click()

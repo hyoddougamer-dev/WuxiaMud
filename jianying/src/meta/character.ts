@@ -21,6 +21,7 @@
  * `depth.ts`) — the character grows, and the player is expected to spend that
  * growth on harder ground rather than on an easier version of the same ground.
  */
+import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
 import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
 
@@ -181,10 +182,15 @@ export function rewardFor(result: RunResult): Reward {
   }
 }
 
-/** XP multiplier for expedition depth. Kept in step with `depth.ts`. */
-export function depthReward(depth: number): number {
-  return 1 + (Math.max(1, depth) - 1) * 0.5
-}
+/**
+ * XP multiplier for expedition depth.
+ *
+ * Re-exported rather than redefined. It was briefly defined in both this file
+ * and the region table, and the two drifted apart the moment one was tuned —
+ * the reward screen quoted one number while the totals used another. A region's
+ * payout is a property of the region, so the region table owns it.
+ */
+export { depthReward }
 
 /** What `grantXp` actually did, so the caller can announce it. */
 export interface LevelGain {
@@ -226,7 +232,13 @@ export function grantXp(character: Character, amount: number): LevelGain {
       gain.realmAdvancedTo = character.level
       // A realm is also the key to deeper ground: the ladder and the difficulty
       // unlock are the same event, so "what did that get me" has one answer.
-      const unlocked = 1 + Math.floor((character.level - 1) / LEVELS_PER_REALM)
+      // Capped at the number of regions that exist. The ladder runs to forty
+      // levels and the world has five places; without this the character ends
+      // up "unlocking" a sixth region and the hub points at nothing.
+      const unlocked = Math.min(
+        MAX_DEPTH,
+        1 + Math.floor((character.level - 1) / LEVELS_PER_REALM),
+      )
       if (unlocked > character.depth) {
         character.depth = unlocked
         gain.depthUnlocked = unlocked

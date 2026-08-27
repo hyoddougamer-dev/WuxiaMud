@@ -85,6 +85,29 @@ const SHAPES: Record<Behaviour, Builder> = {
     mark({ x: -3.2 * s, y: -26 * s }, { x: 3.2 * s, y: -26 * s }, 0.2 * s, elliptic(6 * s))
   },
 
+  // Low and horizontal, barely clearing the ground: something already lying
+  // there rather than something coming for you. Nothing about it reads as
+  // upright, which is the whole point — you are meant to walk near it.
+  lurker: (mark, s) => {
+    mark({ x: -13 * s, y: -5 * s }, { x: 13 * s, y: -5 * s }, 1.4 * s, elliptic(9 * s), 0.9)
+    mark({ x: -6 * s, y: -10 * s }, { x: 6 * s, y: -9 * s }, 0.5 * s, elliptic(5.5 * s), 0.82)
+    // A single ridge breaking the surface. The only thing that gives it away.
+    mark({ x: 1 * s, y: -13 * s }, { x: 5 * s, y: -16 * s }, 0.6 * s, calligraphic(3 * s, 0.6, 0.1), 0.7)
+  },
+
+  // Upright, narrow, head bowed, arms held in. It reads as a person standing
+  // rather than a threat leaning — and it must, because the lesson is that not
+  // everything on the field should be cut.
+  enrager: (mark, s) => {
+    mark({ x: 0, y: -20 * s }, { x: 0, y: 0 }, 0, (t) => (5 + t * 7) * s, 0.94)
+    mark({ x: -3.5 * s, y: -18 * s }, { x: -5 * s, y: -6 * s }, 0.4 * s, calligraphic(3 * s, 0.75, 0.25), 0.86)
+    mark({ x: 3.5 * s, y: -18 * s }, { x: 5 * s, y: -6 * s }, -0.4 * s, calligraphic(3 * s, 0.75, 0.25), 0.86)
+    mark({ x: -3 * s, y: -24 * s }, { x: 3 * s, y: -23.4 * s }, 0.3 * s, elliptic(6.2 * s))
+    // The stick of incense, held up. A small mark, but it is what separates
+    // this outline from every other upright thing on the field.
+    mark({ x: 4.5 * s, y: -22 * s }, { x: 7 * s, y: -30 * s }, 0.3 * s, calligraphic(1.6 * s, 0.5, 0.1), 0.6)
+  },
+
   // Tall, broad, crowned. It has to read as different in one glance.
   boss: (mark, s) => {
     mark({ x: 0, y: -26 * s }, { x: 0, y: 0 }, 0, (t) => (12 + t * 16) * s, 0.97)
@@ -109,6 +132,12 @@ const ACCENTS: Record<Behaviour, number> = {
   charger: palette.cinnabar,
   shooter: palette.cinnabar,
   splitter: palette.ink,
+  // Ink for both, and deliberately so. A lurker that announced itself in
+  // cinnabar would not be a lurker, and a pilgrim marked as dangerous would
+  // remove the only decision it exists to create. The simulation paints them
+  // cinnabar the moment they become a threat — that is the information.
+  lurker: palette.ink,
+  enrager: palette.ink,
   boss: palette.gold,
 }
 

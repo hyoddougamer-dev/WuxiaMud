@@ -6,7 +6,7 @@
  * decision is where to *stand* — what to pull the crowd into, and what to walk
  * away from — rather than when to press a button.
  */
-import type { Swarm } from './enemies'
+import { contactDamage, rouse, type Swarm } from './enemies'
 import type { Player } from './player'
 import type { Motes } from './pickups'
 import type { Bolts } from './projectiles'
@@ -217,6 +217,9 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   const e = ctx.swarm.pool.at(index)
   e.hp -= amount
   e.hitFlash = 0.12
+  // Being struck is the only thing that turns a pilgrim. Done before the death
+  // check, so one that dies to the blow never gets to be angry about it.
+  rouse(e)
   // Reported at the body's position before the pool recycles it, so a killing
   // blow's number appears where the enemy died rather than where the next
   // spawn happens to land.
@@ -390,11 +393,15 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       const dx = e.x - player.x
       const dy = e.y - player.y
       const reach = e.kind.radius + PLAYER_RADIUS
-      if (dx * dx + dy * dy <= reach * reach) {
-        run.hp -= e.kind.damage
+      // A sleeping lurker and an unstruck pilgrim deal nothing, so walking
+      // through either is safe — which is what makes both behaviours a real
+      // question rather than a differently-shaped chaser.
+      const damage = contactDamage(e)
+      if (damage > 0 && dx * dx + dy * dy <= reach * reach) {
+        run.hp -= damage
         run.immunity = HURT_IMMUNITY
         run.lastHurtBy = e.kind.name
-        ctx.events?.hurt(e.kind.damage, e.kind.name)
+        ctx.events?.hurt(damage, e.kind.name)
         if (run.hp <= 0) {
           run.hp = 0
           run.over = true

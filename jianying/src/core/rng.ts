@@ -82,6 +82,28 @@ export class Rng {
  * The seed for a given calendar day (UTC), so every player gets the same run.
  * UTC rather than local time, so a leaderboard is not split across timezones.
  */
+/**
+ * A fresh seed for one expedition.
+ *
+ * Deliberately NOT the daily seed, and that distinction was a real bug: every
+ * expedition on a given day drew the same enemies in the same order and offered
+ * the same three techniques at the same moments, because the run seed was the
+ * date. It was left over from a shared daily-challenge mode that was designed
+ * and never built, while the game became something you replay many times in a
+ * sitting.
+ *
+ * `dailySeed` stays below, unused by play, for when that mode exists.
+ */
+export function expeditionSeed(): number {
+  // Two sources, because neither alone is enough: the clock alone collides for
+  // two expeditions started in the same millisecond, and Math.random alone
+  // cannot be reproduced from a log. Mixed, the result is still just a uint32
+  // that a replay can be re-run from.
+  const t = Date.now() >>> 0
+  const r = Math.floor(Math.random() * 0xffffffff) >>> 0
+  return (Math.imul(t ^ 0x9e3779b9, 0x85ebca6b) ^ r) >>> 0
+}
+
 export function dailySeed(date: Date = new Date()): number {
   const y = date.getUTCFullYear()
   const m = date.getUTCMonth() + 1
