@@ -1,16 +1,16 @@
 /**
- * Phase 0.2 — overhead view, real input.
+ * Phase 0.3 — framed like the genre, driven by a thumb.
  *
- * The first build was a side profile watching an autopilot wander. Two things
- * were wrong with that, and they were related: easing the character's POSITION
- * toward a random target produced a lurch-then-drift motion, and a side profile
- * can only face two ways, so every turn flipped scale.x through zero and
- * visibly squashed the figure flat.
+ * The camera now owns framing. Until this version the figure's own scale
+ * doubled as the zoom, so making the character readable also pinned the camera
+ * right on top of it and the visible field shrank to almost nothing. A
+ * survivors-like lives on seeing the swarm arrive, so the world is now measured
+ * in world units and the camera decides how many of them fit on screen.
  *
- * Both are gone. Movement now integrates a velocity that eases toward a target
- * (see sim/player.ts), and the camera looks down at a symmetric character that
- * never mirrors. There is still no gameplay — but the movement is now something
- * a thumb can actually judge.
+ * Everything inside `stage.world` is therefore positioned in WORLD coordinates;
+ * the container itself carries the camera transform. No manual world-to-screen
+ * conversion is done anywhere below, which is what previously invited drift
+ * between the character, its shadow and the ground.
  */
 import { Container, Graphics } from 'pixi.js'
 import { SplashScreen } from '@capacitor/splash-screen'
@@ -18,13 +18,14 @@ import { GameLoop } from './core/loop'
 import { Rng } from './core/rng'
 import { clamp01, easing, expDecay, lerp } from './core/tween'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
-import { createCamera, resetCamera, updateCamera } from './render/camera'
+import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
 import { palette } from './render/palette'
 import { createStage } from './render/stage'
 import { createPlayer, MAX_SPEED, playerSpeedRatio, updatePlayer } from './sim/player'
 import { createJoystick } from './ui/joystick'
+import { strings } from './ui/strings'
 
-const BUILD = '0.2.0 · vista ¾'
+const BUILD = '0.3.0'
 
 /**
  * Dismisses the native splash screen.
@@ -54,7 +55,7 @@ function showFatal(err: unknown): void {
   bootScreen.innerHTML = ''
 
   const title = document.createElement('div')
-  title.textContent = '剑影 não arrancou'
+  title.textContent = strings.fatalTitle
   title.style.cssText = 'color:#c1272d;font-size:16px;margin-bottom:12px'
 
   const detail = document.createElement('pre')
@@ -72,16 +73,21 @@ async function boot(): Promise<void> {
   const hint = document.getElementById('hint')!
   const bootScreen = document.getElementById('boot')!
 
+  hint.textContent = strings.moveHint
+
   const stage = await createStage(host)
   const sashRng = new Rng(1337)
 
-  const scale = Math.min(2.6, Math.max(1.5, stage.width / 200))
-  const figure = buildSwordsmanTopDown(7, scale)
-  const bladeStrokes = buildBlade(2, scale)
+  // The figure is built once in world units. Its on-screen size is now purely a
+  // function of camera zoom, which is what lets framing be tuned without
+  // redrawing anything.
+  const figure = buildSwordsmanTopDown(7, 1)
+  const bladeStrokes = buildBlade(2, 1)
 
   const player = createPlayer(0, 0)
   const camera = createCamera(0, 0)
   resetCamera(camera, 0, 0)
+  fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
 
   // ---- Scene ------------------------------------------------------------
@@ -90,12 +96,11 @@ async function boot(): Promise<void> {
   // lean and bob do not distort it — a shadow that leans with its owner reads
   // as wrong immediately.
   const shadow = new Graphics()
-  shadow.ellipse(0, 0, 15 * scale, 5 * scale).fill({ color: palette.inkSoft, alpha: 0.18 })
+  shadow.ellipse(0, 0, 15, 5).fill({ color: palette.inkSoft, alpha: 0.18 })
   shadow.zIndex = -1
   stage.world.addChild(shadow)
 
   const character = new Container()
-
   const sashGfx = new Graphics()
 
   const bladeGfx = new Graphics()
@@ -120,12 +125,14 @@ async function boot(): Promise<void> {
   character.addChild(sashGfx, bodyGfx, bladeGfx)
   stage.world.addChild(character)
 
-  // The blade pivots at chest height rather than at the feet.
-  const bladePivotY = -26 * scale
+  /** Chest height, in world units — where the blade pivots. */
+  const BLADE_PIVOT_Y = -26
 
-  // Joystick ring, drawn in the overlay so the camera never moves it.
+  // Joystick ring, drawn in the overlay so the camera never moves or scales it.
   const stickGfx = new Graphics()
   stage.overlay.addChild(stickGfx)
+
+  stage.app.renderer.on('resize', () => fitCamera(camera, stage.height))
 
   // ---- Simulation -------------------------------------------------------
 
@@ -151,63 +158,59 @@ async function boot(): Promise<void> {
   const render = (alpha: number): void => {
     const wx = lerp(player.prevX, player.x, alpha)
     const wy = lerp(player.prevY, player.y, alpha)
+    const zoom = camera.zoom
 
-    // World -> screen. The player is drawn wherever the camera puts them, which
-    // is near but not exactly at the centre once look-ahead is in play.
-    const cx = stage.width / 2
-    const cy = stage.height / 2
-    const px = wx - camera.x + cx
-    const py = wy - camera.y + cy
+    // The world container carries the whole camera transform, so everything
+    // inside it can be positioned in plain world coordinates.
+    stage.world.scale.set(zoom)
+    stage.world.x = stage.width / 2 - camera.x * zoom
+    stage.world.y = stage.height / 2 - camera.y * zoom
 
     const ratio = playerSpeedRatio(player)
 
     // Gentle bob, faster when moving, so the figure is never frozen.
     const bobRate = 2.0 + ratio * 6
-    const bob = Math.sin(time * bobRate) * (1.0 + ratio * 2.2) * scale * 0.5
+    const bob = Math.sin(time * bobRate) * (0.6 + ratio * 1.3)
 
-    character.x = px
-    character.y = py + bob
+    character.x = wx
+    character.y = wy + bob
     // A slight lean into travel. No mirroring: the figure is symmetric, which
-    // is exactly what removes the squash-through-zero of the side profile.
+    // is what removes the squash-through-zero the side profile suffered.
     character.rotation = clamp01(ratio) * (player.vx / MAX_SPEED) * 0.13
 
-    shadow.x = px
-    shadow.y = py
-    const lift = 1 - Math.abs(bob) / (5 * scale)
+    shadow.x = wx
+    shadow.y = wy
+    const lift = 1 - Math.abs(bob) / 2.6
     shadow.scale.set(0.88 + lift * 0.16)
     shadow.alpha = 0.7 + lift * 0.3
 
     // Blade points where the player is heading.
     bladeGfx.rotation = Math.atan2(aimY, aimX)
-    bladeGfx.y = bladePivotY
+    bladeGfx.y = BLADE_PIVOT_Y
     // Foreshortening: aimed sideways the blade shows its full length, aimed
     // toward or away from the camera it is mostly pointing at the viewer and
     // should read as short. Scaling local x shortens it along its own axis.
     bladeGfx.scale.x = 0.5 + 0.5 * Math.abs(aimX)
-    // Behind the body when aimed away from the camera.
     bladeGfx.zIndex = aimY < 0 ? -1 : 2
 
-    // Sash streams opposite to travel; at rest it settles toward the camera.
+    // Sash streams opposite to travel.
     sashRng.snapshot = 1337
-    const speed = ratio * MAX_SPEED
-    const trailX = -aimX
-    const trailY = -aimY
-    // In front of the body when it streams toward the camera, behind otherwise.
-    sashGfx.zIndex = trailY > 0 ? 3 : -2
-    const spine = sashSpine(figure.sashAnchor, time, trailX, trailY, speed, scale)
-    const poly = sashPoly(spine, sashRng, scale)
+    const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * MAX_SPEED, 1)
+    const poly = sashPoly(spine, sashRng, 1)
     sashGfx.clear()
     if (poly.length >= 6) {
       sashGfx.poly(poly).fill({ color: palette.cinnabar, alpha: 0.88 })
     }
+    sashGfx.zIndex = -aimY > 0 ? 3 : -2
 
-    // The ground is the world: scrolling it by the camera is what makes the
-    // player feel like they are moving through a place rather than on a
-    // treadmill.
-    stage.ground.tilePosition.x = -camera.x
-    stage.ground.tilePosition.y = -camera.y
+    // The ground is the world seen through the same lens, so it scrolls AND
+    // scales with the camera. Scrolling it without scaling would make the paper
+    // grain drift at a different rate from everything standing on it.
+    stage.ground.tileScale.set(zoom)
+    stage.ground.tilePosition.x = -camera.x * zoom
+    stage.ground.tilePosition.y = -camera.y * zoom
 
-    // Joystick.
+    // Joystick, in screen space.
     stickGfx.clear()
     if (joystick.state.active) {
       const s = joystick.state
@@ -237,8 +240,6 @@ async function boot(): Promise<void> {
       hud.textContent =
         `${loop.stats.fps} fps · ${Math.round(stage.width)}×${Math.round(stage.height)} · ` +
         `${stage.rendererType} · ${BUILD}`
-      // The hint fades once the player has understood the controls, and comes
-      // back if they put the phone down and lose their place.
       hint.style.opacity = joystick.idleTime() > 3 ? '0.55' : '0'
     }
     requestAnimationFrame(hudTick)

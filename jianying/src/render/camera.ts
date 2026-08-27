@@ -1,15 +1,19 @@
 /**
  * Follow camera for the overhead view.
  *
- * Two things separate a camera that feels good from one that feels stiff:
+ * Three things separate a camera that feels good from one that feels stiff:
  *
- * 1. It lags. Snapping the camera to the player makes the world jitter around a
- *    pinned sprite, and the player loses any sense of their own speed.
+ * 1. It lags. Snapping to the player makes the world jitter around a pinned
+ *    sprite, and the player loses any sense of their own speed.
  * 2. It looks ahead. Biasing the centre toward where the player is heading
- *    shows more of the space being moved into — which in a survivors-like is
- *    the difference between seeing an incoming swarm and being ambushed by it.
+ *    shows more of the space being moved into.
+ * 3. It sits far enough back. This one was missing entirely at first: the
+ *    figure's own scale doubled as the zoom, so the visible area shrank as the
+ *    character grew. A survivors-like lives or dies on seeing the swarm arrive,
+ *    which means the world must be framed in WORLD units, independently of how
+ *    big the character is drawn.
  */
-import { expDecay } from '../core/tween'
+import { clamp, expDecay } from '../core/tween'
 
 /** Seconds for the camera to close half its distance to the target. */
 const FOLLOW_HALF_LIFE = 0.14
@@ -20,15 +24,34 @@ const LOOK_AHEAD = 70
 /** Look-ahead eases in slowly so a direction change does not whip the view. */
 const LOOK_AHEAD_HALF_LIFE = 0.42
 
+/**
+ * How much of the world, vertically, should fit on screen — in world units.
+ *
+ * This is the framing dial. The swordsman is ~50 world units tall, so at 640
+ * they occupy roughly 8% of the screen height, which is about where the genre
+ * sits: small enough that an approaching crowd is visible with time to react.
+ * Lower this number to move the camera in, raise it to pull back.
+ */
+export const VISIBLE_WORLD_HEIGHT = 640
+
+/** Bounds on zoom, so a tablet does not end up looking through a keyhole. */
+const MIN_ZOOM = 0.7
+const MAX_ZOOM = 2.2
+
 export interface Camera {
   x: number
   y: number
-  shakeX: number
-  shakeY: number
+  /** Screen pixels per world unit. */
+  zoom: number
 }
 
 export function createCamera(x = 0, y = 0): Camera {
-  return { x, y, shakeX: 0, shakeY: 0 }
+  return { x, y, zoom: 1 }
+}
+
+/** Recomputes zoom for the current viewport. Call on resize. */
+export function fitCamera(camera: Camera, screenHeight: number): void {
+  camera.zoom = clamp(screenHeight / VISIBLE_WORLD_HEIGHT, MIN_ZOOM, MAX_ZOOM)
 }
 
 interface FollowTarget {
@@ -61,7 +84,7 @@ export function updateCamera(
   camera.y = expDecay(camera.y, target.y + leadY, FOLLOW_HALF_LIFE, dt)
 }
 
-/** Resets the internal look-ahead. Call when teleporting or restarting a run. */
+/** Resets position and look-ahead. Call when teleporting or restarting a run. */
 export function resetCamera(camera: Camera, x: number, y: number): void {
   camera.x = x
   camera.y = y
