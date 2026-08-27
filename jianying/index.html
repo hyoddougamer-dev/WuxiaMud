@@ -65,6 +65,19 @@
         color: rgba(232, 220, 192, 0.72);
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       }
+      #hint {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(env(safe-area-inset-bottom, 0) + 46px);
+        text-align: center;
+        pointer-events: none;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        color: var(--ink);
+        opacity: 0;
+        transition: opacity 700ms ease;
+      }
       #boot {
         position: fixed;
         inset: 0;
@@ -95,6 +108,7 @@
   <body>
     <div id="stage"></div>
     <div id="hud"></div>
+    <div id="hint">arrasta em qualquer sítio para mover</div>
     <div id="boot">
       <div class="seal">剑影</div>
       <div class="sub">Jiànyǐng</div>

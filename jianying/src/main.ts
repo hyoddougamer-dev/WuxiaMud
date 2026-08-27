@@ -1,22 +1,30 @@
 /**
- * Phase 0 entry point.
+ * Phase 0.2 — overhead view, real input.
  *
- * The goal of this build is to prove the whole pipeline end to end — code here,
- * built in CI, installed as an APK on a real phone — so it deliberately
- * contains no gameplay. What it does contain is the art direction and the
- * motion language, because those are the two things that cannot be judged from
- * a description and need to be looked at on a real screen.
+ * The first build was a side profile watching an autopilot wander. Two things
+ * were wrong with that, and they were related: easing the character's POSITION
+ * toward a random target produced a lurch-then-drift motion, and a side profile
+ * can only face two ways, so every turn flipped scale.x through zero and
+ * visibly squashed the figure flat.
+ *
+ * Both are gone. Movement now integrates a velocity that eases toward a target
+ * (see sim/player.ts), and the camera looks down at a symmetric character that
+ * never mirrors. There is still no gameplay — but the movement is now something
+ * a thumb can actually judge.
  */
 import { Container, Graphics } from 'pixi.js'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng } from './core/rng'
-import { easing, expDecay, lerp } from './core/tween'
-import { buildSwordsman, sashPoly, sashSpine } from './render/figure'
+import { clamp01, easing, expDecay, lerp } from './core/tween'
+import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
+import { createCamera, resetCamera, updateCamera } from './render/camera'
 import { palette } from './render/palette'
 import { createStage } from './render/stage'
+import { createPlayer, MAX_SPEED, playerSpeedRatio, updatePlayer } from './sim/player'
+import { createJoystick } from './ui/joystick'
 
-const BUILD = '0.1.0 · fase 0'
+const BUILD = '0.2.0 · vista ¾'
 
 /**
  * Dismisses the native splash screen.
@@ -24,9 +32,6 @@ const BUILD = '0.1.0 · fase 0'
  * Forgetting this is what made the first APK a black screen: the splash is a
  * native view sitting ON TOP of the webview, so the game was running and
  * rendering the whole time, entirely hidden behind it.
- *
- * Safe to call more than once, and a no-op in a browser where the plugin is
- * not implemented — hence the swallowed error rather than a guard.
  */
 async function hideSplash(): Promise<void> {
   try {
@@ -38,10 +43,8 @@ async function hideSplash(): Promise<void> {
 
 /**
  * Puts a failure on the screen instead of leaving a silent black rectangle.
- *
- * On a phone there is no console to open, so an uncaught error during boot is
- * indistinguishable from a crash, a hang, or a blank canvas. Rendering the
- * message is the only diagnostic channel that survives the trip to a device.
+ * On a phone there is no console to open, so rendering the message is the only
+ * diagnostic channel that survives the trip to a device.
  */
 function showFatal(err: unknown): void {
   const bootScreen = document.getElementById('boot')
@@ -66,157 +69,153 @@ function showFatal(err: unknown): void {
 async function boot(): Promise<void> {
   const host = document.getElementById('stage')!
   const hud = document.getElementById('hud')!
+  const hint = document.getElementById('hint')!
   const bootScreen = document.getElementById('boot')!
 
   const stage = await createStage(host)
-  const rng = new Rng(20260827)
   const sashRng = new Rng(1337)
 
-  const scale = Math.min(3.2, Math.max(1.8, stage.width / 165))
-  const figure = buildSwordsman(7, scale)
+  const scale = Math.min(2.6, Math.max(1.5, stage.width / 200))
+  const figure = buildSwordsmanTopDown(7, scale)
+  const bladeStrokes = buildBlade(2, scale)
 
-  // Distant mountain washes. Empty paper is part of the 留白 tradition, but a
-  // completely bare field reads as "unfinished" rather than "composed" — two
-  // faint ridges give the eye a horizon to place the figure against.
-  const mountains = new Graphics()
-  const ridgeRng = new Rng(4)
-  for (let layer = 0; layer < 3; layer++) {
-    const baseY = stage.height * (0.30 + layer * 0.055)
-    const pts: number[] = [-40, stage.height]
-    let x = -40
-    while (x < stage.width + 40) {
-      const step = ridgeRng.range(40, 110)
-      const peak = ridgeRng.range(18, 62) * (1 - layer * 0.22)
-      pts.push(x, baseY - peak * 0.35, x + step * 0.5, baseY - peak)
-      x += step
-    }
-    pts.push(stage.width + 40, baseY, stage.width + 40, stage.height)
-    mountains
-      .poly(pts)
-      .fill({ color: palette.inkSoft, alpha: 0.055 + layer * 0.035 })
-  }
-  mountains.zIndex = -1000
-  stage.world.addChild(mountains)
+  const player = createPlayer(0, 0)
+  const camera = createCamera(0, 0)
+  resetCamera(camera, 0, 0)
+  const joystick = createJoystick(host)
 
-  // A soft wash under the feet. Without it the silhouette floats: the eye has
-  // nothing telling it where the figure meets the ground. It lives outside the
-  // character container so the character's lean and turn-squash do not distort
-  // it — a shadow that leans with its owner looks wrong immediately.
+  // ---- Scene ------------------------------------------------------------
+
+  // A soft wash under the feet, outside the character container so the body's
+  // lean and bob do not distort it — a shadow that leans with its owner reads
+  // as wrong immediately.
   const shadow = new Graphics()
-  shadow.ellipse(0, 0, 13 * scale, 3.4 * scale).fill({ color: palette.inkSoft, alpha: 0.2 })
+  shadow.ellipse(0, 0, 15 * scale, 5 * scale).fill({ color: palette.inkSoft, alpha: 0.18 })
   shadow.zIndex = -1
   stage.world.addChild(shadow)
 
-  // The character: static strokes drawn once, then only ever transformed.
   const character = new Container()
+
+  const sashGfx = new Graphics()
+
+  const bladeGfx = new Graphics()
+  for (const stroke of bladeStrokes) {
+    bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+  }
+
   const bodyGfx = new Graphics()
-  // Bleed underneath, solid on top — the pair is what reads as wet ink.
   for (const stroke of figure.bleed) {
     bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
   }
   for (const stroke of figure.body) {
     bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
   }
-  const sashGfx = new Graphics()
-  character.addChild(sashGfx, bodyGfx)
-  character.zIndex = 0
+
+  // Depth inside the character is dynamic, not fixed: a blade aimed away from
+  // the camera has to pass BEHIND the body, and a sash streaming toward the
+  // camera has to fall in FRONT of it. With a static order, aiming upward drew
+  // the sword straight through the swordsman's head.
+  character.sortableChildren = true
+  bodyGfx.zIndex = 0
+  character.addChild(sashGfx, bodyGfx, bladeGfx)
   stage.world.addChild(character)
 
-  // A cinnabar seal, bottom-right, the way a painting is signed.
-  const seal = new Graphics()
-  seal.roundRect(0, 0, 30 * scale * 0.5, 30 * scale * 0.5, 3).fill({
-    color: palette.cinnabar,
-    alpha: 0.85,
-  })
-  stage.overlay.addChild(seal)
+  // The blade pivots at chest height rather than at the feet.
+  const bladePivotY = -26 * scale
 
-  // Wander state. The figure drifts between targets rather than sitting still,
-  // which is what actually exercises the sash and the easing on screen.
-  let x = stage.width / 2
-  let y = stage.height * 0.58
-  let targetX = x
-  let targetY = y
-  let prevX = x
-  let prevY = y
-  let velX = 0
-  let velY = 0
+  // Joystick ring, drawn in the overlay so the camera never moves it.
+  const stickGfx = new Graphics()
+  stage.overlay.addChild(stickGfx)
+
+  // ---- Simulation -------------------------------------------------------
+
   let time = 0
-  let retargetIn = 0
-  let facing = 1
-  let facingTarget = 1
-
-  const pickTarget = () => {
-    targetX = rng.range(stage.width * 0.22, stage.width * 0.78)
-    targetY = rng.range(stage.height * 0.42, stage.height * 0.74)
-    retargetIn = rng.range(1.4, 3.0)
-  }
-  pickTarget()
+  // Aim eases toward facing so the blade sweeps around rather than snapping.
+  let aimX = 1
+  let aimY = 0
 
   const update = (dt: number): void => {
     time += dt
-    retargetIn -= dt
-    if (retargetIn <= 0) pickTarget()
+    joystick.tick(dt)
 
-    prevX = x
-    prevY = y
+    const { x: ix, y: iy } = joystick.state
+    updatePlayer(player, ix, iy, dt)
+    updateCamera(camera, player, MAX_SPEED, dt)
 
-    // expDecay rather than a fixed lerp: the approach must not change speed
-    // with the frame rate, or a 120Hz phone would play a different game.
-    x = expDecay(x, targetX, 0.55, dt)
-    y = expDecay(y, targetY, 0.65, dt)
-
-    velX = (x - prevX) / dt
-    velY = (y - prevY) / dt
-
-    if (Math.abs(velX) > 6) facingTarget = velX > 0 ? 1 : -1
-    // Turning is eased too — an instant flip is the single most robotic thing
-    // a 2D character can do.
-    facing = expDecay(facing, facingTarget, 0.08, dt)
+    aimX = expDecay(aimX, player.faceX, 0.07, dt)
+    aimY = expDecay(aimY, player.faceY, 0.07, dt)
   }
 
-  const render = (alpha: number): void => {
-    const px = lerp(prevX, x, alpha)
-    const py = lerp(prevY, y, alpha)
+  // ---- Render -----------------------------------------------------------
 
-    const speed = Math.hypot(velX, velY)
-    // Gentle bob, faster when moving, so the figure never looks frozen.
-    const bobRate = 2.2 + Math.min(speed / 55, 4)
-    const bob = Math.sin(time * bobRate) * (1.1 + Math.min(speed / 90, 2.2)) * scale * 0.5
-    // Lean into the direction of travel.
-    const lean = Math.max(-0.16, Math.min(0.16, velX / 900))
+  const render = (alpha: number): void => {
+    const wx = lerp(player.prevX, player.x, alpha)
+    const wy = lerp(player.prevY, player.y, alpha)
+
+    // World -> screen. The player is drawn wherever the camera puts them, which
+    // is near but not exactly at the centre once look-ahead is in play.
+    const cx = stage.width / 2
+    const cy = stage.height / 2
+    const px = wx - camera.x + cx
+    const py = wy - camera.y + cy
+
+    const ratio = playerSpeedRatio(player)
+
+    // Gentle bob, faster when moving, so the figure is never frozen.
+    const bobRate = 2.0 + ratio * 6
+    const bob = Math.sin(time * bobRate) * (1.0 + ratio * 2.2) * scale * 0.5
 
     character.x = px
     character.y = py + bob
-    character.rotation = lean
-    character.scale.x = facing
-    character.scale.y = 1
+    // A slight lean into travel. No mirroring: the figure is symmetric, which
+    // is exactly what removes the squash-through-zero of the side profile.
+    character.rotation = clamp01(ratio) * (player.vx / MAX_SPEED) * 0.13
 
-    // The shadow stays on the ground plane while the figure bobs above it, and
-    // shrinks slightly as it rises — that offset is what sells the bob as
-    // vertical motion rather than the whole scene drifting.
     shadow.x = px
     shadow.y = py
-    const lift = 1 - Math.abs(bob) / (7 * scale)
-    shadow.scale.set(0.9 + lift * 0.16, 0.9 + lift * 0.16)
-    shadow.alpha = 0.75 + lift * 0.25
+    const lift = 1 - Math.abs(bob) / (5 * scale)
+    shadow.scale.set(0.88 + lift * 0.16)
+    shadow.alpha = 0.7 + lift * 0.3
 
-    sashGfx.clear()
-    // Reusing one Rng and rewinding it keeps the ribbon's outline stable frame
-    // to frame (it would otherwise crawl) without allocating in the hot path.
+    // Blade points where the player is heading.
+    bladeGfx.rotation = Math.atan2(aimY, aimX)
+    bladeGfx.y = bladePivotY
+    // Foreshortening: aimed sideways the blade shows its full length, aimed
+    // toward or away from the camera it is mostly pointing at the viewer and
+    // should read as short. Scaling local x shortens it along its own axis.
+    bladeGfx.scale.x = 0.5 + 0.5 * Math.abs(aimX)
+    // Behind the body when aimed away from the camera.
+    bladeGfx.zIndex = aimY < 0 ? -1 : 2
+
+    // Sash streams opposite to travel; at rest it settles toward the camera.
     sashRng.snapshot = 1337
-    const spine = sashSpine(figure.sashAnchor, time, velX * facing, velY, scale)
+    const speed = ratio * MAX_SPEED
+    const trailX = -aimX
+    const trailY = -aimY
+    // In front of the body when it streams toward the camera, behind otherwise.
+    sashGfx.zIndex = trailY > 0 ? 3 : -2
+    const spine = sashSpine(figure.sashAnchor, time, trailX, trailY, speed, scale)
     const poly = sashPoly(spine, sashRng, scale)
+    sashGfx.clear()
     if (poly.length >= 6) {
       sashGfx.poly(poly).fill({ color: palette.cinnabar, alpha: 0.88 })
     }
 
-    // The ground drifts opposite to the figure — parallax without a camera yet.
-    stage.ground.tilePosition.x = -px * 0.12
-    stage.ground.tilePosition.y = -py * 0.12
+    // The ground is the world: scrolling it by the camera is what makes the
+    // player feel like they are moving through a place rather than on a
+    // treadmill.
+    stage.ground.tilePosition.x = -camera.x
+    stage.ground.tilePosition.y = -camera.y
 
-    seal.x = stage.width - 30 * scale * 0.5 - 16
-    seal.y = stage.height - 30 * scale * 0.5 - 16
-    seal.rotation = Math.sin(time * 0.4) * 0.02
+    // Joystick.
+    stickGfx.clear()
+    if (joystick.state.active) {
+      const s = joystick.state
+      stickGfx
+        .circle(s.originX, s.originY, 54)
+        .stroke({ width: 1.5, color: palette.ink, alpha: 0.18 })
+      stickGfx.circle(s.thumbX, s.thumbY, 20).fill({ color: palette.ink, alpha: 0.24 })
+    }
   }
 
   const loop = new GameLoop({ update, render })
@@ -229,7 +228,7 @@ async function boot(): Promise<void> {
   })
 
   let hudTimer = 0
-  const hudTick = () => {
+  const hudTick = (): void => {
     hudTimer++
     if (hudTimer % 20 === 0) {
       // The renderer type is on the HUD deliberately: if a device ever falls
@@ -238,6 +237,9 @@ async function boot(): Promise<void> {
       hud.textContent =
         `${loop.stats.fps} fps · ${Math.round(stage.width)}×${Math.round(stage.height)} · ` +
         `${stage.rendererType} · ${BUILD}`
+      // The hint fades once the player has understood the controls, and comes
+      // back if they put the phone down and lose their place.
+      hint.style.opacity = joystick.idleTime() > 3 ? '0.55' : '0'
     }
     requestAnimationFrame(hudTick)
   }
@@ -245,7 +247,7 @@ async function boot(): Promise<void> {
 
   // Fade the boot seal out on an ease, not a cut.
   const fadeStart = performance.now()
-  const fade = () => {
+  const fade = (): void => {
     const t = Math.min(1, (performance.now() - fadeStart) / 620)
     bootScreen.style.opacity = String(1 - easing.outCubic(t))
     if (t < 1) requestAnimationFrame(fade)

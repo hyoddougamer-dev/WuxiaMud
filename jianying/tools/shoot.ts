@@ -125,14 +125,31 @@ async function main(): Promise<void> {
     await page.goto(url, { waitUntil: 'load' })
     await waitForFirstFrame(page)
 
-    // Three stills spread over the wander cycle, so the motion is visible as a
-    // sequence rather than judged from one frozen pose.
-    for (let i = 0; i < 3; i++) {
-      await page.waitForTimeout(i === 0 ? 900 : 1600)
+    // Drive the character with synthetic touches. Screenshotting an idle
+    // character says nothing about how movement looks, and movement is the
+    // whole reason this harness exists.
+    const cx = VIEWPORT.width / 2
+    const cy = VIEWPORT.height * 0.72
+    const strides: Array<[number, number, string]> = [
+      [70, -30, 'direita'],
+      [-70, 40, 'esquerda-baixo'],
+      [10, -75, 'cima'],
+    ]
+
+    for (let i = 0; i < strides.length; i++) {
+      const [dx, dy] = strides[i]!
+      await page.touchscreen.tap(cx, cy) // settle any prior gesture
+      await page.mouse.move(cx, cy)
+      await page.mouse.down()
+      await page.mouse.move(cx + dx, cy + dy, { steps: 8 })
+      // Long enough to reach full speed, so the sash and lean are developed.
+      await page.waitForTimeout(1100)
       await page.screenshot({ path: join(OUT, `frame-${i + 1}.png`) })
+      await page.mouse.up()
+      await page.waitForTimeout(250)
     }
 
-    await page.waitForTimeout(2500)
+    await page.waitForTimeout(1500)
     const fps = await readFps(page)
     const hud = await page.locator('#hud').textContent()
 

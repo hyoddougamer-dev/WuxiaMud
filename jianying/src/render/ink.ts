@@ -35,6 +35,19 @@ export const calligraphic =
     return max * base * lift
   }
 
+/**
+ * A true ellipse when swept along a straight spine: the width falls to zero at
+ * both ends instead of merely thinning.
+ *
+ * This exists because `calligraphic` keeps roughly 80% of its width at the
+ * ends — right for a brush mark, badly wrong for a head or a pair of
+ * shoulders, which came out as hard-edged rectangles.
+ */
+export const elliptic =
+  (max: number): WidthProfile =>
+  (t) =>
+    max * Math.sqrt(Math.max(0, 1 - Math.pow(2 * t - 1, 2)))
+
 /** A steady stroke that only tapers at the very ends — for limbs and blades. */
 export const tapered =
   (max: number, taper = 0.18): WidthProfile =>
