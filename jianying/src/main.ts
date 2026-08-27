@@ -40,7 +40,12 @@ import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { clampDepth, roadOf } from './meta/depth'
-import { applyOrigin } from './meta/origins'
+import { applySchool, schoolById } from './meta/schools'
+import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
+import { ITEMS, ITEM_BY_ID, type Item } from './data/items'
+import { bladeOf, weaponById } from './data/weapons'
+import { gearFromIds } from './render/wardrobe'
+import type { Kit } from './sim/loadout'
 import { loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
@@ -100,8 +105,6 @@ async function boot(): Promise<void> {
   const stage = await createStage(host)
   const sashRng = new Rng(1337)
 
-  const figure = buildSwordsmanTopDown(7, 1)
-  const bladeStrokes = buildBlade(2, 1)
   const enemyArt = buildEnemyArt(ENEMY_KINDS)
 
   // The character is read before anything else is built: a save that fails to
@@ -126,11 +129,46 @@ async function boot(): Promise<void> {
   // sequence a seed is supposed to guarantee.
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
   let loadout: Loadout = new Map()
-  let stats = deriveStats(loadout, character.spent)
-  let run = createRun()
+
+  /**
+   * Everything the character permanently brings: bought attributes, the
+   * equipped weapon, and the worn armour. Rebuilt whenever the hub changes
+   * something, and read once at the start of an expedition.
+   */
+  const currentKit = (): Kit => {
+    const school = schoolById(character.origin)
+    const weaponItem = equippedIn(character.inventory, 'weapon')
+    return {
+      spent: character.spent,
+      weapon: weaponById(weaponItem?.styleId ?? school.weaponId),
+      worn: equippedItems(character.inventory).filter((item) => item.slot !== 'weapon'),
+    }
+  }
+
+  /** The wardrobe styles the equipped armour and weapon add up to. */
+  const currentGear = () => {
+    const school = schoolById(character.origin)
+    const weaponItem = equippedIn(character.inventory, 'weapon')
+    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
+    return gearFromIds({
+      robe: equippedIn(character.inventory, 'robe')?.styleId,
+      shoulders: equippedIn(character.inventory, 'shoulders')?.styleId,
+      head: equippedIn(character.inventory, 'head')?.styleId,
+      blade: bladeOf(weapon).id,
+    })
+  }
+
+  let kit = currentKit()
+  let stats = deriveStats(loadout, kit)
+  let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
   /** The road being walked. Chosen in the hub before every expedition. */
   let depth = clampDepth(character.depth, character.depth)
+
+  // The figure is rebuilt whenever equipment changes, since equipment IS the
+  // geometry here — a longer hem is literally a longer silhouette.
+  let figure = buildSwordsmanTopDown(7, 1, currentGear())
+  let bladeStrokes = buildBlade(2, 1, currentGear().blade)
 
   resetCamera(camera, 0, 0)
   fitCamera(camera, stage.height)
@@ -198,17 +236,34 @@ async function boot(): Promise<void> {
   const sashGfx = new Graphics()
 
   const bladeGfx = new Graphics()
-  for (const stroke of bladeStrokes) {
-    bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
-  }
-
   const bodyGfx = new Graphics()
-  for (const stroke of figure.bleed) {
-    bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+
+  /**
+   * Re-bakes the swordsman's geometry from whatever is equipped.
+   *
+   * Cheap and rare: it runs when an expedition starts, not per frame, so the
+   * hot loop still draws two static Graphics. This is the whole payoff of the
+   * art direction — changing equipment is changing the polygons, so there is
+   * no sprite to swap and no atlas to rebuild.
+   */
+  const rebuildFigure = (): void => {
+    const gear = currentGear()
+    figure = buildSwordsmanTopDown(7, 1, gear)
+    bladeStrokes = buildBlade(2, 1, gear.blade)
+
+    bladeGfx.clear()
+    for (const stroke of bladeStrokes) {
+      bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+    }
+    bodyGfx.clear()
+    for (const stroke of figure.bleed) {
+      bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+    }
+    for (const stroke of figure.body) {
+      bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+    }
   }
-  for (const stroke of figure.body) {
-    bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
-  }
+  rebuildFigure()
 
   // Depth inside the character is dynamic: a blade aimed away from the camera
   // passes BEHIND the body, a sash streaming toward it falls in FRONT.
@@ -239,6 +294,17 @@ async function boot(): Promise<void> {
    * what was happening. A number over a struck enemy, a number over the player
    * when something lands, and a banner naming whatever just took a bite.
    */
+  /** Equipment found during the current expedition, in the order found. */
+  let foundThisRun: Item[] = []
+  /**
+   * What the drop table should treat as already owned.
+   *
+   * Includes what was found earlier in this same expedition, so a run cannot
+   * hand out the same robe three times before the player has had a chance to
+   * put it away.
+   */
+  let ownedThisRun = new Set<string>()
+
   const events = {
     hit(x: number, y: number, amount: number, killed: boolean): void {
       floaters.hit(x, y, amount, killed)
@@ -246,6 +312,17 @@ async function boot(): Promise<void> {
     hurt(amount: number, source: string): void {
       floaters.hurt(player.x, player.y, amount)
       banners.show(source, 'danger', `−${Math.round(amount)}`)
+    },
+    drop(x: number, y: number, itemId: string): void {
+      const item = ITEM_BY_ID.get(itemId)
+      if (!item) return
+      // Kept immediately rather than needing to be walked over. A drop the
+      // player can fail to collect while being chased is a punishment dressed
+      // as a reward, and this genre never gives them a safe moment to go back.
+      foundThisRun.push(item)
+      ownedThisRun.add(item.id)
+      banners.show(item.name, 'gold', strings.found)
+      floaters.found(x, y)
     },
   }
 
@@ -264,12 +341,16 @@ async function boot(): Promise<void> {
     floaters.clear()
     banners.clear()
     loadout = new Map()
-    // Attributes are folded in here, which is the only place permanent power
-    // touches a run: after this the expedition knows nothing about the hub.
-    stats = deriveStats(loadout, character.spent)
+    foundThisRun = []
+    ownedThisRun = new Set(character.inventory.owned)
+    // The kit is read here, and this is the only place permanent power touches
+    // a run: after this the expedition knows nothing about the hub.
+    kit = currentKit()
+    stats = deriveStats(loadout, kit)
+    rebuildFigure()
     pickRng = new Rng(runSeed ^ 0x5bf03635)
     levelUp.hide()
-    run = createRun()
+    run = createRun(kit.weapon.interval)
     run.hp = stats.maxHp
     resetCamera(camera, 0, 0)
     gameOverShown = false
@@ -281,7 +362,7 @@ async function boot(): Promise<void> {
     tutorial.reset()
 
     const road = roadOf(depth)
-    banners.show(road.name, 'plain', road.seal)
+    banners.show(road.name, 'plain', `${road.seal} · ${kit.weapon.name}`)
   }
 
   openHub = (): void => {
@@ -312,6 +393,23 @@ async function boot(): Promise<void> {
     const reward = rewardFor(result)
     const gain = grantXp(character, reward.total)
     recordRun(character, result)
+
+    // Duplicates are reported honestly rather than silently swallowed: owning
+    // a second Hemp Robe is worth nothing here, and a reward screen that
+    // pretended otherwise would be lying about the only loot the player got.
+    const kept: Item[] = []
+    const duplicates: Item[] = []
+    for (const item of foundThisRun) {
+      if (acquire(character.inventory, item.id)) {
+        kept.push(item)
+        // Anything for an empty slot goes straight on. Making a player visit
+        // the hub to equip their very first weapon would be ceremony for its
+        // own sake.
+        if (!character.inventory.equipped[item.slot]) equip(character.inventory, item.id)
+      } else {
+        duplicates.push(item)
+      }
+    }
     // One expedition is enough teaching. Coaching that keeps firing after the
     // player has understood the game stops being help and becomes noise they
     // have no way to dismiss mid-fight.
@@ -325,6 +423,8 @@ async function boot(): Promise<void> {
       reward,
       gain,
       level: character.level,
+      kept,
+      duplicates,
     }
   }
 
@@ -347,7 +447,7 @@ async function boot(): Promise<void> {
         levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
           const before = stats.maxHp
           loadout.set(tech.id, (loadout.get(tech.id) ?? 0) + 1)
-          stats = deriveStats(loadout, character.spent)
+          stats = deriveStats(loadout, kit)
           // Iron Skin heals for what it adds, so taking it while badly hurt is
           // a real decision rather than a promise for the next run.
           run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
@@ -363,7 +463,22 @@ async function boot(): Promise<void> {
     const { x: ix, y: iy } = joystick.state
     updatePlayer(player, ix, iy, dt, stats.moveSpeed)
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
-    updateCombat({ run, player, swarm, motes, bolts, hazards, stats, rng: pickRng, events }, dt)
+    updateCombat(
+      {
+        run,
+        player,
+        swarm,
+        motes,
+        bolts,
+        hazards,
+        stats,
+        rng: pickRng,
+        events,
+        depth,
+        owned: ownedThisRun,
+      },
+      dt,
+    )
     updateCamera(camera, player, stats.moveSpeed, dt)
 
     // A boss used to simply walk on from off-screen, indistinguishable from a
@@ -612,6 +727,11 @@ async function boot(): Promise<void> {
     ui.update(run.hp, stats.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
+      // Cleared before the end screen goes up, or the last banner of the run
+      // sits on top of it — an "Insight 7" drawn straight through the seal,
+      // which is what shipped in the first version of this screen.
+      banners.clear()
+      floaters.clear()
       ui.showGameOver(settleExpedition(), openHub)
     }
 
@@ -692,9 +812,23 @@ async function boot(): Promise<void> {
       const nameRng = new Rng((Date.now() ^ 0x9e3779b9) >>> 0)
       creator.show(
         () => nameRng.next(),
-        (name, origin) => {
-          character = createCharacter(name, origin.id)
-          character.spent = applyOrigin(origin, character.spent)
+        (name, school) => {
+          character = createCharacter(name, school.id)
+          character.spent = applySchool(school, character.spent)
+          // The school's kit and weapon are handed over and worn, so the very
+          // first expedition is fought with the weapon that was chosen rather
+          // than with a default the player never picked.
+          const weaponItem = ITEMS.find(
+            (i) => i.slot === 'weapon' && i.styleId === school.weaponId,
+          )
+          for (const id of [...school.kit, weaponItem?.id]) {
+            if (!id) continue
+            acquire(character.inventory, id)
+            equip(character.inventory, id)
+          }
+          kit = currentKit()
+          stats = deriveStats(loadout, kit)
+          rebuildFigure()
           persist()
           creator.hide()
           // The codex lands here, between choosing a swordsman and first

@@ -602,17 +602,105 @@
       .origin-name {
         font-size: 15px;
       }
-      .origin-blurb {
+      /* The weapon leads on a school card: it is the part of the choice the
+         player feels within a second of setting out. */
+      .origin-weapon {
         margin-top: 3px;
-        font-size: 12px;
-        line-height: 1.45;
-        color: rgba(13, 13, 13, 0.55);
+        font-size: 13px;
+        color: var(--cinnabar);
       }
       .origin-effect {
+        margin-top: 3px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #8a6d16;
+      }
+      .origin-blurb {
         margin-top: 5px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.5);
+      }
+
+      /* --- equipment ---------------------------------------------------- */
+      .slot {
+        margin-bottom: 12px;
+      }
+      .slot-name {
         font-size: 11px;
-        letter-spacing: 0.06em;
-        color: var(--gold);
+        letter-spacing: 0.1em;
+        color: rgba(13, 13, 13, 0.4);
+        margin-bottom: 5px;
+      }
+      /* Horizontal and scrollable, so a slot with eight options costs one row
+         of height instead of eight. */
+      .slot-items {
+        display: flex;
+        gap: 7px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 3px;
+      }
+      .item {
+        flex: none;
+        width: 158px;
+        min-height: 58px;
+        padding: 9px 11px;
+        text-align: left;
+        font: inherit;
+        color: var(--ink);
+        background: rgba(255, 252, 244, 0.5);
+        border: 1px solid rgba(13, 13, 13, 0.12);
+        border-left: 3px solid rgba(13, 13, 13, 0.14);
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .item-r1 {
+        border-left-color: var(--gold);
+      }
+      .item-r2 {
+        border-left-color: var(--cinnabar);
+      }
+      .item-worn {
+        background: rgba(13, 13, 13, 0.9);
+        color: var(--paper);
+      }
+      .item:not(.item-worn):active {
+        transform: scale(0.97);
+      }
+      .item-name {
+        font-size: 13px;
+      }
+      .item-line {
+        margin-top: 3px;
+        font-size: 11px;
+        line-height: 1.35;
+        color: rgba(13, 13, 13, 0.55);
+      }
+      .item-worn .item-line {
+        color: rgba(232, 220, 192, 0.62);
+      }
+
+      /* Loot on the reward screen. */
+      .rw-found {
+        margin-top: 14px;
+      }
+      .loot {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 3px 0;
+        font-size: 13px;
+        color: var(--ink);
+      }
+      .loot b {
+        color: #8a6d16;
+        font-weight: normal;
+        text-align: right;
+      }
+      .loot-dupe,
+      .loot-dupe b {
+        color: rgba(13, 13, 13, 0.35);
       }
       .create-go {
         display: block;
@@ -850,6 +938,14 @@
         margin-left: 4px;
         font-size: 12px;
         color: var(--gold);
+        font-variant-numeric: tabular-nums;
+      }
+      /* What equipment is adding, kept separate from what was bought — so a
+         player can see what a swap would cost them. */
+      .attr-gear {
+        margin-left: 3px;
+        font-size: 12px;
+        color: var(--cinnabar);
         font-variant-numeric: tabular-nums;
       }
       .attr-now {

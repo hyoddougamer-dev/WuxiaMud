@@ -20,8 +20,10 @@ import {
   createCharacter,
   emptyAttributes,
 } from './character'
+import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from './depth'
-import { ORIGIN_BY_ID } from './origins'
+import { acquire, emptyInventory, equip, sanitise, type Inventory } from './inventory'
+import { SCHOOL_BY_ID, schoolById } from './schools'
 
 /** Versioned: a future shape change gets a new key rather than a silent misread. */
 export const SAVE_KEY = 'jianying.character.v1'
@@ -39,6 +41,43 @@ function parseAttributes(value: unknown): Attributes {
   const record = value as Record<string, unknown>
   for (const attr of ATTRIBUTES) out[attr.id] = int(record[attr.id], 0)
   return out
+}
+
+/**
+ * Reads an inventory, repairing whatever it finds.
+ *
+ * A save written before equipment existed has no inventory at all, so it is
+ * handed its school's starting kit rather than an empty one — a returning
+ * character opening the hub to a naked swordsman with no weapon would look
+ * exactly like their progress had been eaten.
+ */
+function parseInventory(value: unknown, schoolId: string): Inventory {
+  const school = schoolById(schoolId)
+  const starter = (): Inventory => {
+    const inv = emptyInventory()
+    for (const id of school.kit) acquire(inv, id)
+    const weapon = ITEMS.find((i) => i.slot === 'weapon' && i.styleId === school.weaponId)
+    if (weapon) acquire(inv, weapon.id)
+    for (const id of inv.owned) equip(inv, id)
+    return inv
+  }
+
+  if (typeof value !== 'object' || value === null) return starter()
+  const record = value as Record<string, unknown>
+  const owned = Array.isArray(record.owned)
+    ? record.owned.filter((id): id is string => typeof id === 'string')
+    : []
+  if (owned.length === 0) return starter()
+
+  const equipped: Record<string, string> = {}
+  if (typeof record.equipped === 'object' && record.equipped !== null) {
+    for (const [slot, id] of Object.entries(record.equipped as Record<string, unknown>)) {
+      if (typeof id === 'string') equipped[slot] = id
+    }
+  }
+  // `sanitise` drops ids this build no longer knows and unequips anything left
+  // dangling, so an item renamed between builds cannot make a slot vanish.
+  return sanitise({ owned, equipped })
 }
 
 /**
@@ -60,13 +99,14 @@ export function parseCharacter(raw: string): Character | null {
 
   const base = createCharacter()
   const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : base.name
-  // An unknown origin id — a save from a build that had one this version does
+  // An unknown school id — a save from a build that had one this version does
   // not — falls back rather than leaving the hub with nothing to render.
   const origin =
-    typeof record.origin === 'string' && ORIGIN_BY_ID.has(record.origin)
+    typeof record.origin === 'string' && SCHOOL_BY_ID.has(record.origin)
       ? record.origin
       : base.origin
   return {
+    inventory: parseInventory(record.inventory, origin),
     // Trimmed to something a UI can lay out; a save carrying a kilobyte of text
     // should not be able to break the hub.
     name: name.slice(0, 24),

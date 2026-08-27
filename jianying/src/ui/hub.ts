@@ -21,14 +21,18 @@ import {
   ATTRIBUTES,
   type Attributes,
   type Character,
+  emptyAttributes,
   spendPoint,
   xpForCultivation,
 } from '../meta/character'
 import { MAX_DEPTH, ROADS, depthReward, roadOf } from '../meta/depth'
-import { DEFAULT_ORIGIN, ORIGIN_BY_ID } from '../meta/origins'
+import { schoolById } from '../meta/schools'
+import { equip, equippedIn, equippedItems, ownedInSlot } from '../meta/inventory'
+import { SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
+import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } from '../sim/loadout'
-import { PLAYER_MAX_HP, SLASH_DAMAGE, SLASH_INTERVAL } from '../sim/combat'
+import { PLAYER_MAX_HP } from '../sim/combat'
 import { strings } from './strings'
 
 export interface HubScreen {
@@ -60,15 +64,17 @@ function formatTime(seconds: number): string {
  * them what the next point buys and what the last four bought, which is the
  * difference between spending a point and guessing.
  */
-function currentValue(id: string, spent: Attributes): string {
+function currentValue(id: string, spent: Attributes, weapon: WeaponClass): string {
   const attr = attributeBonuses(spent)
   switch (id) {
     case 'body':
       return `${Math.round(PLAYER_MAX_HP + attr.maxHp)} health`
     case 'edge':
-      return `${(SLASH_DAMAGE + attr.slashDamage).toFixed(1)} damage`
+      // Quoted against the equipped weapon, because "12.3 damage" would be a
+      // lie the moment the player picked up a zhanmadao.
+      return `${(weapon.damage + attr.slashDamage).toFixed(1)} damage`
     case 'swift':
-      return `${(SLASH_INTERVAL * attr.slashIntervalScale).toFixed(2)}s per sweep`
+      return `${(weapon.interval * attr.slashIntervalScale).toFixed(2)}s per sweep`
     case 'spirit':
       return `${Math.round(attr.artScale * 100)}% art power`
     default:
@@ -77,17 +83,16 @@ function currentValue(id: string, spent: Attributes): string {
 }
 
 /** The same figure one more point would produce, for the "→" preview. */
-function nextValue(id: string, spent: Attributes): string {
-  const bumped: Attributes = { ...spent }
+function nextValue(id: string, spent: Attributes, weapon: WeaponClass): string {
   switch (id) {
     case 'body':
-      return `${Math.round(PLAYER_MAX_HP + (bumped.body + 1) * BODY_HP)}`
+      return `${Math.round(PLAYER_MAX_HP + (spent.body + 1) * BODY_HP)}`
     case 'edge':
-      return `${(SLASH_DAMAGE + (bumped.edge + 1) * EDGE_DAMAGE).toFixed(1)}`
+      return `${(weapon.damage + (spent.edge + 1) * EDGE_DAMAGE).toFixed(1)}`
     case 'swift':
-      return `${(SLASH_INTERVAL * Math.pow(SWIFT_INTERVAL, bumped.swift + 1)).toFixed(2)}s`
+      return `${(weapon.interval * Math.pow(SWIFT_INTERVAL, spent.swift + 1)).toFixed(2)}s`
     case 'spirit':
-      return `${Math.round((1 + (bumped.spirit + 1) * SPIRIT_ART) * 100)}%`
+      return `${Math.round((1 + (spent.spirit + 1) * SPIRIT_ART) * 100)}%`
     default:
       return ''
   }
@@ -115,6 +120,34 @@ export function createHub(
   let onSetOutHandler: ((depth: number) => void) | null = null
   let chosenDepth = 1
 
+  /**
+   * One tappable equipment card.
+   *
+   * A weapon shows how it plays rather than a stat, because that is what
+   * changes when you equip it — "+2 damage" on a spear would describe the least
+   * interesting thing about picking up a spear.
+   */
+  const itemCard = (item: Item, worn: boolean, slot: Slot): HTMLButtonElement => {
+    const card = document.createElement('button')
+    card.type = 'button'
+    card.className =
+      'item' + (worn ? ' item-worn' : '') + (item.rarity > 0 ? ` item-r${item.rarity}` : '')
+
+    const line =
+      slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat)
+    card.innerHTML = `
+      <div class="item-name">${item.name}</div>
+      <div class="item-line">${line}</div>
+    `
+    card.addEventListener('click', () => {
+      if (!character || worn) return
+      if (!equip(character.inventory, item.id)) return
+      onSave()
+      render()
+    })
+    return card
+  }
+
   const render = (): void => {
     const c = character
     if (!c) return
@@ -131,14 +164,35 @@ export function createHub(
     // The name and origin lead, and the realm follows. A panel that opens on
     // "Body Tempering" describes a rank; one that opens on "Bai Anzhi, of the
     // Mountain Sect" describes somebody the numbers below belong to.
-    const origin = ORIGIN_BY_ID.get(c.origin) ?? DEFAULT_ORIGIN
+    const school = schoolById(c.origin)
+    const weaponItem = equippedIn(c.inventory, 'weapon')
+    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
+
+    // Attributes granted by worn equipment count exactly like bought ones in
+    // combat, so the hub must quote the combined figure. Quoting only the
+    // bought half was a straightforward lie: it read "0.26s per sweep" while
+    // the game ran at 0.24s, and this screen exists to be believed.
+    const fromGear = emptyAttributes()
+    for (const item of equippedItems(c.inventory)) {
+      const stat = item.stat
+      if (!stat) continue
+      if (stat.kind === 'body' || stat.kind === 'edge' || stat.kind === 'swift' || stat.kind === 'spirit') {
+        fromGear[stat.kind] += stat.amount
+      }
+    }
+    const total: Attributes = {
+      body: c.spent.body + fromGear.body,
+      edge: c.spent.edge + fromGear.edge,
+      swift: c.spent.swift + fromGear.swift,
+      spirit: c.spent.spirit + fromGear.spirit,
+    }
     const head = document.createElement('div')
     head.className = 'hub-head'
     head.innerHTML = `
       <div class="hub-seal">${realm.seal}</div>
       <div class="hub-ident">
         <div class="hub-name">${escapeHtml(c.name)}</div>
-        <div class="hub-origin">${origin.seal} ${origin.name}</div>
+        <div class="hub-origin">${school.seal} ${school.name}</div>
         <div class="hub-realm">${realm.name}
           <span class="hub-level">${strings.level} ${c.level}</span>
           <span class="hub-step">${realmStep(c.level)} / ${
@@ -192,9 +246,15 @@ export function createHub(
 
       const text = document.createElement('div')
       text.className = 'attr-text'
+      // The gear half is shown as its own "+n" rather than folded into the
+      // rank, so a player can see which of their numbers they bought and which
+      // they are wearing — and therefore what they would lose by swapping.
+      const gear = fromGear[attr.id]
       text.innerHTML = `
-        <div class="attr-name">${attr.name} <span class="attr-rank">${c.spent[attr.id]}</span></div>
-        <div class="attr-now">${currentValue(attr.id, c.spent)}</div>
+        <div class="attr-name">${attr.name} <span class="attr-rank">${c.spent[attr.id]}</span>${
+          gear > 0 ? `<span class="attr-gear">+${gear}</span>` : ''
+        }</div>
+        <div class="attr-now">${currentValue(attr.id, total, weapon)}</div>
       `
 
       const button = document.createElement('button')
@@ -207,7 +267,8 @@ export function createHub(
         c.points > 0
           ? `<span class="attr-plus">+</span><span class="attr-next">${nextValue(
               attr.id,
-              c.spent,
+              total,
+              weapon,
             )}</span>`
           : `<span class="attr-plus">+</span>`
       button.setAttribute('aria-label', `${attr.name}: ${attr.effect}`)
@@ -221,6 +282,37 @@ export function createHub(
       attrs.appendChild(row)
     }
     panel.appendChild(attrs)
+
+    // --- equipment --------------------------------------------------------
+    // Four slots, each a row of what you own that fits it. No comparison table
+    // and no tooltips: an item is a name, one line, and the silhouette it gives
+    // you. A phone cannot hold a spreadsheet, and a player who has to study one
+    // during a game about not standing still will simply stop reading it.
+    const gearSection = document.createElement('div')
+    gearSection.className = 'hub-section'
+    gearSection.innerHTML = `<div class="hub-section-head"><span>${strings.equipment}</span></div>`
+
+    for (const slot of SLOTS) {
+      const owned = ownedInSlot(c.inventory, slot)
+      if (owned.length === 0) continue
+      const wornId = c.inventory.equipped[slot]
+
+      const group = document.createElement('div')
+      group.className = 'slot'
+      const label = document.createElement('div')
+      label.className = 'slot-name'
+      label.textContent = SLOT_NAMES[slot]
+      group.appendChild(label)
+
+      const row = document.createElement('div')
+      row.className = 'slot-items'
+      for (const item of owned) {
+        row.appendChild(itemCard(item, item.id === wornId, slot))
+      }
+      group.appendChild(row)
+      gearSection.appendChild(group)
+    }
+    panel.appendChild(gearSection)
 
     // --- the road -------------------------------------------------------
     const roads = document.createElement('div')

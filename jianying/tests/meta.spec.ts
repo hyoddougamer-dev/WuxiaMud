@@ -29,17 +29,41 @@ import {
   realmOf,
   realmStep,
 } from '../src/meta/realms'
-import { ORIGINS, ORIGIN_BY_ID, applyOrigin, rollName } from '../src/meta/origins'
+import { SCHOOLS, SCHOOL_BY_ID, applySchool, rollName } from '../src/meta/schools'
 import { parseCharacter, serialiseCharacter } from '../src/meta/save'
-import { SLASH_DAMAGE, SLASH_INTERVAL, createRun, updateCombat } from '../src/sim/combat'
+import { createRun, updateCombat } from '../src/sim/combat'
+import {
+  DEFAULT_WEAPON,
+  WEAPONS,
+  WEAPON_BY_ID,
+  singleTargetDps,
+  sweptAreaPerSecond,
+} from '../src/data/weapons'
+import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
-import { deriveStats } from '../src/sim/loadout'
+import { deriveStats, type Kit } from '../src/sim/loadout'
+import { ITEMS, ITEM_BY_ID, dropChance, rollDrop, statLine, type Item } from '../src/data/items'
+import {
+  acquire,
+  emptyInventory,
+  equip,
+  equippedIn,
+  ownedInSlot,
+  sanitise,
+} from '../src/meta/inventory'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
 import { createPlayer, updatePlayer } from '../src/sim/player'
 
 const attrs = (partial: Partial<Attributes>): Attributes => ({ ...emptyAttributes(), ...partial })
+
+/** A Kit carrying only bought attributes — the default weapon, nothing worn. */
+const kit = (spent: Attributes = emptyAttributes(), worn: Item[] = []): Kit => ({
+  spent,
+  weapon: DEFAULT_WEAPON,
+  worn,
+})
 
 describe('realms', () => {
   it('gives every level a realm', () => {
@@ -207,7 +231,7 @@ describe('attribute points', () => {
 describe('attributes feed combat', () => {
   it('raises health, damage and rate', () => {
     const base = deriveStats(new Map())
-    const grown = deriveStats(new Map(), attrs({ body: 5, edge: 5, swift: 5 }))
+    const grown = deriveStats(new Map(), kit(attrs({ body: 5, edge: 5, swift: 5 })))
     expect(grown.maxHp).toBeGreaterThan(base.maxHp)
     expect(grown.slashDamage).toBeGreaterThan(base.slashDamage)
     expect(grown.slashInterval).toBeLessThan(base.slashInterval)
@@ -219,8 +243,8 @@ describe('attributes feed combat', () => {
     // level-up screen quietly lie by a shifting percentage.
     const keen = new Map([['keen', 3]])
     for (const edge of [0, 4, 20]) {
-      const without = deriveStats(new Map(), attrs({ edge }))
-      const with3 = deriveStats(keen, attrs({ edge }))
+      const without = deriveStats(new Map(), kit(attrs({ edge })))
+      const with3 = deriveStats(keen, kit(attrs({ edge })))
       expect(with3.slashDamage - without.slashDamage).toBeCloseTo(12, 9)
     }
   })
@@ -228,9 +252,9 @@ describe('attributes feed combat', () => {
   it('never lets Swiftness reach a zero interval', () => {
     // Multiplicative decay approaches zero but cannot arrive, which is what
     // keeps the sweep from dividing the frame by nothing.
-    const absurd = deriveStats(new Map(), attrs({ swift: 500 }))
+    const absurd = deriveStats(new Map(), kit(attrs({ swift: 500 })))
     expect(absurd.slashInterval).toBeGreaterThan(0)
-    expect(absurd.slashInterval).toBeLessThan(SLASH_INTERVAL)
+    expect(absurd.slashInterval).toBeLessThan(DEFAULT_WEAPON.interval)
     expect(Number.isFinite(absurd.slashInterval)).toBe(true)
   })
 
@@ -241,16 +265,16 @@ describe('attributes feed combat', () => {
       ['nova', 2],
     ])
     const plain = deriveStats(loadout)
-    const spirited = deriveStats(loadout, attrs({ spirit: 6 }))
+    const spirited = deriveStats(loadout, kit(attrs({ spirit: 6 })))
     expect(spirited.orbitDamage).toBeGreaterThan(plain.orbitDamage)
     expect(spirited.boltDamage).toBeGreaterThan(plain.boltDamage)
     expect(spirited.novaRadius).toBeGreaterThan(plain.novaRadius)
-    expect(spirited.slashDamage).toBeCloseTo(SLASH_DAMAGE, 9)
+    expect(spirited.slashDamage).toBeCloseTo(DEFAULT_WEAPON.damage, 9)
   })
 
   it('produces finite stats for an empty and a maxed character alike', () => {
     for (const spent of [emptyAttributes(), attrs({ body: 80, edge: 80, swift: 80, spirit: 80 })]) {
-      const stats = deriveStats(new Map([['keen', 6]]), spent)
+      const stats = deriveStats(new Map([['keen', 6]]), kit(spent))
       for (const value of Object.values(stats)) {
         expect(Number.isFinite(value)).toBe(true)
       }
@@ -281,25 +305,40 @@ describe('expedition depth', () => {
   })
 })
 
-describe('origins', () => {
-  it('gives every origin an id, a story and an effect', () => {
-    expect(new Set(ORIGINS.map((o) => o.id)).size).toBe(ORIGINS.length)
-    for (const origin of ORIGINS) {
-      expect(origin.blurb.trim().length).toBeGreaterThan(0)
-      expect(origin.effect.trim().length).toBeGreaterThan(0)
-      expect(ORIGIN_BY_ID.get(origin.id)).toBe(origin)
+describe('schools', () => {
+  it('gives every school an id, a story and a real weapon', () => {
+    expect(new Set(SCHOOLS.map((s) => s.id)).size).toBe(SCHOOLS.length)
+    for (const school of SCHOOLS) {
+      expect(school.blurb.trim().length).toBeGreaterThan(0)
+      expect(SCHOOL_BY_ID.get(school.id)).toBe(school)
+      expect(WEAPON_BY_ID.has(school.weaponId)).toBe(true)
+    }
+  })
+
+  it('gives each school a different weapon', () => {
+    // The whole point of the rewrite: a school that shared a weapon with
+    // another would be a label, and the previous version of this screen was
+    // rejected for exactly that.
+    const weapons = SCHOOLS.map((s) => s.weaponId)
+    expect(new Set(weapons).size).toBe(weapons.length)
+  })
+
+  it('hands over a kit this build can actually resolve', () => {
+    for (const school of SCHOOLS) {
+      for (const id of school.kit) expect(ITEM_BY_ID.has(id)).toBe(true)
+      expect(ITEMS.some((i) => i.slot === 'weapon' && i.styleId === school.weaponId)).toBe(true)
     }
   })
 
   it('grants a comparable head start whichever is chosen', () => {
-    // No origin may be the obvious pick. They differ in shape, not in size.
-    const totals = ORIGINS.map((o) => Object.values(o.grants).reduce((a, b) => a + b, 0))
+    // No school may be the obvious pick. They differ in shape, not in size.
+    const totals = SCHOOLS.map((s) => Object.values(s.grants).reduce((a, b) => a + b, 0))
     expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(1)
   })
 
   it('applies its grant onto the attribute spread', () => {
-    const temple = ORIGIN_BY_ID.get('temple')!
-    const spent = applyOrigin(temple, emptyAttributes())
+    const temple = SCHOOL_BY_ID.get('temple')!
+    const spent = applySchool(temple, emptyAttributes())
     expect(spent.spirit).toBe(temple.grants.spirit)
     expect(spent.body).toBe(0)
     // The source spread is not mutated — creation applies this to a fresh
@@ -308,10 +347,10 @@ describe('origins', () => {
   })
 
   it('stays small enough that it colours a build without deciding one', () => {
-    // Three or four points is swamped by level five. An origin that locked a
+    // Three or four points is swamped by level five. A school that locked a
     // build would be a trap laid on the screen where the player knows least.
-    for (const origin of ORIGINS) {
-      const total = Object.values(origin.grants).reduce((a, b) => a + b, 0)
+    for (const school of SCHOOLS) {
+      const total = Object.values(school.grants).reduce((a, b) => a + b, 0)
       expect(total).toBeLessThanOrEqual(4)
     }
   })
@@ -326,9 +365,232 @@ describe('origins', () => {
   })
 })
 
+describe('weapons', () => {
+  it('gives every weapon a distinct id, blade and blurb', () => {
+    expect(new Set(WEAPONS.map((w) => w.id)).size).toBe(WEAPONS.length)
+    expect(new Set(WEAPONS.map((w) => w.bladeId)).size).toBe(WEAPONS.length)
+    for (const weapon of WEAPONS) {
+      expect(BLADE_BY_ID.has(weapon.bladeId)).toBe(true)
+      expect(weapon.blurb.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('lets no weapon lead on both output and coverage', () => {
+    // The one property that keeps six weapons being six choices rather than a
+    // damage ladder with one right answer. A weapon ahead on single-target DPS
+    // must give up swept area, and vice versa.
+    for (const a of WEAPONS) {
+      for (const b of WEAPONS) {
+        if (a === b) continue
+        const dominates =
+          singleTargetDps(a) > singleTargetDps(b) * 1.02 &&
+          sweptAreaPerSecond(a) > sweptAreaPerSecond(b) * 1.02
+        expect(dominates, `${a.name} dominates ${b.name}`).toBe(false)
+      }
+    }
+  })
+
+  it('keeps single-target output within a band', () => {
+    // Shape is meant to be the difference, not raw numbers. A weapon at double
+    // another's DPS would be the answer regardless of how it felt.
+    const dps = WEAPONS.map(singleTargetDps)
+    expect(Math.max(...dps) / Math.min(...dps)).toBeLessThan(1.6)
+  })
+
+  it('never lets an arc close a full circle', () => {
+    // At PI the sweep can no longer miss, and "which way am I facing" would
+    // silently stop mattering — which is most of what the game asks.
+    for (const weapon of WEAPONS) {
+      expect(weapon.halfAngle).toBeLessThan(Math.PI)
+      expect(weapon.halfAngle).toBeGreaterThan(0)
+    }
+  })
+
+  it('fells the opening enemy quickly on every weapon a school can start with', () => {
+    // The lesson the old constants left behind: a starting weapon that cannot
+    // clear the starting enemy is not a difficulty curve, it is a wall.
+    //
+    // Stated as TIME rather than as one sweep, which is what the first version
+    // of this test got wrong: twin blades deal 7 against a 10hp bandit, so they
+    // need two sweeps — but at 0.27s each that is 0.54s, quicker than the
+    // jian's single 0.46s swing. Sweeps are not the unit the player feels.
+    const bandit = 10
+    for (const school of SCHOOLS) {
+      const weapon = WEAPON_BY_ID.get(school.weaponId)!
+      const stats = deriveStats(new Map(), { spent: emptyAttributes(), weapon, worn: [] })
+      const sweeps = Math.ceil(bandit / stats.slashDamage)
+      const ttk = sweeps * stats.slashInterval
+      expect(ttk, `${weapon.name} takes ${ttk.toFixed(2)}s`).toBeLessThanOrEqual(0.7)
+    }
+  })
+
+  it('drives the sweep through deriveStats', () => {
+    const spear = WEAPON_BY_ID.get('spear')!
+    const fan = WEAPON_BY_ID.get('fan')!
+    const withSpear = deriveStats(new Map(), { spent: emptyAttributes(), weapon: spear, worn: [] })
+    const withFan = deriveStats(new Map(), { spent: emptyAttributes(), weapon: fan, worn: [] })
+    // Reach against coverage — the two ends of the roster.
+    expect(withSpear.slashRange).toBeGreaterThan(withFan.slashRange * 2)
+    expect(withFan.slashHalfAngle).toBeGreaterThan(withSpear.slashHalfAngle * 4)
+  })
+})
+
+describe('items', () => {
+  it('gives every item a distinct id and a real style', () => {
+    expect(new Set(ITEMS.map((i) => i.id)).size).toBe(ITEMS.length)
+    for (const item of ITEMS) {
+      expect(ITEM_BY_ID.get(item.id)).toBe(item)
+      if (item.slot === 'weapon') {
+        expect(WEAPON_BY_ID.has(item.styleId), item.name).toBe(true)
+      } else {
+        const table =
+          item.slot === 'robe' ? ROBES : item.slot === 'shoulders' ? SHOULDERS : HEADS
+        expect(table.some((s) => s.id === item.styleId), item.name).toBe(true)
+      }
+    }
+  })
+
+  it('never gives two items in a slot the same silhouette', () => {
+    // An item that does not change the outline is invisible in this art
+    // direction, so two items sharing a style would be the same item twice.
+    for (const slot of ['robe', 'shoulders', 'head', 'weapon'] as const) {
+      const styles = ITEMS.filter((i) => i.slot === slot).map((i) => i.styleId)
+      expect(new Set(styles).size, slot).toBe(styles.length)
+    }
+  })
+
+  it('gives every non-weapon exactly one readable line', () => {
+    for (const item of ITEMS) {
+      if (item.slot === 'weapon') {
+        // The weapon IS the line; a stat on top would bury it.
+        expect(item.stat).toBeUndefined()
+        continue
+      }
+      expect(item.stat, item.name).toBeDefined()
+      expect(statLine(item.stat).trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps drops rare enough to stay an event', () => {
+    // A survivors-like fells hundreds of things per expedition. At 5% a run
+    // would end in a wall of duplicates and a drop would stop meaning anything.
+    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+      expect(dropChance(depth)).toBeLessThan(0.02)
+      expect(dropChance(depth)).toBeGreaterThan(0)
+    }
+  })
+
+  it('never rolls something the road has not unlocked', () => {
+    const rng = new Rng(31)
+    const nothing = new Set<string>()
+    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+      for (let i = 0; i < 400; i++) {
+        const item = rollDrop(depth, rng.next(), nothing)!
+        expect(item.depth).toBeLessThanOrEqual(depth)
+      }
+    }
+  })
+
+  it('favours something the player does not already have', () => {
+    // Without this the shallow table is small enough that roughly half of all
+    // drops come back "already yours", which is a slot machine that mostly
+    // pays nothing rather than a loot game.
+    const rng = new Rng(9001)
+    const owned = new Set(['r-plain', 's-plain', 'h-topknot', 'w-jian'])
+    let fresh = 0
+    const runs = 3000
+    for (let i = 0; i < runs; i++) {
+      if (!owned.has(rollDrop(1, rng.next(), owned)!.id)) fresh++
+    }
+    expect(fresh / runs).toBeGreaterThan(0.75)
+  })
+
+  it('still returns something once everything is owned', () => {
+    // A drop has to be something. Once the table is exhausted, a duplicate is
+    // the honest answer rather than silence.
+    const everything = new Set(ITEMS.map((i) => i.id))
+    const rng = new Rng(5)
+    for (let i = 0; i < 100; i++) {
+      expect(rollDrop(MAX_DEPTH, rng.next(), everything)).not.toBeNull()
+    }
+  })
+
+  it('feeds worn stats into the same maths as bought ones', () => {
+    const robe = ITEM_BY_ID.get('r-layered')!
+    const bare = deriveStats(new Map(), kit())
+    const worn = deriveStats(new Map(), kit(emptyAttributes(), [robe]))
+    // "+3 Body" on a robe must mean exactly what "+3 Body" means in the hub.
+    expect(worn.maxHp).toBeCloseTo(deriveStats(new Map(), kit(attrs({ body: 3 }))).maxHp, 9)
+    expect(worn.maxHp).toBeGreaterThan(bare.maxHp)
+  })
+
+  it('caps the rate bonus so the sweep cannot reach zero', () => {
+    const absurd = Array.from({ length: 40 }, () => ITEM_BY_ID.get('s-plain')!)
+    const stats = deriveStats(new Map(), kit(emptyAttributes(), absurd))
+    expect(stats.slashInterval).toBeGreaterThan(0)
+    expect(Number.isFinite(stats.slashInterval)).toBe(true)
+  })
+})
+
+describe('inventory', () => {
+  it('records an item once and reports the duplicate', () => {
+    const inv = emptyInventory()
+    expect(acquire(inv, 'r-plain')).toBe(true)
+    // Owning is a fact, not a quantity: the hundredth Hemp Robe is worth
+    // nothing, and a list that grew each time would be unusable by evening.
+    expect(acquire(inv, 'r-plain')).toBe(false)
+    expect(inv.owned).toEqual(['r-plain'])
+  })
+
+  it('refuses an id this build does not know', () => {
+    const inv = emptyInventory()
+    expect(acquire(inv, 'not-a-real-item')).toBe(false)
+    expect(inv.owned).toEqual([])
+  })
+
+  it('refuses to equip what is not owned', () => {
+    const inv = emptyInventory()
+    expect(equip(inv, 'r-plain')).toBe(false)
+    acquire(inv, 'r-plain')
+    expect(equip(inv, 'r-plain')).toBe(true)
+    expect(equippedIn(inv, 'robe')?.id).toBe('r-plain')
+  })
+
+  it('replaces rather than stacks within a slot', () => {
+    const inv = emptyInventory()
+    acquire(inv, 'r-plain')
+    acquire(inv, 'r-travelling')
+    equip(inv, 'r-plain')
+    equip(inv, 'r-travelling')
+    expect(equippedIn(inv, 'robe')?.id).toBe('r-travelling')
+    expect(ownedInSlot(inv, 'robe')).toHaveLength(2)
+  })
+
+  it('drops ids a later build removed, and unequips the dangling slot', () => {
+    // The migration that matters: an item renamed between builds must not make
+    // a piece of the figure silently vanish.
+    const repaired = sanitise({
+      owned: ['r-plain', 'an-item-that-was-deleted'],
+      equipped: { robe: 'an-item-that-was-deleted', head: 'h-hat' },
+    })
+    expect(repaired.owned).toEqual(['r-plain'])
+    expect(repaired.equipped.robe).toBeUndefined()
+    // Equipped-but-not-owned is not a state the game can produce, but a
+    // hand-edited save can, and honouring it would be a free item.
+    expect(repaired.equipped.head).toBeUndefined()
+  })
+})
+
 describe('save', () => {
   it('round-trips a character', () => {
     const c = createCharacter('Bai', 'temple')
+    // Creation hands over the school's kit, so a real character always owns
+    // something. An empty inventory means "written before equipment existed",
+    // which parsing deliberately repairs — see the migration test below.
+    for (const id of ['r-plain', 's-wide', 'h-crown', 'w-fan']) {
+      acquire(c.inventory, id)
+      equip(c.inventory, id)
+    }
     grantXp(c, 900)
     spendPoint(c, 'body')
     recordRun(c, { kills: 12, seconds: 60, insight: 3, depth: 1 })
@@ -337,6 +599,21 @@ describe('save', () => {
     c.taught = true
     const back = parseCharacter(serialiseCharacter(c))
     expect(back).toEqual(c)
+  })
+
+  it('hands a pre-equipment save its school kit rather than nothing', () => {
+    // The migration that matters most here: a character already on someone's
+    // phone was written before equipment existed. Opening the hub to a naked
+    // swordsman with no weapon would look exactly like their progress had been
+    // eaten.
+    const back = parseCharacter(
+      JSON.stringify({ name: 'Lu', origin: 'watch', level: 6, runs: 4 }),
+    )!
+    expect(back.inventory.owned.length).toBeGreaterThan(0)
+    expect(back.inventory.equipped.weapon).toBeDefined()
+    const weapon = ITEM_BY_ID.get(back.inventory.equipped.weapon!)!
+    // And the weapon it hands over is the one their school actually uses.
+    expect(weapon.styleId).toBe(SCHOOL_BY_ID.get('watch')!.weaponId)
   })
 
   it('does not hand a tutorial to a save that predates the field', () => {
@@ -354,7 +631,7 @@ describe('save', () => {
 
   it('falls back when the stored origin is not one this build knows', () => {
     const back = parseCharacter(JSON.stringify({ origin: 'a-school-from-the-future' }))!
-    expect(ORIGIN_BY_ID.has(back.origin)).toBe(true)
+    expect(SCHOOL_BY_ID.has(back.origin)).toBe(true)
   })
 
   it('returns null for text that is not an object', () => {
@@ -419,7 +696,7 @@ describe('depth holds permanent power in check', () => {
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
     const run = createRun()
-    const stats = deriveStats(new Map(), spent)
+    const stats = deriveStats(new Map(), kit(spent))
     run.hp = stats.maxHp
 
     const ticks = Math.round(400 / TICK_S)

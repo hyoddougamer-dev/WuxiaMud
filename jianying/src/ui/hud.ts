@@ -13,6 +13,8 @@
  * read, without asking anyone, exactly what those four minutes bought.
  */
 import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
+import { statLine, type Item } from '../data/items'
+import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
 import { roadOf } from '../meta/depth'
 import { realmOf } from '../meta/realms'
@@ -28,6 +30,10 @@ export interface RunSummary {
   gain: LevelGain
   /** Level after the reward was applied. */
   level: number
+  /** Equipment found for the first time. */
+  kept: readonly Item[]
+  /** Equipment found that was already owned. Reported, not hidden. */
+  duplicates: readonly Item[]
 }
 
 export interface Hud {
@@ -228,6 +234,21 @@ export function createHud(root: HTMLElement): Hud {
         html += `<div class="rw-points">+${points} ${
           points === 1 ? strings.onePointToSpend : strings.pointsToSpend
         }</div>`
+      }
+
+      // Loot last, because it is the part worth scrolling for.
+      if (summary.kept.length > 0 || summary.duplicates.length > 0) {
+        html += `<div class="rw-head rw-found">${strings.found}</div>`
+        for (const item of summary.kept) {
+          const line =
+            item.slot === 'weapon' ? weaponById(item.styleId).name : statLine(item.stat)
+          html += `<div class="loot"><span>${item.name}</span><b>${line}</b></div>`
+        }
+        for (const item of summary.duplicates) {
+          // Named rather than hidden: pretending a duplicate was a discovery
+          // would be lying about the only loot the player actually got.
+          html += `<div class="loot loot-dupe"><span>${item.name}</span><b>${strings.alreadyYours}</b></div>`
+        }
       }
       overReward.innerHTML = html
 

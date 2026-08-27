@@ -9,7 +9,7 @@ import {
 } from '../src/data/techniques'
 import { deriveStats } from '../src/sim/loadout'
 import { Motes } from '../src/sim/pickups'
-import { SLASH_HALF_ANGLE } from '../src/sim/combat'
+import { DEFAULT_WEAPON } from '../src/data/weapons'
 
 describe('experience curve', () => {
   it('rises with level', () => {
@@ -82,7 +82,7 @@ describe('derived stats', () => {
     expect(s.orbitBlades).toBe(0)
     expect(s.boltInterval).toBe(0)
     expect(s.novaInterval).toBe(0)
-    expect(s.slashHalfAngle).toBeCloseTo(SLASH_HALF_ANGLE, 6)
+    expect(s.slashHalfAngle).toBeCloseTo(DEFAULT_WEAPON.halfAngle, 6)
   })
 
   it('stacks modifiers', () => {

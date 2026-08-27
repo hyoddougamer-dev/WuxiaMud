@@ -77,11 +77,17 @@ export const strings = {
 
   // --- character creation ----------------------------------------------
   createTitle: 'Take up the sword',
-  createSub: 'Neither choice binds you. Both can be outgrown.',
+  /** Says outright that nothing here can be got wrong. It cannot. */
+  createSub: 'Every weapon can be found on the road. This is where you begin, not what you are.',
   yourName: 'Name',
   rollName: 'Another name',
-  yourOrigin: 'Where you trained',
+  yourSchool: 'Where you trained',
   takeUpTheSword: 'Begin the road',
+
+  // --- equipment ---------------------------------------------------------
+  equipment: 'Equipment',
+  found: 'Found',
+  alreadyYours: 'already yours',
 
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',

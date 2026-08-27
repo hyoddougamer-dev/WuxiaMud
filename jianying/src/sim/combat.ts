@@ -15,22 +15,24 @@ import type { Hazards } from './hazards'
 import type { Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
-
-/** Baselines. Techniques scale these; see sim/loadout.ts. */
-export const SLASH_INTERVAL = 0.46
-export const SLASH_RANGE = 95
-/** Half-width of the arc, in radians. ~100 degrees either side of the aim. */
-export const SLASH_HALF_ANGLE = 1.75
+import { dropChance, rollDrop } from '../data/items'
+import { DEFAULT_WEAPON } from '../data/weapons'
 
 /**
- * Enough to fell the opening enemy in one sweep.
+ * The sweep's numbers no longer live here.
  *
- * At 7 it took two sweeps per bandit while three arrived every second, so the
- * swarm grew faster than it could be cut down no matter how well the player
- * moved. A starting weapon that cannot clear the starting enemy is not a
- * difficulty curve, it is a wall.
+ * Damage, interval, reach and arc all come from the equipped weapon now — see
+ * data/weapons.ts — because that is what makes a class felt rather than
+ * labelled: the thumb is entirely spent on movement, so the shape of the
+ * automatic sweep IS how the game plays. A single set of constants here would
+ * have made every school the same fight with a different name on it.
+ *
+ * One lesson from those constants is worth keeping, since it constrains every
+ * weapon added later: the opening weapon must fell the opening enemy in one
+ * sweep. At 7 damage a bandit took two sweeps while three arrived every second,
+ * so the swarm grew faster than it could be cut down however well the player
+ * moved. That is not a difficulty curve, it is a wall.
  */
-export const SLASH_DAMAGE = 11
 
 /** Enemies beyond this are ignored when choosing what to aim at. */
 const TARGET_SEARCH_RANGE = 260
@@ -101,13 +103,14 @@ export interface RunState {
   over: boolean
 }
 
-export function createRun(): RunState {
+/** `firstSweep` delays the opening sweep by the equipped weapon's interval. */
+export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
   return {
     hp: PLAYER_MAX_HP,
     elapsed: 0,
     kills: 0,
     immunity: 0,
-    slashCooldown: SLASH_INTERVAL,
+    slashCooldown: firstSweep,
     slashVisual: 0,
     aimX: 1,
     aimY: 0,
@@ -140,6 +143,8 @@ export interface CombatEvents {
   hit(x: number, y: number, amount: number, killed: boolean): void
   /** The player took `amount` from something named `source`. */
   hurt(amount: number, source: string): void
+  /** Something dropped equipment at (x, y). */
+  drop?(x: number, y: number, itemId: string): void
 }
 
 /** Shortest absolute angular distance between two directions, in radians. */
@@ -198,7 +203,14 @@ export interface CombatContext {
   rng: Rng
   /** Optional; the headless balance tests run without one. */
   events?: CombatEvents
+  /** Expedition depth, which widens the drop table. */
+  depth?: number
+  /** Item ids already owned, so drops can favour something new. */
+  owned?: ReadonlySet<string>
 }
+
+/** Shared, so the hot path does not allocate a set per kill. */
+const EMPTY_OWNED: ReadonlySet<string> = new Set()
 
 /** Applies damage to the enemy at `index`, dropping qi and scoring if it dies. */
 function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean {
@@ -217,6 +229,16 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   for (let d = 0; d < drops; d++) {
     ctx.motes.drop(e.x, e.y, Math.ceil(e.kind.qi / drops), ctx.rng)
   }
+  // Equipment, rarely — and always from the body, before the pool recycles it.
+  // A boss never leaves empty-handed: a fight that long resolving into the same
+  // nothing as a bandit is the surest way to make it feel pointless.
+  const depth = ctx.depth ?? 1
+  const boss = e.kind.behaviour === 'boss'
+  if (ctx.events?.drop && (boss || ctx.rng.next() < dropChance(depth))) {
+    const item = rollDrop(depth, ctx.rng.next(), ctx.owned ?? EMPTY_OWNED)
+    if (item) ctx.events.drop(e.x, e.y, item.id)
+  }
+
   // Splitting happens before the corpse is released, since it reads the
   // position that release would recycle.
   ctx.swarm.splitOnDeath(e, ctx.run.elapsed)

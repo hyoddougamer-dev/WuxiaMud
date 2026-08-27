@@ -340,7 +340,7 @@ export const DEFAULT_GEAR: Gear = {
 }
 
 /** Resolves stored ids into styles, falling back rather than throwing. */
-export function gearFromIds(ids: Partial<Record<keyof Gear, string>>): Gear {
+export function gearFromIds(ids: Partial<Record<keyof Gear, string | undefined>>): Gear {
   return {
     robe: ROBE_BY_ID.get(ids.robe ?? '') ?? DEFAULT_GEAR.robe,
     shoulders: SHOULDER_BY_ID.get(ids.shoulders ?? '') ?? DEFAULT_GEAR.shoulders,

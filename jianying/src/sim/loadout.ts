@@ -20,15 +20,11 @@
  * effect of a technique impossible to read without hunting through the code.
  */
 import type { Loadout } from '../data/techniques'
+import type { Item } from '../data/items'
+import { DEFAULT_WEAPON, type WeaponClass } from '../data/weapons'
 import { type Attributes, emptyAttributes } from '../meta/character'
 import { BASE_PICKUP_RADIUS } from './pickups'
-import {
-  SLASH_DAMAGE,
-  SLASH_HALF_ANGLE,
-  SLASH_INTERVAL,
-  SLASH_RANGE,
-  PLAYER_MAX_HP,
-} from './combat'
+import { PLAYER_MAX_HP } from './combat'
 import { MAX_SPEED } from './player'
 
 export interface Stats {
@@ -88,27 +84,112 @@ export function attributeBonuses(spent: Attributes): {
   }
 }
 
-export function deriveStats(loadout: Loadout, spent: Attributes = emptyAttributes()): Stats {
+/** Everything the character permanently brings to an expedition. */
+export interface Kit {
+  spent: Attributes
+  weapon: WeaponClass
+  /** Worn armour. Each contributes at most one stat line. */
+  worn: readonly Item[]
+}
+
+export function emptyKit(): Kit {
+  return { spent: emptyAttributes(), weapon: DEFAULT_WEAPON, worn: [] }
+}
+
+/** Sums the single stat line off each worn item, by kind. */
+function wornBonuses(worn: readonly Item[]): {
+  spent: Attributes
+  maxHp: number
+  damage: number
+  ratePct: number
+  range: number
+  pickupPct: number
+  artPct: number
+} {
+  const out = {
+    spent: emptyAttributes(),
+    maxHp: 0,
+    damage: 0,
+    ratePct: 0,
+    range: 0,
+    pickupPct: 0,
+    artPct: 0,
+  }
+  for (const item of worn) {
+    const stat = item.stat
+    if (!stat) continue
+    switch (stat.kind) {
+      case 'body':
+      case 'edge':
+      case 'swift':
+      case 'spirit':
+        // Item-granted attributes go through the same maths as bought ones, so
+        // "+3 Body" on a robe means exactly what "+3 Body" means in the hub.
+        out.spent[stat.kind] += stat.amount
+        break
+      case 'maxHp':
+        out.maxHp += stat.amount
+        break
+      case 'damage':
+        out.damage += stat.amount
+        break
+      case 'rate':
+        out.ratePct += stat.amount
+        break
+      case 'range':
+        out.range += stat.amount
+        break
+      case 'pickup':
+        out.pickupPct += stat.amount
+        break
+      case 'artPower':
+        out.artPct += stat.amount
+        break
+    }
+  }
+  return out
+}
+
+export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   const lv = (id: string): number => loadout.get(id) ?? 0
-  const attr = attributeBonuses(spent)
+  const gear = wornBonuses(kit.worn)
+
+  // Attributes bought with points and attributes granted by items are the same
+  // currency, added before the curve so both reach the same diminishing return.
+  const combined: Attributes = {
+    body: kit.spent.body + gear.spent.body,
+    edge: kit.spent.edge + gear.spent.edge,
+    swift: kit.spent.swift + gear.spent.swift,
+    spirit: kit.spent.spirit + gear.spent.spirit,
+  }
+  const attr = attributeBonuses(combined)
 
   const orbit = lv('orbit')
   const bolt = lv('bolt')
   const nova = lv('nova')
-  const art = attr.artScale
+  const art = attr.artScale * (1 + gear.artPct / 100)
+
+  // The weapon supplies the baseline the whole sweep is built on. This is where
+  // a class stops being a label: reach, arc and rhythm all come from here.
+  const weapon = kit.weapon
 
   return {
-    slashDamage: SLASH_DAMAGE + attr.slashDamage + lv('keen') * 4,
+    slashDamage: weapon.damage + attr.slashDamage + gear.damage + lv('keen') * 4,
     // Multiplicative, so each level is worth the same proportion rather than
     // the first one being nearly everything.
-    slashInterval: SLASH_INTERVAL * attr.slashIntervalScale * Math.pow(0.86, lv('swift')),
-    slashRange: SLASH_RANGE + lv('reach') * 16,
+    slashInterval:
+      weapon.interval *
+      attr.slashIntervalScale *
+      Math.pow(0.86, lv('swift')) *
+      (1 - Math.min(0.6, gear.ratePct / 100)),
+    slashRange: weapon.range + gear.range + lv('reach') * 16,
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
-    slashHalfAngle: Math.min(3.0, SLASH_HALF_ANGLE + lv('wide') * 0.28),
+    slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),
     moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09),
-    pickupRadius: BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85),
-    maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25,
+    pickupRadius:
+      BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85 + gear.pickupPct / 100),
+    maxHp: PLAYER_MAX_HP + attr.maxHp + gear.maxHp + lv('vigour') * 25,
 
     orbitBlades: orbit === 0 ? 0 : 1 + orbit,
     orbitDamage: (5 + orbit * 3) * art,

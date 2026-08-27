@@ -41,6 +41,8 @@ export interface Floaters {
   hit(x: number, y: number, amount: number, killed: boolean): void
   /** Damage taken by the player. Always finds a slot. */
   hurt(x: number, y: number, amount: number): void
+  /** A mark where equipment dropped. Always finds a slot. */
+  found(x: number, y: number): void
   update(dt: number): void
   clear(): void
   readonly view: Container
@@ -170,6 +172,14 @@ export function createFloaters(): Floaters {
       const slot = take(true)
       if (!slot) return
       start(slot, `-${Math.round(amount)}`, x, y - 40, palette.cinnabar, 0.5, HURT_LIFE)
+    },
+
+    found(x, y) {
+      // Loot is rare enough that it may always evict: missing the one mark that
+      // says something dropped is worse than losing a damage number.
+      const slot = take(true)
+      if (!slot) return
+      start(slot, '!', x, y - 34, palette.goldDeep, 0.55, HURT_LIFE)
     },
 
     update(dt) {

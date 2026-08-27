@@ -21,6 +21,7 @@
  * `depth.ts`) — the character grows, and the player is expected to spend that
  * growth on harder ground rather than on an easier version of the same ground.
  */
+import { emptyInventory, type Inventory } from './inventory'
 import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
 
 /** The four things a point can be spent on. */
@@ -55,8 +56,16 @@ export type Attributes = Record<AttributeId, number>
 export interface Character {
   /** Chosen by the player. Never used as a key — the save has its own slot. */
   name: string
-  /** Id of the origin picked at creation. Fixed for the character's life. */
+  /**
+   * Id of the school picked at creation.
+   *
+   * It decides the starting weapon and kit, and nothing after that: every
+   * weapon in the game can drop, so a school is where you began rather than
+   * what you are. That matters on the one screen where the player knows least.
+   */
   origin: string
+  /** Owned and worn equipment. */
+  inventory: Inventory
   /**
    * False until the player has finished one expedition.
    *
@@ -90,10 +99,11 @@ export function emptyAttributes(): Attributes {
  * through `applyOrigin`, so this stays the one place that defines what "new"
  * means and the origins stay pure data.
  */
-export function createCharacter(name = 'Wanderer', origin = 'sect'): Character {
+export function createCharacter(name = 'Wanderer', origin = 'mountain'): Character {
   return {
     name,
     origin,
+    inventory: emptyInventory(),
     taught: false,
     level: 1,
     xp: 0,
