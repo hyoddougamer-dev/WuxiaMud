@@ -66,6 +66,27 @@ export const strings = {
   // --- banners ---------------------------------------------------------
   bossApproaches: 'approaches',
   insightReached: 'Insight',
+
+  // --- title -----------------------------------------------------------
+  /** The whole game in two lines. It is the first thing anyone reads. */
+  pitch:
+    'A swordsman walks the roads of a falling empire. Every road ends in death — ' +
+    'and every death raises the sword that walks the next one.',
+  beginRun: 'Begin',
+  continueRun: 'Continue',
+
+  // --- character creation ----------------------------------------------
+  createTitle: 'Take up the sword',
+  createSub: 'Neither choice binds you. Both can be outgrown.',
+  yourName: 'Name',
+  rollName: 'Another name',
+  yourOrigin: 'Where you trained',
+  takeUpTheSword: 'Begin the road',
+
+  // --- codex -------------------------------------------------------------
+  codexTitle: 'The way of it',
+  understood: 'Understood',
+  openCodex: 'What is this?',
 } as const
 
 export type StringKey = keyof typeof strings

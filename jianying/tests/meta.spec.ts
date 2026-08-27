@@ -29,6 +29,7 @@ import {
   realmOf,
   realmStep,
 } from '../src/meta/realms'
+import { ORIGINS, ORIGIN_BY_ID, applyOrigin, rollName } from '../src/meta/origins'
 import { parseCharacter, serialiseCharacter } from '../src/meta/save'
 import { SLASH_DAMAGE, SLASH_INTERVAL, createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
@@ -280,14 +281,80 @@ describe('expedition depth', () => {
   })
 })
 
+describe('origins', () => {
+  it('gives every origin an id, a story and an effect', () => {
+    expect(new Set(ORIGINS.map((o) => o.id)).size).toBe(ORIGINS.length)
+    for (const origin of ORIGINS) {
+      expect(origin.blurb.trim().length).toBeGreaterThan(0)
+      expect(origin.effect.trim().length).toBeGreaterThan(0)
+      expect(ORIGIN_BY_ID.get(origin.id)).toBe(origin)
+    }
+  })
+
+  it('grants a comparable head start whichever is chosen', () => {
+    // No origin may be the obvious pick. They differ in shape, not in size.
+    const totals = ORIGINS.map((o) => Object.values(o.grants).reduce((a, b) => a + b, 0))
+    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(1)
+  })
+
+  it('applies its grant onto the attribute spread', () => {
+    const temple = ORIGIN_BY_ID.get('temple')!
+    const spent = applyOrigin(temple, emptyAttributes())
+    expect(spent.spirit).toBe(temple.grants.spirit)
+    expect(spent.body).toBe(0)
+    // The source spread is not mutated — creation applies this to a fresh
+    // character, and a shared mutable default would leak between them.
+    expect(emptyAttributes().spirit).toBe(0)
+  })
+
+  it('stays small enough that it colours a build without deciding one', () => {
+    // Three or four points is swamped by level five. An origin that locked a
+    // build would be a trap laid on the screen where the player knows least.
+    for (const origin of ORIGINS) {
+      const total = Object.values(origin.grants).reduce((a, b) => a + b, 0)
+      expect(total).toBeLessThanOrEqual(4)
+    }
+  })
+
+  it('rolls a name that is two plausible words', () => {
+    const rng = new Rng(77)
+    for (let i = 0; i < 200; i++) {
+      const name = rollName(() => rng.next())
+      expect(name.split(' ').length).toBe(2)
+      expect(name.length).toBeLessThanOrEqual(24)
+    }
+  })
+})
+
 describe('save', () => {
   it('round-trips a character', () => {
-    const c = createCharacter('Bai')
+    const c = createCharacter('Bai', 'temple')
     grantXp(c, 900)
     spendPoint(c, 'body')
     recordRun(c, { kills: 12, seconds: 60, insight: 3, depth: 1 })
+    // Set here because the real game sets it in the same step that records the
+    // run; see the migration test below for why parsing infers it.
+    c.taught = true
     const back = parseCharacter(serialiseCharacter(c))
     expect(back).toEqual(c)
+  })
+
+  it('does not hand a tutorial to a save that predates the field', () => {
+    // The migration that matters: a character already on someone's phone was
+    // written before `taught` existed. Defaulting it to false would greet a
+    // veteran with "drag anywhere to move" on their next expedition.
+    const back = parseCharacter(JSON.stringify({ name: 'Lu', level: 6, runs: 4 }))!
+    expect(back.taught).toBe(true)
+  })
+
+  it('does teach a save that has never finished an expedition', () => {
+    const back = parseCharacter(JSON.stringify({ name: 'Lu', level: 1, runs: 0 }))!
+    expect(back.taught).toBe(false)
+  })
+
+  it('falls back when the stored origin is not one this build knows', () => {
+    const back = parseCharacter(JSON.stringify({ origin: 'a-school-from-the-future' }))!
+    expect(ORIGIN_BY_ID.has(back.origin)).toBe(true)
   })
 
   it('returns null for text that is not an object', () => {

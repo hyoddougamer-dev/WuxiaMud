@@ -55,6 +55,16 @@ export type Attributes = Record<AttributeId, number>
 export interface Character {
   /** Chosen by the player. Never used as a key — the save has its own slot. */
   name: string
+  /** Id of the origin picked at creation. Fixed for the character's life. */
+  origin: string
+  /**
+   * False until the player has finished one expedition.
+   *
+   * Gates the first-run coaching. A tutorial that keeps firing after the player
+   * has understood the game stops being help and becomes noise, and this genre
+   * gives them no way to dismiss it mid-fight.
+   */
+  taught: boolean
   level: number
   /** Cultivation XP toward the next level. */
   xp: number
@@ -73,13 +83,23 @@ export function emptyAttributes(): Attributes {
   return { body: 0, edge: 0, swift: 0, spirit: 0 }
 }
 
-export function createCharacter(name = 'Wanderer'): Character {
+/**
+ * A blank swordsman.
+ *
+ * `spent` starts empty; the origin's grant is applied by the creation screen
+ * through `applyOrigin`, so this stays the one place that defines what "new"
+ * means and the origins stay pure data.
+ */
+export function createCharacter(name = 'Wanderer', origin = 'sect'): Character {
   return {
     name,
+    origin,
+    taught: false,
     level: 1,
     xp: 0,
-    // One in hand at creation, so the very first thing a new player does is
-    // make a choice rather than read a locked screen.
+    // One in hand at creation, so the very first thing a new player does after
+    // choosing an origin is make another choice, rather than read a locked
+    // screen full of zeroes.
     points: 1,
     spent: emptyAttributes(),
     depth: 1,

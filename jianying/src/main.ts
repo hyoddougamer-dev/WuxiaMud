@@ -38,17 +38,22 @@ import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/comba
 import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
-import { type Character, grantXp, recordRun, rewardFor } from './meta/character'
+import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { clampDepth, roadOf } from './meta/depth'
+import { applyOrigin } from './meta/origins'
 import { loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
+import { createCodex } from './ui/codex'
+import { createCreator } from './ui/create'
 import { createHud, type RunSummary } from './ui/hud'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { createLevelUp } from './ui/levelup'
 import { strings } from './ui/strings'
+import { createTitle } from './ui/title'
+import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.3.0'
+const BUILD = '1.4.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -101,7 +106,11 @@ async function boot(): Promise<void> {
 
   // The character is read before anything else is built: a save that fails to
   // parse must produce a fresh swordsman, never a boot that dies halfway.
-  const character: Character = await loadCharacter()
+  const loaded = await loadCharacter()
+  // `let` because character creation replaces the record wholesale rather than
+  // mutating a half-made one into shape.
+  let character: Character = loaded.character
+  const isFirstLaunch = loaded.fresh
   const persist = (): void => {
     void saveCharacter(character)
   }
@@ -129,8 +138,21 @@ async function boot(): Promise<void> {
   const ui = createHud(uiRoot)
   const levelUp = createLevelUp(uiRoot)
   const banners = createBanners(uiRoot)
-  const hub = createHub(uiRoot, persist)
+  const codex = createCodex(uiRoot)
+  const title = createTitle(uiRoot)
+  const creator = createCreator(uiRoot)
   const floaters = createFloaters()
+  const tutorial = createTutorial(banners)
+  // Declared before the hub so the codex button has something to call; the hub
+  // is what closes it, so the two would otherwise reference each other.
+  let openHub: () => void = () => {}
+  const hub = createHub(uiRoot, persist, () => {
+    hub.hide()
+    codex.show(() => {
+      codex.hide()
+      openHub()
+    })
+  })
 
   // ---- Scene ------------------------------------------------------------
 
@@ -256,17 +278,21 @@ async function boot(): Promise<void> {
     ui.setPlaying(true)
     ui.setDepth(depth)
     hub.hide()
+    tutorial.reset()
 
     const road = roadOf(depth)
     banners.show(road.name, 'plain', road.seal)
   }
 
-  const openHub = (): void => {
+  openHub = (): void => {
     playing = false
     ui.hideGameOver()
     ui.setPlaying(false)
     banners.clear()
     floaters.clear()
+    title.hide()
+    creator.hide()
+    codex.hide()
     hub.show(character, beginExpedition)
   }
 
@@ -286,6 +312,10 @@ async function boot(): Promise<void> {
     const reward = rewardFor(result)
     const gain = grantXp(character, reward.total)
     recordRun(character, result)
+    // One expedition is enough teaching. Coaching that keeps firing after the
+    // player has understood the game stops being help and becomes noise they
+    // have no way to dismiss mid-fight.
+    character.taught = true
     persist()
     return {
       seconds: run.elapsed,
@@ -343,6 +373,19 @@ async function boot(): Promise<void> {
     }
     if (run.level > insightBefore) {
       banners.show(`${strings.insightReached} ${run.level}`, 'gold')
+    }
+
+    // First expedition only. Every lesson fires on a condition rather than a
+    // timer, so it lands the moment it is about to be useful.
+    if (!character.taught) {
+      tutorial.update({
+        elapsed: run.elapsed,
+        kills: run.kills,
+        motes: motes.pool.size,
+        hp: run.hp,
+        maxHp: stats.maxHp,
+        insight: run.level,
+      })
     }
   }
 
@@ -602,7 +645,17 @@ async function boot(): Promise<void> {
       hint.style.opacity = showHint ? '0.55' : '0'
       // The harness needs to know which screen it is looking at: a screenshot
       // of the hub and a screenshot of a stalled boot are both "not the game".
-      document.body.dataset.screen = hub.visible ? 'hub' : run.over ? 'over' : 'run'
+      document.body.dataset.screen = title.visible
+        ? 'title'
+        : creator.visible
+          ? 'create'
+          : codex.visible
+            ? 'codex'
+            : hub.visible
+              ? 'hub'
+              : run.over
+                ? 'over'
+                : 'run'
       document.body.dataset.level = String(character.level)
       // Published so the screenshot harness can assert that a synthetic drag
       // actually moved the player. An invisible overlay once swallowed every
@@ -616,10 +669,46 @@ async function boot(): Promise<void> {
   }
   hudTick()
 
-  // The game opens on the character, not in a fight. A player arriving at a
-  // fight already in progress has nothing to orient against, which is most of
-  // what "I do not understand what is happening" was describing.
-  openHub()
+  /**
+   * The way in.
+   *
+   *   first launch:  title -> create -> codex -> hub
+   *   returning:     title -> hub
+   *
+   * Opening straight on the hub was the previous behaviour and it was reported
+   * as exactly what it was: a panel of attributes and roads with no name on it,
+   * no premise, and no reason to care about a single number on the screen. A
+   * management screen is a fine second impression and a poor first one.
+   */
+  const enter = (): void => {
+    title.show(isFirstLaunch ? null : character.name, () => {
+      title.hide()
+      if (!isFirstLaunch) {
+        openHub()
+        return
+      }
+      // Named for readability rather than reproducibility: this stream feeds
+      // nothing the simulation depends on.
+      const nameRng = new Rng((Date.now() ^ 0x9e3779b9) >>> 0)
+      creator.show(
+        () => nameRng.next(),
+        (name, origin) => {
+          character = createCharacter(name, origin.id)
+          character.spent = applyOrigin(origin, character.spent)
+          persist()
+          creator.hide()
+          // The codex lands here, between choosing a swordsman and first
+          // seeing the hub — after the player has something to care about,
+          // and before they are shown numbers they have no frame for.
+          codex.show(() => {
+            codex.hide()
+            openHub()
+          })
+        },
+      )
+    })
+  }
+  enter()
 
   const fadeStart = performance.now()
   const fade = (): void => {

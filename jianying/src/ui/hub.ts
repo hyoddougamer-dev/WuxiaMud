@@ -25,6 +25,7 @@ import {
   xpForCultivation,
 } from '../meta/character'
 import { MAX_DEPTH, ROADS, depthReward, roadOf } from '../meta/depth'
+import { DEFAULT_ORIGIN, ORIGIN_BY_ID } from '../meta/origins'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } from '../sim/loadout'
 import { PLAYER_MAX_HP, SLASH_DAMAGE, SLASH_INTERVAL } from '../sim/combat'
@@ -35,6 +36,15 @@ export interface HubScreen {
   show(character: Character, onSetOut: (depth: number) => void): void
   hide(): void
   readonly visible: boolean
+}
+
+/** Escapes text destined for innerHTML. The name comes from a text field. */
+function escapeHtml(text: string): string {
+  return text.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  )
 }
 
 /** mm:ss, matching the HUD so the same duration reads the same everywhere. */
@@ -90,7 +100,11 @@ function nextValue(id: string, spent: Attributes): string {
  * assigns points and then closes the app has made a decision, and losing it
  * would be indistinguishable from the game being broken.
  */
-export function createHub(root: HTMLElement, onSave: () => void): HubScreen {
+export function createHub(
+  root: HTMLElement,
+  onSave: () => void,
+  onOpenCodex: () => void,
+): HubScreen {
   const panel = document.createElement('div')
   panel.className = 'hub'
   panel.hidden = true
@@ -114,22 +128,29 @@ export function createHub(root: HTMLElement, onSave: () => void): HubScreen {
     panel.innerHTML = ''
 
     // --- identity ------------------------------------------------------
+    // The name and origin lead, and the realm follows. A panel that opens on
+    // "Body Tempering" describes a rank; one that opens on "Bai Anzhi, of the
+    // Mountain Sect" describes somebody the numbers below belong to.
+    const origin = ORIGIN_BY_ID.get(c.origin) ?? DEFAULT_ORIGIN
     const head = document.createElement('div')
     head.className = 'hub-head'
     head.innerHTML = `
       <div class="hub-seal">${realm.seal}</div>
       <div class="hub-ident">
-        <div class="hub-realm">${realm.name}</div>
-        <div class="hub-level">${strings.level} ${c.level}
+        <div class="hub-name">${escapeHtml(c.name)}</div>
+        <div class="hub-origin">${origin.seal} ${origin.name}</div>
+        <div class="hub-realm">${realm.name}
+          <span class="hub-level">${strings.level} ${c.level}</span>
           <span class="hub-step">${realmStep(c.level)} / ${
             // The top realm never promotes, so a "/ 5" there would promise a
             // ceremony that is never coming.
             realmIndex(c.level) === REALMS.length - 1 ? '∞' : LEVELS_PER_REALM
           }</span>
         </div>
-        <div class="hub-blurb">${realm.blurb}</div>
       </div>
+      <button class="hub-codex" type="button" aria-label="${strings.openCodex}">?</button>
     `
+    head.querySelector<HTMLButtonElement>('.hub-codex')!.addEventListener('click', onOpenCodex)
     panel.appendChild(head)
 
     // --- cultivation bar -----------------------------------------------

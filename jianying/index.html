@@ -427,6 +427,256 @@
         color: #8a6d16;
       }
 
+      /* --- shared full-screen panels ---------------------------------- */
+      /* A class selector beats the UA's [hidden] { display: none }. Getting
+         this wrong once shipped a full-screen invisible panel that swallowed
+         every touch while the game ran perfectly underneath it — so every
+         panel below carries its own [hidden] rule. */
+      .title,
+      .create,
+      .codex {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: calc(env(safe-area-inset-top, 0) + 28px) 20px
+          calc(env(safe-area-inset-bottom, 0) + 28px);
+        background: var(--paper);
+        color: var(--ink);
+        pointer-events: auto;
+        opacity: 0;
+        transition: opacity 320ms ease;
+      }
+      .title[hidden],
+      .create[hidden],
+      .codex[hidden] {
+        display: none;
+      }
+      .title.shown,
+      .create.shown,
+      .codex.shown {
+        opacity: 1;
+      }
+
+      /* --- title ------------------------------------------------------ */
+      .title {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 18px;
+        text-align: center;
+        /* The one screen that keeps the ink ground: it is a cover, not a
+           document, and the seal has to carry it. */
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .title-seal {
+        font-size: 62px;
+        letter-spacing: 0.12em;
+        color: var(--cinnabar);
+      }
+      .title-roman {
+        margin-top: 6px;
+        font-size: 13px;
+        letter-spacing: 0.42em;
+        text-transform: uppercase;
+        color: rgba(232, 220, 192, 0.55);
+      }
+      .title-pitch {
+        max-width: 300px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: rgba(232, 220, 192, 0.72);
+      }
+      .title-go {
+        margin-top: 12px;
+        padding: 15px 46px;
+        font: inherit;
+        font-size: 15px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ink);
+        background: var(--paper);
+        border: 0;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .title-go:active {
+        transform: scale(0.97);
+      }
+      .title-who {
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: rgba(232, 220, 192, 0.42);
+      }
+
+      /* --- character creation ------------------------------------------ */
+      .create-title {
+        font-size: 22px;
+        letter-spacing: 0.03em;
+      }
+      .create-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .create-section {
+        margin: 20px 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.45);
+      }
+      .create-name {
+        display: flex;
+        gap: 8px;
+      }
+      .create-input {
+        flex: 1;
+        min-width: 0;
+        min-height: 46px;
+        padding: 0 12px;
+        font: inherit;
+        font-size: 16px; /* 16px or iOS zooms the viewport on focus. */
+        color: var(--ink);
+        background: rgba(255, 252, 244, 0.7);
+        border: 1px solid rgba(13, 13, 13, 0.18);
+        border-radius: 2px;
+      }
+      .create-roll {
+        flex: none;
+        width: 52px;
+        min-height: 46px;
+        font-size: 19px;
+        color: var(--paper);
+        background: var(--ink);
+        border: 0;
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .create-roll:active {
+        transform: scale(0.95);
+      }
+
+      .origin {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        margin-bottom: 8px;
+        padding: 13px 14px;
+        text-align: left;
+        font: inherit;
+        background: rgba(255, 252, 244, 0.55);
+        border: 1px solid rgba(13, 13, 13, 0.12);
+        border-left: 3px solid rgba(13, 13, 13, 0.16);
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .origin-on {
+        background: rgba(255, 250, 232, 0.92);
+        border-left-color: var(--cinnabar);
+      }
+      .origin-seal {
+        flex: none;
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-content: center;
+        font-size: 13px;
+        line-height: 1.15;
+        text-align: center;
+        color: rgba(13, 13, 13, 0.6);
+        background: rgba(13, 13, 13, 0.06);
+        border-radius: 2px;
+      }
+      .origin-on .origin-seal {
+        color: var(--paper);
+        background: var(--cinnabar);
+      }
+      .origin-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .origin-name {
+        font-size: 15px;
+      }
+      .origin-blurb {
+        margin-top: 3px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.55);
+      }
+      .origin-effect {
+        margin-top: 5px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: var(--gold);
+      }
+      .create-go {
+        display: block;
+        width: 100%;
+        margin-top: 18px;
+        padding: 16px;
+        font: inherit;
+        font-size: 16px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--paper);
+        background: var(--ink);
+        border: 0;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .create-go:active {
+        transform: scale(0.985);
+      }
+
+      /* --- codex -------------------------------------------------------- */
+      .codex-title {
+        font-size: 21px;
+        margin-bottom: 18px;
+      }
+      .codex-entry {
+        display: flex;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(13, 13, 13, 0.08);
+      }
+      .codex-seal {
+        flex: none;
+        width: 26px;
+        font-size: 17px;
+        color: var(--cinnabar);
+        text-align: center;
+      }
+      .codex-head {
+        font-size: 14px;
+        line-height: 1.35;
+      }
+      .codex-text {
+        margin-top: 4px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(13, 13, 13, 0.58);
+      }
+      .codex-go {
+        display: block;
+        width: 100%;
+        margin-top: 20px;
+        padding: 15px;
+        font: inherit;
+        font-size: 15px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--paper);
+        background: var(--ink);
+        border: 0;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+
       /* --- hub -------------------------------------------------------- */
       .hub {
         position: absolute;
@@ -470,25 +720,55 @@
         border-radius: 3px;
         letter-spacing: 0;
       }
-      .hub-realm {
-        font-size: 19px;
+      .hub-ident {
+        flex: 1;
+        min-width: 0;
+      }
+      /* The name leads. A panel that opens on a rank describes a rank; one
+         that opens on a name describes somebody the numbers belong to. */
+      .hub-name {
+        font-size: 20px;
+        letter-spacing: 0.02em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hub-origin {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--cinnabar);
         letter-spacing: 0.03em;
       }
-      .hub-level {
-        margin-top: 2px;
+      .hub-realm {
+        margin-top: 4px;
         font-size: 13px;
+        color: rgba(13, 13, 13, 0.55);
+      }
+      .hub-level {
+        margin-left: 6px;
         color: var(--gold);
         font-variant-numeric: tabular-nums;
       }
       .hub-step {
-        margin-left: 6px;
-        color: rgba(13, 13, 13, 0.38);
+        margin-left: 5px;
+        color: rgba(13, 13, 13, 0.35);
+        font-variant-numeric: tabular-nums;
       }
-      .hub-blurb {
-        margin-top: 3px;
-        font-size: 12px;
-        color: rgba(13, 13, 13, 0.5);
-        line-height: 1.35;
+      .hub-codex {
+        flex: none;
+        width: 34px;
+        height: 34px;
+        align-self: flex-start;
+        font: inherit;
+        font-size: 15px;
+        color: rgba(13, 13, 13, 0.45);
+        background: rgba(13, 13, 13, 0.06);
+        border: 0;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .hub-codex:active {
+        transform: scale(0.94);
       }
 
       .hub-cult {

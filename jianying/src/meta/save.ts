@@ -21,6 +21,7 @@ import {
   emptyAttributes,
 } from './character'
 import { MAX_DEPTH } from './depth'
+import { ORIGIN_BY_ID } from './origins'
 
 /** Versioned: a future shape change gets a new key rather than a silent misread. */
 export const SAVE_KEY = 'jianying.character.v1'
@@ -59,10 +60,20 @@ export function parseCharacter(raw: string): Character | null {
 
   const base = createCharacter()
   const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : base.name
+  // An unknown origin id — a save from a build that had one this version does
+  // not — falls back rather than leaving the hub with nothing to render.
+  const origin =
+    typeof record.origin === 'string' && ORIGIN_BY_ID.has(record.origin)
+      ? record.origin
+      : base.origin
   return {
     // Trimmed to something a UI can lay out; a save carrying a kilobyte of text
     // should not be able to break the hub.
     name: name.slice(0, 24),
+    origin,
+    // Anything already carrying progress has plainly been played, so it must
+    // not be handed a tutorial. Only a genuinely fresh save gets taught.
+    taught: record.taught === true || int(record.runs, 0) > 0,
     level: int(record.level, base.level, 1),
     xp: int(record.xp, 0),
     points: int(record.points, 0),
@@ -120,8 +131,21 @@ function localSet(key: string, value: string): void {
   }
 }
 
+export interface LoadedSave {
+  character: Character
+  /**
+   * True when nothing was stored — this is a first launch.
+   *
+   * The caller needs to know, because a first launch goes through character
+   * creation and a returning one must not: sending a player who already has a
+   * swordsman back to "choose your origin" would look exactly like their
+   * progress had been lost.
+   */
+  fresh: boolean
+}
+
 /** Loads the stored character, or creates a fresh one. Never throws. */
-export async function loadCharacter(): Promise<Character> {
+export async function loadCharacter(): Promise<LoadedSave> {
   let raw: string | null = null
   try {
     const mod = await preferences()
@@ -131,8 +155,12 @@ export async function loadCharacter(): Promise<Character> {
     raw = null
   }
   raw ??= localGet(SAVE_KEY)
-  if (!raw) return createCharacter()
-  return parseCharacter(raw) ?? createCharacter()
+  if (!raw) return { character: createCharacter(), fresh: true }
+  const parsed = parseCharacter(raw)
+  // A save that existed but could not be read is still not a first launch in
+  // spirit, but there is nothing to continue from, so creation is the honest
+  // place to land.
+  return parsed ? { character: parsed, fresh: false } : { character: createCharacter(), fresh: true }
 }
 
 /**

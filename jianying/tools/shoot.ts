@@ -133,14 +133,43 @@ async function main(): Promise<void> {
     await page.goto(url, { waitUntil: 'load' })
     await waitForFirstFrame(page)
 
-    // --- the hub ---------------------------------------------------------
-    // The game now opens on the character rather than in a fight, so the hub
-    // is the first thing a player sees and the first thing worth capturing.
-    await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+    // --- the way in ------------------------------------------------------
+    // title -> create -> codex -> hub on a first launch, which is what the
+    // harness always is: each context starts with empty storage.
+    await page.waitForFunction(() => document.body.dataset.screen === 'title', undefined, {
       timeout: 15_000,
+    })
+    await page.waitForTimeout(600)
+    await page.screenshot({ path: join(OUT, 'title.png') })
+
+    await page.locator('.title-go').click()
+    await page.waitForFunction(() => document.body.dataset.screen === 'create', undefined, {
+      timeout: 10_000,
+    })
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(OUT, 'create.png') })
+
+    // Pick a non-default origin, so the grant is visible in the hub that
+    // follows rather than being indistinguishable from a blank character.
+    await page.locator('.origin').nth(2).click()
+    await page.waitForTimeout(200)
+    const chosenName = (await page.locator('.create-input').inputValue()) || '(blank)'
+    await page.locator('.create-go').click()
+
+    await page.waitForFunction(() => document.body.dataset.screen === 'codex', undefined, {
+      timeout: 10_000,
+    })
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(OUT, 'codex.png') })
+    await page.locator('.codex-go').click()
+
+    // --- the hub ---------------------------------------------------------
+    await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+      timeout: 10_000,
     })
     await page.waitForTimeout(500)
     await page.screenshot({ path: join(OUT, 'hub.png') })
+    console.log(`made:   ${chosenName}`)
 
     // Spend the starting point. This also proves the attribute button is
     // reachable — the same class of bug as the invisible overlay below would
@@ -275,8 +304,22 @@ async function main(): Promise<void> {
       // the closest this harness gets to killing the app on a phone.
       await page.reload({ waitUntil: 'load' })
       await waitForFirstFrame(page)
-      await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+      // A returning player lands on the title with a Continue button, not back
+      // in character creation — being asked to pick an origin again would look
+      // exactly like the save had been lost.
+      await page.waitForFunction(() => document.body.dataset.screen === 'title', undefined, {
         timeout: 15_000,
+      })
+      const continueLabel = (await page.locator('.title-go').textContent())?.trim() ?? ''
+      if (!/continue/i.test(continueLabel)) {
+        console.error(`\nreturning player was offered "${continueLabel}", not Continue`)
+        process.exitCode = 1
+        return
+      }
+      await page.screenshot({ path: join(OUT, 'title-returning.png') })
+      await page.locator('.title-go').click()
+      await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+        timeout: 10_000,
       })
       const levelReloaded = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
       if (levelReloaded !== levelAfter) {
