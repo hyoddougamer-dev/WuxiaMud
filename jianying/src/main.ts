@@ -539,17 +539,28 @@ async function boot(): Promise<void> {
       // Idle sway, phase-shifted per enemy so a crowd never pulses in unison.
       const sway = Math.sin(time * 3.4 + e.phase) * 0.6
 
-      const push = (poly: number[], a: number): void => {
-        // Translate in place rather than using a container per enemy.
-        const moved = new Array<number>(poly.length)
-        for (let k = 0; k < poly.length; k += 2) {
+      // Only the solid pass. The bleed underlay is a wide, 16%-alpha wash that
+      // sells ink soaking into paper at the size the PLAYER is drawn — on an
+      // enemy nine world units across it is invisible, and it was doubling the
+      // polygon count of the single most repeated thing on screen. Halving that
+      // halves both the arrays built here and the triangulation Pixi does with
+      // them, which is the larger cost of the two.
+      //
+      // The array cannot be pooled, and that is worth recording because it
+      // looks like free performance: Pixi keeps the array BY REFERENCE inside
+      // the Polygon it builds, so writing the next stroke into a shared buffer
+      // silently rewrites every polygon already submitted this frame. Measured
+      // at 0.58ms per frame for 300 enemies, it is not the expensive half.
+      for (const s of art.body) {
+        const poly = s.poly
+        const n = poly.length
+        const moved = new Array<number>(n)
+        for (let k = 0; k < n; k += 2) {
           moved[k] = poly[k]! + ex + sway
           moved[k + 1] = poly[k + 1]! + ey
         }
-        enemyGfx.poly(moved).fill({ color: tint, alpha: a })
+        enemyGfx.poly(moved).fill({ color: tint, alpha: s.alpha })
       }
-      for (const s of art.bleed) push(s.poly, s.alpha)
-      for (const s of art.body) push(s.poly, s.alpha)
 
       // A charger winding up draws a cinnabar line along the lane it is about
       // to cross. The dash is only fair because it is announced.
@@ -756,8 +767,24 @@ async function boot(): Promise<void> {
   const hudTick = (): void => {
     hudTimer++
     if (hudTimer % 20 === 0) {
+      // The HUD carries the diagnosis, not just the frame rate.
+      //
+      // "It stutters on my phone" is not something anyone can act on, and this
+      // machine cannot reproduce it: with no GPU it is fill-rate bound long
+      // before it reaches the enemy density a real device sees. So the device
+      // has to be able to report its own numbers, and they have to be legible
+      // in a photograph of the screen — the same reason the renderer name and
+      // the build string are already up there.
+      //
+      //   u  milliseconds of JavaScript in the simulation, per frame
+      //   r  milliseconds of JavaScript building the frame, per frame
+      //   ▲  the single worst frame in the last half second
+      //
+      // A high ▲ with low u and r means the pause is not in this code.
+      const s = loop.stats
       hud.textContent =
-        `${loop.stats.fps} fps · ${swarm.count} · ${stage.rendererType} · ${BUILD}`
+        `${s.fps} fps · ${swarm.count}e · u${s.updateMs.toFixed(1)} r${s.renderMs.toFixed(1)} ` +
+        `▲${s.worstFrameMs.toFixed(0)} · ${stage.rendererType} · ${BUILD}`
       ui.updateLoadout(loadout)
       // The hint must not bleed through the level-up cards, which sit exactly
       // where it is drawn.
@@ -784,6 +811,16 @@ async function boot(): Promise<void> {
       // character looks identical to a screenshot of a moving one.
       document.body.dataset.px = String(Math.round(player.x))
       document.body.dataset.py = String(Math.round(player.y))
+      // Published so a performance report can be turned into a measurement.
+      // "It stutters on my phone" is unactionable; "render costs 9ms with 240
+      // enemies" points at one loop.
+      document.body.dataset.perf = JSON.stringify({
+        fps: loop.stats.fps,
+        update: +loop.stats.updateMs.toFixed(2),
+        render: +loop.stats.renderMs.toFixed(2),
+        worst: +loop.stats.worstFrameMs.toFixed(1),
+        enemies: swarm.count,
+      })
     }
     requestAnimationFrame(hudTick)
   }

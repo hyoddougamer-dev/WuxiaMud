@@ -153,7 +153,10 @@
            screen whose whole job is to be read cannot have half-lit silhouettes
            behind the numbers. */
         background: rgba(232, 220, 192, 0.97);
-        backdrop-filter: blur(3px);
+        /* No backdrop-filter. Blurring behind a full-screen panel forces the
+           compositor to read back and filter the entire WebGL canvas, which on
+           a phone is among the most expensive things a page can ask for — and
+           at 97% opacity there was nothing left to see through it anyway. */
         pointer-events: auto;
         opacity: 0;
         transition: opacity 420ms ease;
@@ -294,8 +297,10 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 0 16px calc(env(safe-area-inset-bottom, 0) + 26px);
-        background: rgba(232, 220, 192, 0.93);
-        backdrop-filter: blur(3px);
+        /* Raised from 0.93 and the blur dropped — see .over above for why. This
+           panel appears about five times an expedition, and each appearance was
+           asking the compositor to filter the whole canvas. */
+        background: rgba(232, 220, 192, 0.97);
         pointer-events: auto;
         opacity: 0;
         transition: opacity 200ms ease;

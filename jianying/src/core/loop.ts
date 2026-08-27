@@ -30,6 +30,21 @@ export interface LoopStats {
   stepsLastFrame: number
   /** Total ticks since the loop started — the simulation's clock. */
   totalTicks: number
+  /**
+   * Rolling averages of the JavaScript cost of each half, in milliseconds.
+   *
+   * Split because they fail differently and are fixed differently. Simulation
+   * cost scales with how many things are alive; draw cost scales with how much
+   * geometry is rebuilt per frame. A frame budget of 16.7ms spent mostly in
+   * `render` is a rendering problem no amount of AI tuning will help.
+   *
+   * Neither includes what the GPU does afterwards, so these are a floor on
+   * frame time, not a prediction of it.
+   */
+  updateMs: number
+  renderMs: number
+  /** Longest single frame seen since the last reading. Where stutter shows. */
+  worstFrameMs: number
 }
 
 export class GameLoop {
@@ -41,7 +56,18 @@ export class GameLoop {
   private fpsFrames = 0
   private fpsElapsed = 0
 
-  readonly stats: LoopStats = { fps: 0, stepsLastFrame: 0, totalTicks: 0 }
+  private updateAccum = 0
+  private renderAccum = 0
+  private worstFrame = 0
+
+  readonly stats: LoopStats = {
+    fps: 0,
+    stepsLastFrame: 0,
+    totalTicks: 0,
+    updateMs: 0,
+    renderMs: 0,
+    worstFrameMs: 0,
+  }
 
   constructor(private readonly callbacks: LoopCallbacks) {}
 
@@ -80,6 +106,7 @@ export class GameLoop {
 
     this.accumulator += elapsed
 
+    const updateStart = performance.now()
     let steps = 0
     while (this.accumulator >= TICK_MS && steps < MAX_STEPS_PER_FRAME) {
       this.callbacks.update(TICK_S)
@@ -95,14 +122,26 @@ export class GameLoop {
     }
 
     this.stats.stepsLastFrame = steps
+    const renderStart = performance.now()
     this.callbacks.render(this.accumulator / TICK_MS)
+    const renderEnd = performance.now()
+
+    this.updateAccum += renderStart - updateStart
+    this.renderAccum += renderEnd - renderStart
+    if (elapsed > this.worstFrame) this.worstFrame = elapsed
 
     this.fpsFrames++
     this.fpsElapsed += elapsed
     if (this.fpsElapsed >= 500) {
       this.stats.fps = Math.round((this.fpsFrames * 1000) / this.fpsElapsed)
+      this.stats.updateMs = this.updateAccum / this.fpsFrames
+      this.stats.renderMs = this.renderAccum / this.fpsFrames
+      this.stats.worstFrameMs = this.worstFrame
       this.fpsFrames = 0
       this.fpsElapsed = 0
+      this.updateAccum = 0
+      this.renderAccum = 0
+      this.worstFrame = 0
     }
   }
 }

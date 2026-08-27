@@ -25,7 +25,12 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
 
   await app.init({
     background: palette.ink,
-    antialias: true,
+    // MSAA off. On a mobile GPU multisampling a full-screen buffer is one of
+    // the most expensive things a 2D game can ask for — it multiplies the cost
+    // of every pixel of a screen this game repaints entirely, every frame. The
+    // art barely notices: these are large soft brush shapes on a textured
+    // ground, not thin geometric edges, and the paper grain hides the rest.
+    antialias: false,
     // Cap the resolution: a 3x-DPR phone renders 9x the pixels of a 1x one for
     // no visible gain on brush shapes, and that alone can halve the frame rate.
     resolution: Math.min(window.devicePixelRatio || 1, 2),
