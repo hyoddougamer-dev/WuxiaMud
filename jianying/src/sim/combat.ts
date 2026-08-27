@@ -11,6 +11,7 @@ import type { Player } from './player'
 import type { Motes } from './pickups'
 import type { Bolts } from './projectiles'
 import { BOLT_RADIUS } from './projectiles'
+import type { Hazards } from './hazards'
 import type { Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
@@ -164,6 +165,7 @@ export interface CombatContext {
   swarm: Swarm
   motes: Motes
   bolts: Bolts
+  hazards: Hazards
   stats: Stats
   rng: Rng
 }
@@ -175,7 +177,15 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   e.hitFlash = 0.12
   if (e.hp > 0) return false
 
-  ctx.motes.drop(e.x, e.y, 1, ctx.rng)
+  // A boss is worth a scattering of qi rather than one mote, so clearing it
+  // visibly pays — and so the level it grants arrives as a shower.
+  const drops = Math.min(12, e.kind.qi)
+  for (let d = 0; d < drops; d++) {
+    ctx.motes.drop(e.x, e.y, Math.ceil(e.kind.qi / drops), ctx.rng)
+  }
+  // Splitting happens before the corpse is released, since it reads the
+  // position that release would recycle.
+  ctx.swarm.splitOnDeath(e, ctx.run.elapsed)
   ctx.swarm.kill(index)
   ctx.run.kills++
   return true
@@ -294,6 +304,21 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
         const dy = e.y - player.y
         if (dx * dx + dy * dy > reach * reach) continue
         damageEnemy(ctx, i, stats.novaDamage)
+      }
+    }
+  }
+
+  // --- enemy projectiles -----------------------------------------------
+  ctx.hazards.update(dt)
+  if (run.immunity <= 0) {
+    const shot = ctx.hazards.strike(player.x, player.y, PLAYER_RADIUS)
+    if (shot > 0) {
+      run.hp -= shot
+      run.immunity = HURT_IMMUNITY
+      if (run.hp <= 0) {
+        run.hp = 0
+        run.over = true
+        return
       }
     }
   }

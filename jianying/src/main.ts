@@ -19,9 +19,10 @@ import { buildEnemyArt } from './render/enemyArt'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
 import { mixColor, palette } from './render/palette'
 import { createStage } from './render/stage'
-import { Swarm } from './sim/enemies'
+import { CHARGE_WINDUP, Swarm } from './sim/enemies'
 import { Motes } from './sim/pickups'
 import { Bolts } from './sim/projectiles'
+import { Hazards } from './sim/hazards'
 import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
@@ -31,7 +32,7 @@ import { createJoystick } from './ui/joystick'
 import { createLevelUp } from './ui/levelup'
 import { strings } from './ui/strings'
 
-const BUILD = '1.1.0'
+const BUILD = '1.2.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -88,6 +89,7 @@ async function boot(): Promise<void> {
   const swarm = new Swarm(new Rng(runSeed))
   const motes = new Motes()
   const bolts = new Bolts()
+  const hazards = new Hazards()
   // A stream of its own, so drawing technique offers never shifts the enemy
   // sequence a seed is supposed to guarantee.
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
@@ -124,6 +126,11 @@ async function boot(): Promise<void> {
   const boltGfx = new Graphics()
   boltGfx.zIndex = 1
   stage.world.addChild(boltGfx)
+
+  // Enemy fire, drawn above the crowd so it is never lost in a press of bodies.
+  const hazardGfx = new Graphics()
+  hazardGfx.zIndex = 4
+  stage.world.addChild(hazardGfx)
 
   // The sweep and the shockwave, ink marks that fade over their short lives.
   const slashGfx = new Graphics()
@@ -180,6 +187,7 @@ async function boot(): Promise<void> {
     swarm.reset(runSeed)
     motes.clear()
     bolts.clear()
+    hazards.clear()
     loadout = new Map()
     stats = deriveStats(loadout)
     pickRng = new Rng(runSeed ^ 0x5bf03635)
@@ -220,8 +228,8 @@ async function boot(): Promise<void> {
 
     const { x: ix, y: iy } = joystick.state
     updatePlayer(player, ix, iy, dt, stats.moveSpeed)
-    swarm.update(player.x, player.y, run.elapsed, dt)
-    updateCombat({ run, player, swarm, motes, bolts, stats, rng: pickRng }, dt)
+    swarm.update(player.x, player.y, run.elapsed, dt, hazards)
+    updateCombat({ run, player, swarm, motes, bolts, hazards, stats, rng: pickRng }, dt)
     updateCamera(camera, player, stats.moveSpeed, dt)
   }
 
@@ -253,7 +261,10 @@ async function boot(): Promise<void> {
 
       // A struck enemy washes toward cinnabar. It is the only feedback in the
       // build that a hit landed, and without it the swarm just thins silently.
-      const tint = e.hitFlash > 0 ? mixColor(palette.ink, palette.cinnabar, e.hitFlash / 0.12) : palette.ink
+      // Base colour is the kind's accent: cinnabar for the threats that reach
+      // you from outside the sweep, gold for a boss, ink for everything else.
+      const base = art.accent
+      const tint = e.hitFlash > 0 ? mixColor(base, palette.cinnabar, e.hitFlash / 0.12) : base
       // Idle sway, phase-shifted per enemy so a crowd never pulses in unison.
       const sway = Math.sin(time * 3.4 + e.phase) * 0.6
 
@@ -268,6 +279,44 @@ async function boot(): Promise<void> {
       }
       for (const s of art.bleed) push(s.poly, s.alpha)
       for (const s of art.body) push(s.poly, s.alpha)
+
+      // A charger winding up draws a cinnabar line along the lane it is about
+      // to cross. The dash is only fair because it is announced.
+      if (e.kind.behaviour === 'charger' && e.state === CHARGE_WINDUP) {
+        const tx = wx - ex
+        const ty = wy - ey
+        const tl = Math.hypot(tx, ty) || 1
+        enemyGfx
+          .poly([
+            ex + (tx / tl) * 14,
+            ey + (ty / tl) * 14,
+            ex + (tx / tl) * 260 - (ty / tl) * 5,
+            ey + (ty / tl) * 260 + (tx / tl) * 5,
+            ex + (tx / tl) * 260 + (ty / tl) * 5,
+            ey + (ty / tl) * 260 - (tx / tl) * 5,
+          ])
+          .fill({ color: palette.cinnabar, alpha: 0.16 })
+      }
+
+      // Only bosses carry a health bar. On a normal enemy it would be noise on
+      // something that dies to one or two sweeps.
+      if (e.kind.behaviour === 'boss') {
+        const w = 74
+        const pct = Math.max(0, e.hp / e.maxHp)
+        const by = ey - e.kind.radius * 2.4
+        enemyGfx.rect(ex - w / 2, by, w, 5).fill({ color: palette.ink, alpha: 0.16 })
+        enemyGfx.rect(ex - w / 2, by, w * pct, 5).fill({ color: palette.cinnabar, alpha: 0.9 })
+      }
+    }
+
+    // --- enemy fire ----------------------------------------------------
+    hazardGfx.clear()
+    for (let i = 0; i < hazards.pool.size; i++) {
+      const h = hazards.pool.at(i)
+      const hx = lerp(h.prevX, h.x, alpha)
+      const hy = lerp(h.prevY, h.y, alpha)
+      hazardGfx.circle(hx, hy, h.radius).fill({ color: palette.cinnabar, alpha: 0.9 })
+      hazardGfx.circle(hx, hy, h.radius * 2).fill({ color: palette.cinnabar, alpha: 0.14 })
     }
 
     // --- the sweep -----------------------------------------------------
@@ -433,6 +482,7 @@ async function boot(): Promise<void> {
     if (hudTimer % 20 === 0) {
       hud.textContent =
         `${loop.stats.fps} fps · ${swarm.count} · ${stage.rendererType} · ${BUILD}`
+      ui.updateLoadout(loadout)
       // The hint must not bleed through the level-up cards, which sit exactly
       // where it is drawn.
       const showHint = joystick.idleTime() > 3 && !run.over && !levelUp.visible

@@ -105,6 +105,28 @@
         opacity: 0.6;
       }
 
+      /* Owned techniques, so what you have picked is always readable. */
+      .hud-loadout {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 7px;
+      }
+      .chip {
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        padding: 2px 6px;
+        border-radius: 2px;
+        color: rgba(13, 13, 13, 0.62);
+        background: rgba(13, 13, 13, 0.07);
+        border-left: 2px solid rgba(13, 13, 13, 0.28);
+      }
+      .chip-art {
+        color: #8a6d16;
+        background: rgba(212, 175, 55, 0.14);
+        border-left-color: var(--gold);
+      }
+
       /* --- end of run ----------------------------------------------- */
       .over {
         position: absolute;

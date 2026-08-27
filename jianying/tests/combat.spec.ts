@@ -5,6 +5,7 @@ import { MAX_ENEMIES, pickEnemyKind, spawnRate, healthScale } from '../src/data/
 import { Swarm } from '../src/sim/enemies'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
+import { Hazards } from '../src/sim/hazards'
 import { deriveStats } from '../src/sim/loadout'
 import { createPlayer, updatePlayer, type Player } from '../src/sim/player'
 import {
@@ -20,6 +21,7 @@ interface Sim {
   swarm: Swarm
   motes: Motes
   bolts: Bolts
+  hazards: Hazards
   rng: Rng
   run: RunState
 }
@@ -30,6 +32,7 @@ function newSim(seed = 4242): Sim {
     swarm: new Swarm(new Rng(seed)),
     motes: new Motes(),
     bolts: new Bolts(),
+    hazards: new Hazards(),
     rng: new Rng(seed ^ 0x5bf03635),
     run: createRun(),
   }
@@ -48,7 +51,7 @@ function play(sim: Sim, seconds: number, input: (t: number) => [number, number])
     if (sim.run.over) break
     const [ix, iy] = input(sim.run.elapsed)
     updatePlayer(sim.player, ix, iy, TICK_S)
-    sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S)
+    sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S, sim.hazards)
     // Level-ups would freeze the simulation waiting for a choice no bot can
     // make, so headless runs spend them immediately without taking anything.
     sim.run.pendingLevelUps = 0
@@ -59,6 +62,7 @@ function play(sim: Sim, seconds: number, input: (t: number) => [number, number])
         swarm: sim.swarm,
         motes: sim.motes,
         bolts: sim.bolts,
+        hazards: sim.hazards,
         stats: BASE_STATS,
         rng: sim.rng,
       },
@@ -117,7 +121,7 @@ describe('swarm', () => {
     const sim = newSim()
     sim.run.elapsed = 600 // jump to a brutal spawn rate
     for (let i = 0; i < 3600; i++) {
-      sim.swarm.update(0, 0, 600, TICK_S)
+      sim.swarm.update(0, 0, 600, TICK_S, sim.hazards)
       expect(sim.swarm.count).toBeLessThanOrEqual(MAX_ENEMIES)
     }
   })
@@ -128,7 +132,7 @@ describe('swarm', () => {
     const before = sim.swarm.pool
       .at(0)
     const d0 = Math.hypot(before.x - sim.player.x, before.y - sim.player.y)
-    for (let i = 0; i < 60; i++) sim.swarm.update(0, 0, 3, TICK_S)
+    for (let i = 0; i < 60; i++) sim.swarm.update(0, 0, 3, TICK_S, sim.hazards)
     const after = sim.swarm.pool.at(0)
     const d1 = Math.hypot(after.x - sim.player.x, after.y - sim.player.y)
     expect(d1).toBeLessThan(d0)

@@ -6,6 +6,7 @@
  * soft. The DOM renders crisp text at any device pixel ratio for free, and it
  * sits above the game without ever touching the render loop's budget.
  */
+import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
 import { strings } from './strings'
 
 export interface Hud {
@@ -19,6 +20,8 @@ export interface Hud {
     xpNeeded: number,
     level: number,
   ): void
+  /** Redraws the owned-technique strip. Cheap when nothing has changed. */
+  updateLoadout(loadout: Loadout): void
   /** Shows the end screen. `onRestart` fires when the player asks for another. */
   showGameOver(elapsed: number, kills: number, onRestart: () => void): void
   hideGameOver(): void
@@ -42,6 +45,7 @@ export function createHud(root: HTMLElement): Hud {
         <span class="hud-realm">${strings.levelShort} 1</span>
         <span class="hud-kills">0</span>
       </div>
+      <div class="hud-loadout"></div>
     </div>
     <div class="over" hidden>
       <div class="over-seal">终</div>
@@ -63,6 +67,7 @@ export function createHud(root: HTMLElement): Hud {
   const overTime = root.querySelector<HTMLElement>('.over-time')!
   const overKills = root.querySelector<HTMLElement>('.over-kills')!
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
+  const loadoutEl = root.querySelector<HTMLElement>('.hud-loadout')!
 
   // Only touch the DOM when a displayed value actually changes. Writing the
   // same string 60 times a second is layout work for nothing.
@@ -71,6 +76,9 @@ export function createHud(root: HTMLElement): Hud {
   let lastPct = -1
   let lastXpPct = -1
   let lastLevel = -1
+
+  /** Serialised loadout, so the strip is only rebuilt when it really changes. */
+  let lastLoadout = ''
 
   let restartHandler: (() => void) | null = null
   again.addEventListener('click', () => restartHandler?.())
@@ -105,6 +113,26 @@ export function createHud(root: HTMLElement): Hud {
       }
     },
 
+    updateLoadout(loadout) {
+      // "I do not understand how many skills I have" was the report this
+      // answers: without a persistent list, the only place a technique is ever
+      // named is the card you tapped twenty seconds ago.
+      let key = ''
+      for (const [id, lv] of loadout) key += `${id}${lv},`
+      if (key === lastLoadout) return
+      lastLoadout = key
+
+      loadoutEl.innerHTML = ''
+      for (const [id, level] of loadout) {
+        const tech = TECHNIQUE_BY_ID.get(id)
+        if (!tech) continue
+        const chip = document.createElement('span')
+        chip.className = 'chip' + (tech.kind === 'art' ? ' chip-art' : '')
+        chip.textContent = `${tech.name} ${level}`
+        loadoutEl.appendChild(chip)
+      }
+    },
+
     showGameOver(elapsed, kills, onRestart) {
       overTime.textContent = formatTime(elapsed)
       overKills.textContent = String(kills)
@@ -123,6 +151,8 @@ export function createHud(root: HTMLElement): Hud {
       lastXpPct = -1
       lastLevel = -1
       lastTime = ''
+      lastLoadout = ''
+      loadoutEl.innerHTML = ''
     },
   }
 }
