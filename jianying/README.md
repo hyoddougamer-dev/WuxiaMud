@@ -43,7 +43,24 @@ pena para ir buscar um build antigo em concreto.
 
 </details>
 
-A assinatura de release entra na Fase 6, com a keystore em GitHub Secrets.
+### Porque é que os updates instalam por cima
+
+Cada runner do GitHub é descartável, por isso o Gradle criaria uma keystore de
+debug **nova em cada build**. O Android considera dois APKs com assinaturas
+diferentes apps diferentes, portanto instalar por cima falha com *"App não
+instalada"* — e o telemóvel fica calado com a versão antiga.
+
+A keystore fixa vive em `ci/debug.keystore.enc`, encriptada com AES-256. O
+segredo `DEBUG_KEYSTORE_PASSPHRASE` do repositório é que a abre. Ficheiro
+encriptado no repo em vez de base64 no segredo porque assim configurar isto é
+uma colagem de 28 caracteres, e não de 3 KB — o que importa quando se trabalha
+a partir do telemóvel.
+
+Se o segredo faltar, o build não parte: emite um aviso e assina com uma chave
+nova, e o APK resultante não instalará por cima do anterior.
+
+A assinatura de *release* (para a loja) entra na Fase 6, essa sim com a keystore
+inteira em GitHub Secrets.
 
 ---
 

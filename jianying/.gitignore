@@ -7,3 +7,10 @@ shots/
 # Capacitor generates the native project from capacitor.config.ts + dist.
 # CI runs `cap add android` on a clean checkout, so the platform is not vendored.
 android/
+
+# Never commit a keystore in the clear. The repo is public; the only signing
+# material that belongs here is ci/debug.keystore.enc, which is AES-encrypted
+# and useless without the DEBUG_KEYSTORE_PASSPHRASE secret.
+*.keystore
+*.jks
+*.p12
