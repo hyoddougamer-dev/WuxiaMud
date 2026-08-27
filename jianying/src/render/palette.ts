@@ -19,6 +19,8 @@ export const palette = {
   /** Gold — qi, pickups, the player's own techniques. */
   gold: 0xd4af37,
   goldPale: 0xf0d98a,
+  /** Gold dark enough to read as text on paper. Matches the art chips in CSS. */
+  goldDeep: 0x8a6d16,
 } as const
 
 export const paletteCss = {

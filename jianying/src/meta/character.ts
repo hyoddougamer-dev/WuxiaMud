@@ -1,0 +1,225 @@
+/**
+ * The persistent swordsman — the part of the game that survives dying.
+ *
+ * Everything in `sim/` is thrown away when a run ends. This file is the
+ * opposite: a single record that only ever grows, carried between expeditions
+ * and written to disk. It is pure data and pure arithmetic on purpose, so the
+ * whole progression curve can be checked by tests rather than by playing for an
+ * hour and forming an impression.
+ *
+ * The shape is deliberately the MMORPG one rather than the survivors one:
+ *
+ *   expedition  ->  cultivation XP  ->  level  ->  attribute points  ->  stats
+ *
+ * A run therefore never ends in nothing. Even a bad one moves the bar, which is
+ * the whole reason this layer exists — the previous build reset to zero on every
+ * death and gave a player no reason to believe the last ten minutes had counted.
+ *
+ * The honest risk, recorded here because it will need revisiting: permanent
+ * power against a fixed difficulty curve eventually makes the early minutes of
+ * every expedition trivial. The answer in this design is expedition depth (see
+ * `depth.ts`) — the character grows, and the player is expected to spend that
+ * growth on harder ground rather than on an easier version of the same ground.
+ */
+import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
+
+/** The four things a point can be spent on. */
+export type AttributeId = 'body' | 'edge' | 'swift' | 'spirit'
+
+export interface Attribute {
+  readonly id: AttributeId
+  /** Chinese character, used as the seal on the hub card. */
+  readonly seal: string
+  readonly name: string
+  /** What one point does, in the player's own units. Shown verbatim. */
+  readonly effect: string
+}
+
+/**
+ * Four attributes, each mapping to exactly one readable number.
+ *
+ * Four is a deliberate ceiling. Six or eight would let the numbers overlap —
+ * two stats that both nudge damage — and an attribute the player cannot predict
+ * the effect of is an attribute they will not spend on. Every entry below states
+ * its effect in the units the HUD already shows.
+ */
+export const ATTRIBUTES: readonly Attribute[] = [
+  { id: 'body', seal: '体', name: 'Body', effect: '+7 max health' },
+  { id: 'edge', seal: '锋', name: 'Edge', effect: '+1.3 sweep damage' },
+  { id: 'swift', seal: '疾', name: 'Swiftness', effect: 'Sweep 1.8% faster' },
+  { id: 'spirit', seal: '神', name: 'Spirit', effect: '+5% art damage and reach' },
+] as const
+
+export type Attributes = Record<AttributeId, number>
+
+export interface Character {
+  /** Chosen by the player. Never used as a key — the save has its own slot. */
+  name: string
+  level: number
+  /** Cultivation XP toward the next level. */
+  xp: number
+  /** Earned but not yet assigned. */
+  points: number
+  spent: Attributes
+  /** Deepest expedition unlocked. Starts at 1. */
+  depth: number
+  /** Lifetime totals, purely for the hub to have something to show. */
+  runs: number
+  bestSeconds: number
+  totalKills: number
+}
+
+export function emptyAttributes(): Attributes {
+  return { body: 0, edge: 0, swift: 0, spirit: 0 }
+}
+
+export function createCharacter(name = 'Wanderer'): Character {
+  return {
+    name,
+    level: 1,
+    xp: 0,
+    // One in hand at creation, so the very first thing a new player does is
+    // make a choice rather than read a locked screen.
+    points: 1,
+    spent: emptyAttributes(),
+    depth: 1,
+    runs: 0,
+    bestSeconds: 0,
+    totalKills: 0,
+  }
+}
+
+/**
+ * Cultivation XP required to go from `level` to the next.
+ *
+ * Tuned against measured expeditions rather than taste. A headless first run
+ * yields around 230, and the first three levels cost 79, 122 and 173 — so an
+ * opening expedition buys two levels and most of a third, and a new player sees
+ * the whole loop close (set out, die, gain, spend) inside one sitting.
+ *
+ * The quadratic term is what makes the far end behave: by level fifteen a
+ * strong deep-road expedition is worth roughly half a level, which is the pace
+ * at which a permanent number stays worth chasing without becoming a job.
+ */
+export function xpForCultivation(level: number): number {
+  return Math.round(45 + level * 30 + level * level * 4.2)
+}
+
+/** Points granted for reaching `level`. Realm advances pay extra. */
+export function pointsForLevel(level: number): number {
+  return isRealmAdvance(level) ? 3 : 1
+}
+
+/** What a finished expedition is worth, itemised so the end screen can show it. */
+export interface RunResult {
+  kills: number
+  seconds: number
+  /** In-run Insight level reached. */
+  insight: number
+  depth: number
+}
+
+export interface Reward {
+  kills: number
+  time: number
+  insight: number
+  /** Multiplier from expedition depth, already applied to `total`. */
+  depthBonus: number
+  total: number
+}
+
+/**
+ * Turns an expedition into cultivation XP.
+ *
+ * Three terms, because three is what fits on the end screen as three rows the
+ * player can read and connect to what they just did. Kills reward clearing,
+ * time rewards surviving, and Insight rewards actually gathering qi instead of
+ * running in circles — without that third term, the optimal expedition would be
+ * to walk away from every fight.
+ */
+export function rewardFor(result: RunResult): Reward {
+  const kills = result.kills
+  const time = Math.floor(result.seconds / 3)
+  const insight = Math.max(0, result.insight - 1) * 8
+  const depthBonus = depthReward(result.depth)
+  return {
+    kills,
+    time,
+    insight,
+    depthBonus,
+    total: Math.round((kills + time + insight) * depthBonus),
+  }
+}
+
+/** XP multiplier for expedition depth. Kept in step with `depth.ts`. */
+export function depthReward(depth: number): number {
+  return 1 + (Math.max(1, depth) - 1) * 0.5
+}
+
+/** What `grantXp` actually did, so the caller can announce it. */
+export interface LevelGain {
+  levelsGained: number
+  pointsGained: number
+  /** Highest realm crossed, or null if none was. */
+  realmAdvancedTo: number | null
+  /** New depths unlocked by this gain. */
+  depthUnlocked: number | null
+}
+
+/**
+ * Adds cultivation XP and applies every level it crosses.
+ *
+ * Mutates `character` and returns a summary. The loop is a `while` for the same
+ * reason the in-run one is: a strong expedition at a low level can cross several
+ * thresholds at once, and swallowing the extra levels would quietly take
+ * something the player earned.
+ */
+export function grantXp(character: Character, amount: number): LevelGain {
+  const gain: LevelGain = {
+    levelsGained: 0,
+    pointsGained: 0,
+    realmAdvancedTo: null,
+    depthUnlocked: null,
+  }
+  if (amount <= 0) return gain
+
+  character.xp += amount
+  while (character.xp >= xpForCultivation(character.level)) {
+    character.xp -= xpForCultivation(character.level)
+    character.level++
+    gain.levelsGained++
+    const points = pointsForLevel(character.level)
+    character.points += points
+    gain.pointsGained += points
+
+    if (isRealmAdvance(character.level)) {
+      gain.realmAdvancedTo = character.level
+      // A realm is also the key to deeper ground: the ladder and the difficulty
+      // unlock are the same event, so "what did that get me" has one answer.
+      const unlocked = 1 + Math.floor((character.level - 1) / LEVELS_PER_REALM)
+      if (unlocked > character.depth) {
+        character.depth = unlocked
+        gain.depthUnlocked = unlocked
+      }
+    }
+  }
+  return gain
+}
+
+/** Spends one point. Returns false when there is none to spend. */
+export function spendPoint(character: Character, id: AttributeId): boolean {
+  if (character.points <= 0) return false
+  character.points--
+  character.spent[id]++
+  return true
+}
+
+/** Total levels the ladder describes before the last realm goes open-ended. */
+export const NAMED_LEVEL_CAP = REALMS.length * LEVELS_PER_REALM
+
+/** Folds an expedition's outcome into the lifetime totals. */
+export function recordRun(character: Character, result: RunResult): void {
+  character.runs++
+  character.totalKills += result.kills
+  character.bestSeconds = Math.max(character.bestSeconds, Math.floor(result.seconds))
+}

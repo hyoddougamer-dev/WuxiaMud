@@ -6,9 +6,16 @@
  * be written blind and only inspected after an APK install — a loop far too
  * slow to tune feel against.
  *
- *   npx tsx tools/shoot.ts               # three stills from the built app
+ *   npx tsx tools/shoot.ts               # hub, then three stills in play
  *   npx tsx tools/shoot.ts --video       # also record a webm
+ *   npx tsx tools/shoot.ts --full        # play until death, verify the reward
  *   npx tsx tools/shoot.ts --url=http://127.0.0.1:5273
+ *
+ * `--full` is slow (an expedition runs in real time) and is the acceptance
+ * check for the meta loop: it stands in the crowd until the character dies,
+ * then asserts that the end screen appeared and that the permanent level
+ * actually moved. Nothing cheaper can prove an expedition converts into
+ * progress, because every part of that conversion happens after death.
  *
  * Defaults to the production build in dist/ (served statically) so what is
  * captured is what ships, not what the dev server transforms.
@@ -77,6 +84,7 @@ async function readFps(page: Page): Promise<number> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
   const wantVideo = args.includes('--video')
+  const wantFull = args.includes('--full')
   const urlArg = args.find((a) => a.startsWith('--url='))?.slice('--url='.length)
 
   let server: Server | undefined
@@ -124,6 +132,35 @@ async function main(): Promise<void> {
 
     await page.goto(url, { waitUntil: 'load' })
     await waitForFirstFrame(page)
+
+    // --- the hub ---------------------------------------------------------
+    // The game now opens on the character rather than in a fight, so the hub
+    // is the first thing a player sees and the first thing worth capturing.
+    await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+      timeout: 15_000,
+    })
+    await page.waitForTimeout(500)
+    await page.screenshot({ path: join(OUT, 'hub.png') })
+
+    // Spend the starting point. This also proves the attribute button is
+    // reachable — the same class of bug as the invisible overlay below would
+    // leave a player unable to spend anything they earn.
+    const addButton = page.locator('.attr-add:not([disabled])').first()
+    if (await addButton.isVisible().catch(() => false)) {
+      await addButton.click()
+      await page.waitForTimeout(200)
+      await page.screenshot({ path: join(OUT, 'hub-spent.png') })
+    } else {
+      console.warn('warn:   no attribute point available to spend')
+    }
+
+    const levelBefore = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
+
+    await page.locator('.hub-go').click()
+    await page.waitForFunction(() => document.body.dataset.screen === 'run', undefined, {
+      timeout: 10_000,
+    })
+    await page.waitForTimeout(700)
 
     // Drive the character with synthetic touches. Screenshotting an idle
     // character says nothing about how movement looks, and movement is the
@@ -187,6 +224,70 @@ async function main(): Promise<void> {
     await page.waitForTimeout(1500)
     const fps = await readFps(page)
     const hud = await page.locator('#hud').textContent()
+
+    // --- the whole loop, end to end --------------------------------------
+    if (wantFull) {
+      console.log('full:   standing in the crowd until the expedition ends...')
+      const deadline = Date.now() + 260_000
+      while (Date.now() < deadline) {
+        if ((await page.evaluate(() => document.body.dataset.screen)) === 'over') break
+        // A level-up freezes the field behind a choice; left unanswered the
+        // character would stand safely inside a menu and never die.
+        const card = page.locator('.levelup .card').first()
+        if (await card.isVisible().catch(() => false)) await card.click()
+        await page.waitForTimeout(1000)
+      }
+
+      const over = await page.locator('.over').isVisible().catch(() => false)
+      if (!over) {
+        console.error('\nthe expedition never ended — no end screen inside the deadline')
+        process.exitCode = 1
+        return
+      }
+      await page.waitForTimeout(600)
+      await page.screenshot({ path: join(OUT, 'reward.png') })
+
+      const total = (await page.locator('.rw-total b').textContent()) ?? '0'
+      const cause = (await page.locator('.over-cause').textContent()) ?? ''
+      console.log(`reward: ${total.trim()} cultivation · ${cause.trim() || 'no cause shown'}`)
+
+      await page.locator('.over-again').click()
+      await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+        timeout: 10_000,
+      })
+      await page.waitForTimeout(600)
+      await page.screenshot({ path: join(OUT, 'hub-after.png') })
+
+      const levelAfter = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
+      // The single assertion that matters for this whole feature: an expedition
+      // has to leave something behind. If this passes, the loop is closed.
+      if (levelAfter <= levelBefore) {
+        console.error(
+          `\nthe expedition left nothing behind — level ${levelBefore} before, ${levelAfter} after`,
+        )
+        process.exitCode = 1
+        return
+      }
+      console.log(`level:  ${levelBefore} -> ${levelAfter}`)
+
+      // And it has to still be there after the app is closed and reopened,
+      // which is the entire claim the persistent character makes. A reload is
+      // the closest this harness gets to killing the app on a phone.
+      await page.reload({ waitUntil: 'load' })
+      await waitForFirstFrame(page)
+      await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+        timeout: 15_000,
+      })
+      const levelReloaded = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
+      if (levelReloaded !== levelAfter) {
+        console.error(
+          `\nprogress did not survive a reload — ${levelAfter} before, ${levelReloaded} after`,
+        )
+        process.exitCode = 1
+        return
+      }
+      console.log(`saved:  ok (level ${levelReloaded} survived a reload)`)
+    }
 
     await context.close()
 

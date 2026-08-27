@@ -1,13 +1,34 @@
 /**
- * Run HUD and the end-of-run screen, in DOM rather than on the canvas.
+ * Run HUD and the end-of-expedition screen, in DOM rather than on the canvas.
  *
  * Text is the one thing a canvas is bad at: Pixi would need a font atlas, and
  * numbers that change every frame would either re-rasterise constantly or look
  * soft. The DOM renders crisp text at any device pixel ratio for free, and it
  * sits above the game without ever touching the render loop's budget.
+ *
+ * The end screen carries more weight than it used to. It is no longer a
+ * scoreboard for something that has been thrown away — it is where an
+ * expedition is converted into permanent progress, and every term of that
+ * conversion is itemised. A player who dies at four minutes should be able to
+ * read, without asking anyone, exactly what those four minutes bought.
  */
 import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
+import type { LevelGain, Reward } from '../meta/character'
+import { roadOf } from '../meta/depth'
+import { realmOf } from '../meta/realms'
 import { strings } from './strings'
+
+/** Everything the end screen needs, assembled by main once the run is over. */
+export interface RunSummary {
+  seconds: number
+  kills: number
+  depth: number
+  killedBy: string | null
+  reward: Reward
+  gain: LevelGain
+  /** Level after the reward was applied. */
+  level: number
+}
 
 export interface Hud {
   /** Called every frame with the current run state. */
@@ -18,13 +39,17 @@ export interface Hud {
     kills: number,
     xp: number,
     xpNeeded: number,
-    level: number,
+    insight: number,
   ): void
   /** Redraws the owned-technique strip. Cheap when nothing has changed. */
   updateLoadout(loadout: Loadout): void
-  /** Shows the end screen. `onRestart` fires when the player asks for another. */
-  showGameOver(elapsed: number, kills: number, onRestart: () => void): void
+  /** Names the road in the corner, so depth is visible during play. */
+  setDepth(depth: number): void
+  /** Shows the end screen. `onReturn` takes the player back to the hub. */
+  showGameOver(summary: RunSummary, onReturn: () => void): void
   hideGameOver(): void
+  /** Hides or reveals the whole in-run HUD, for the hub. */
+  setPlaying(playing: boolean): void
 }
 
 /** mm:ss */
@@ -42,30 +67,39 @@ export function createHud(root: HTMLElement): Hud {
       <div class="hud-xp"><div class="hud-xp-fill"></div></div>
       <div class="hud-stats">
         <span class="hud-time">0:00</span>
-        <span class="hud-realm">${strings.levelShort} 1</span>
+        <span class="hud-insight">${strings.insight} 1</span>
         <span class="hud-kills">0</span>
       </div>
+      <div class="hud-road"></div>
       <div class="hud-loadout"></div>
     </div>
     <div class="over" hidden>
-      <div class="over-seal">终</div>
-      <div class="over-title">${strings.runOver}</div>
-      <div class="over-rows">
-        <div><span>${strings.survived}</span><b class="over-time">0:00</b></div>
-        <div><span>${strings.felled}</span><b class="over-kills">0</b></div>
+      <div class="over-inner">
+        <div class="over-seal">终</div>
+        <div class="over-title">${strings.runOver}</div>
+        <div class="over-cause"></div>
+        <div class="over-rows">
+          <div><span>${strings.survived}</span><b class="over-time">0:00</b></div>
+          <div><span>${strings.felled}</span><b class="over-kills">0</b></div>
+        </div>
+        <div class="over-reward"></div>
+        <button class="over-again" type="button">${strings.toHub}</button>
       </div>
-      <button class="over-again" type="button">${strings.again}</button>
     </div>
   `
 
+  const bar = root.querySelector<HTMLElement>('.hud-bar')!
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!
   const xpFill = root.querySelector<HTMLElement>('.hud-xp-fill')!
-  const realmEl = root.querySelector<HTMLElement>('.hud-realm')!
+  const insightEl = root.querySelector<HTMLElement>('.hud-insight')!
   const timeEl = root.querySelector<HTMLElement>('.hud-time')!
   const killsEl = root.querySelector<HTMLElement>('.hud-kills')!
+  const roadEl = root.querySelector<HTMLElement>('.hud-road')!
   const over = root.querySelector<HTMLElement>('.over')!
   const overTime = root.querySelector<HTMLElement>('.over-time')!
   const overKills = root.querySelector<HTMLElement>('.over-kills')!
+  const overCause = root.querySelector<HTMLElement>('.over-cause')!
+  const overReward = root.querySelector<HTMLElement>('.over-reward')!
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
   const loadoutEl = root.querySelector<HTMLElement>('.hud-loadout')!
 
@@ -75,16 +109,24 @@ export function createHud(root: HTMLElement): Hud {
   let lastKills = -1
   let lastPct = -1
   let lastXpPct = -1
-  let lastLevel = -1
+  let lastInsight = -1
 
   /** Serialised loadout, so the strip is only rebuilt when it really changes. */
   let lastLoadout = ''
 
-  let restartHandler: (() => void) | null = null
-  again.addEventListener('click', () => restartHandler?.())
+  let returnHandler: (() => void) | null = null
+  again.addEventListener('click', () => {
+    const handler = returnHandler
+    returnHandler = null
+    handler?.()
+  })
+
+  /** One itemised line on the reward breakdown. */
+  const row = (label: string, value: string, cls = ''): string =>
+    `<div class="rw ${cls}"><span>${label}</span><b>${value}</b></div>`
 
   return {
-    update(hp, maxHp, elapsed, kills, xp, xpNeeded, level) {
+    update(hp, maxHp, elapsed, kills, xp, xpNeeded, insight) {
       const pct = Math.max(0, Math.min(1, hp / maxHp))
       if (pct !== lastPct) {
         fill.style.transform = `scaleX(${pct})`
@@ -107,10 +149,22 @@ export function createHud(root: HTMLElement): Hud {
         xpFill.style.transform = `scaleX(${xpPct})`
         lastXpPct = xpPct
       }
-      if (level !== lastLevel) {
-        realmEl.textContent = `${strings.levelShort} ${level}`
-        lastLevel = level
+      if (insight !== lastInsight) {
+        // "Insight", never "Level": the permanent level lives in the hub, and
+        // one word meaning two things on two screens was a real source of
+        // confusion rather than a naming quibble.
+        insightEl.textContent = `${strings.insight} ${insight}`
+        lastInsight = insight
       }
+    },
+
+    setDepth(depth) {
+      const road = roadOf(depth)
+      roadEl.textContent = `${road.seal} ${road.name} · ${strings.depth} ${depth}`
+    },
+
+    setPlaying(playing) {
+      bar.style.display = playing ? '' : 'none'
     },
 
     updateLoadout(loadout) {
@@ -133,10 +187,51 @@ export function createHud(root: HTMLElement): Hud {
       }
     },
 
-    showGameOver(elapsed, kills, onRestart) {
-      overTime.textContent = formatTime(elapsed)
-      overKills.textContent = String(kills)
-      restartHandler = onRestart
+    showGameOver(summary, onReturn) {
+      overTime.textContent = formatTime(summary.seconds)
+      overKills.textContent = String(summary.kills)
+
+      // Naming the killer is the smallest change with the largest effect on
+      // comprehension: it turns an unexplained death into a lesson about one
+      // specific enemy.
+      overCause.textContent = summary.killedBy
+        ? `${strings.felledBy} ${summary.killedBy}`
+        : ''
+      overCause.hidden = !summary.killedBy
+
+      const { reward, gain } = summary
+      let html = `<div class="rw-head">${strings.cultivationGained}</div>`
+      html += row(strings.fromKills, `+${reward.kills}`)
+      html += row(strings.fromTime, `+${reward.time}`)
+      if (reward.insight > 0) html += row(strings.fromInsight, `+${reward.insight}`)
+      if (reward.depthBonus > 1) {
+        html += row(
+          `${strings.fromDepth} · ${roadOf(summary.depth).name}`,
+          `×${reward.depthBonus.toFixed(1)}`,
+        )
+      }
+      html += row(strings.total, `${reward.total}`, 'rw-total')
+
+      if (gain.levelsGained > 0) {
+        html += `<div class="rw-gain">${strings.levelReached} ${summary.level}</div>`
+        if (gain.realmAdvancedTo !== null) {
+          html += `<div class="rw-realm">${strings.realmAdvanced} · ${
+            realmOf(gain.realmAdvancedTo).name
+          }</div>`
+        }
+        if (gain.depthUnlocked !== null) {
+          html += `<div class="rw-road">${strings.roadOpened} · ${
+            roadOf(gain.depthUnlocked).name
+          }</div>`
+        }
+        const points = gain.pointsGained
+        html += `<div class="rw-points">+${points} ${
+          points === 1 ? strings.onePointToSpend : strings.pointsToSpend
+        }</div>`
+      }
+      overReward.innerHTML = html
+
+      returnHandler = onReturn
       over.hidden = false
       // Next frame, so the transition has a chance to run from its start state.
       requestAnimationFrame(() => over.classList.add('shown'))
@@ -145,11 +240,11 @@ export function createHud(root: HTMLElement): Hud {
     hideGameOver() {
       over.classList.remove('shown')
       over.hidden = true
-      restartHandler = null
+      returnHandler = null
       lastPct = -1
       lastKills = -1
       lastXpPct = -1
-      lastLevel = -1
+      lastInsight = -1
       lastTime = ''
       lastLoadout = ''
       loadoutEl.innerHTML = ''

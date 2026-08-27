@@ -13,6 +13,7 @@
 import { Pool } from '../core/pool'
 import { Rng } from '../core/rng'
 import { SpatialGrid } from '../core/grid'
+import { depthHealthScale, depthSpawnScale } from '../meta/depth'
 import type { Hazards } from './hazards'
 import {
   BOSS_EVERY,
@@ -84,7 +85,23 @@ export class Swarm {
   /** True while a boss is alive; the ramp eases off during the fight. */
   bossAlive = false
 
-  constructor(private rng: Rng) {
+  /**
+   * The road this expedition is walking. Scales health and spawn rate, and is
+   * the reason permanent character power does not simply flatten the game: the
+   * player is expected to spend growth on deeper ground, not on an easier
+   * version of the same ground.
+   */
+  depth = 1
+
+  /**
+   * Set when a boss is placed, so the run can announce it. Read-and-clear: the
+   * simulation has no channel back to the UI other than state the caller polls,
+   * and a flag that resets on read cannot fire the same banner twice.
+   */
+  private bossJustArrived = false
+
+  constructor(private rng: Rng, depth = 1) {
+    this.depth = Math.max(1, depth)
     const base = KIND_BY_ID.get('bandit')!
     this.pool = new Pool<Enemy>(
       MAX_ENEMIES,
@@ -126,13 +143,22 @@ export class Swarm {
    * players given the same daily seed must meet the same enemies in the same
    * order. Without this, only the first run after launch would match.
    */
-  reset(seed: number): void {
+  reset(seed: number, depth = this.depth): void {
     this.pool.clear()
     this.grid.clear()
     this.spawnCredit = 0
     this.nextBoss = 1
     this.bossAlive = false
+    this.bossJustArrived = false
+    this.depth = Math.max(1, depth)
     this.rng = new Rng(seed)
+  }
+
+  /** True once per boss arrival, then false until the next one. */
+  takeBossArrival(): boolean {
+    const arrived = this.bossJustArrived
+    this.bossJustArrived = false
+    return arrived
   }
 
   /** Places one enemy of `kind` at a world position. Returns it, or null. */
@@ -144,7 +170,7 @@ export class Swarm {
     e.prevX = x
     e.prevY = y
     e.kind = kind
-    e.maxHp = kind.hp * healthScale(elapsed)
+    e.maxHp = kind.hp * healthScale(elapsed) * depthHealthScale(this.depth)
     e.hp = e.maxHp
     e.hitFlash = 0
     e.orbitImmunity = 0
@@ -206,6 +232,7 @@ export class Swarm {
       )
       if (placed) {
         this.bossAlive = true
+        this.bossJustArrived = true
         this.nextBoss++
       }
     }
@@ -214,7 +241,8 @@ export class Swarm {
     // Credit accumulates fractionally so a rate of 2.5/s really produces 2.5,
     // rather than being rounded off every tick. The ramp eases during a boss
     // so the fight is legible instead of being buried under the usual flood.
-    const rate = spawnRate(elapsed) * (this.bossAlive ? 0.45 : 1)
+    const rate =
+      spawnRate(elapsed) * depthSpawnScale(this.depth) * (this.bossAlive ? 0.45 : 1)
     this.spawnCredit += rate * dt
     while (this.spawnCredit >= 1) {
       this.spawnCredit -= 1
@@ -315,7 +343,7 @@ export class Swarm {
           e.timer -= dt
           if (e.timer <= 0 && dist < standoff * 1.6) {
             e.timer = e.kind.fireInterval ?? 2
-            hazards.fire(e.x, e.y, dx, dy, e.kind.shotDamage ?? 6)
+            hazards.fire(e.x, e.y, dx, dy, e.kind.shotDamage ?? 6, undefined, undefined, e.kind.name)
           }
           break
         }
@@ -327,7 +355,16 @@ export class Swarm {
             // A ring of six, so the answer is to move rather than to face.
             for (let k = 0; k < 6; k++) {
               const a = e.phase + (k / 6) * Math.PI * 2
-              hazards.fire(e.x, e.y, Math.cos(a), Math.sin(a), e.kind.shotDamage ?? 10, 170, 9)
+              hazards.fire(
+                e.x,
+                e.y,
+                Math.cos(a),
+                Math.sin(a),
+                e.kind.shotDamage ?? 10,
+                170,
+                9,
+                e.kind.name,
+              )
             }
             e.phase += 0.45
           }

@@ -40,7 +40,10 @@ export function createLevelUp(root: HTMLElement): LevelUpScreen {
 
       const title = document.createElement('div')
       title.className = 'levelup-title'
-      title.textContent = `${strings.realm} ${level}`
+      // Insight, not Realm: this track lasts one expedition. The permanent one
+      // is shown in the hub, and reusing one word for both was a genuine source
+      // of confusion about what was being kept.
+      title.textContent = `${strings.insight} ${level}`
       panel.appendChild(title)
 
       const sub = document.createElement('div')

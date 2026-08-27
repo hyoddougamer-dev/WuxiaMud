@@ -87,6 +87,17 @@ export interface RunState {
   novaVisual: number
   novaVisualRadius: number
 
+  /**
+   * Name of whatever last took health off the player, and what finished them.
+   *
+   * The reported blocker was "understanding what is happening", and dying with
+   * no idea what did it is the sharpest form of that. A run that ends with
+   * "felled by Crossbow Hand" teaches the player to watch the back line; a run
+   * that ends with a blank screen teaches nothing.
+   */
+  lastHurtBy: string | null
+  killedBy: string | null
+
   over: boolean
 }
 
@@ -110,8 +121,25 @@ export function createRun(): RunState {
     novaCooldown: 4.2,
     novaVisual: 0,
     novaVisualRadius: 0,
+    lastHurtBy: null,
+    killedBy: null,
     over: false,
   }
+}
+
+/**
+ * Where the simulation reports what just happened.
+ *
+ * The simulation must stay renderer-agnostic — it runs headless in the balance
+ * tests, where there is no screen to draw a number on — so it reports through
+ * this sink rather than reaching for a Graphics object. An absent sink is the
+ * normal case in tests and costs one null check per hit.
+ */
+export interface CombatEvents {
+  /** An enemy took `amount` at (x, y). `killed` when that was the last of it. */
+  hit(x: number, y: number, amount: number, killed: boolean): void
+  /** The player took `amount` from something named `source`. */
+  hurt(amount: number, source: string): void
 }
 
 /** Shortest absolute angular distance between two directions, in radians. */
@@ -168,6 +196,8 @@ export interface CombatContext {
   hazards: Hazards
   stats: Stats
   rng: Rng
+  /** Optional; the headless balance tests run without one. */
+  events?: CombatEvents
 }
 
 /** Applies damage to the enemy at `index`, dropping qi and scoring if it dies. */
@@ -175,6 +205,10 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   const e = ctx.swarm.pool.at(index)
   e.hp -= amount
   e.hitFlash = 0.12
+  // Reported at the body's position before the pool recycles it, so a killing
+  // blow's number appears where the enemy died rather than where the next
+  // spawn happens to land.
+  ctx.events?.hit(e.x, e.y, amount, e.hp <= 0)
   if (e.hp > 0) return false
 
   // A boss is worth a scattering of qi rather than one mote, so clearing it
@@ -313,11 +347,15 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   if (run.immunity <= 0) {
     const shot = ctx.hazards.strike(player.x, player.y, PLAYER_RADIUS)
     if (shot > 0) {
+      const source = ctx.hazards.lastStrikeSource || 'a stray bolt'
       run.hp -= shot
       run.immunity = HURT_IMMUNITY
+      run.lastHurtBy = source
+      ctx.events?.hurt(shot, source)
       if (run.hp <= 0) {
         run.hp = 0
         run.over = true
+        run.killedBy = source
         return
       }
     }
@@ -333,9 +371,12 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       if (dx * dx + dy * dy <= reach * reach) {
         run.hp -= e.kind.damage
         run.immunity = HURT_IMMUNITY
+        run.lastHurtBy = e.kind.name
+        ctx.events?.hurt(e.kind.damage, e.kind.name)
         if (run.hp <= 0) {
           run.hp = 0
           run.over = true
+          run.killedBy = e.kind.name
         }
         // One hit per immunity window, no matter how many bodies are touching.
         break

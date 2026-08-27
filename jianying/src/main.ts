@@ -1,8 +1,18 @@
 /**
- * Phase 1 — a game you can lose.
+ * 剑影 Jiànyǐng — a persistent swordsman, and the expeditions that raise them.
  *
- * Enemies chase, the sword answers on its own, contact hurts, and the run ends.
- * The one design decision worth recording here is that the blade aims at the
+ * The game is now two loops rather than one, and the split is the point:
+ *
+ *   HUB          the character. Permanent, visible, and where growth is spent.
+ *   EXPEDITION   a survivors-like run. Temporary, dangerous, and thrown away.
+ *
+ * The survivors-like alone was reported as directionless — every run started
+ * and ended at zero, so nothing carried, and the player had no way to see that
+ * anything had been accomplished. The hub is the answer: an expedition always
+ * converts into cultivation XP, always moves a permanent bar, and the
+ * conversion is itemised on the way out so it can be read rather than trusted.
+ *
+ * The one combat decision worth repeating here is that the blade aims at the
  * nearest enemy rather than along the direction of travel. Aiming along
  * movement was the original plan and the headless simulation killed it: enemies
  * chase, so they sit BEHIND a moving player, and a forward arc swept empty
@@ -13,10 +23,11 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng, dailySeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
-import { ENEMY_KINDS } from './data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
+import { createFloaters } from './render/floaters'
 import { mixColor, palette } from './render/palette'
 import { createStage } from './render/stage'
 import { CHARGE_WINDUP, Swarm } from './sim/enemies'
@@ -27,12 +38,17 @@ import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/comba
 import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
-import { createHud } from './ui/hud'
+import { type Character, grantXp, recordRun, rewardFor } from './meta/character'
+import { clampDepth, roadOf } from './meta/depth'
+import { loadCharacter, saveCharacter } from './meta/save'
+import { createBanners } from './ui/banner'
+import { createHud, type RunSummary } from './ui/hud'
+import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { createLevelUp } from './ui/levelup'
 import { strings } from './ui/strings'
 
-const BUILD = '1.2.0'
+const BUILD = '1.3.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -83,10 +99,17 @@ async function boot(): Promise<void> {
   const bladeStrokes = buildBlade(2, 1)
   const enemyArt = buildEnemyArt(ENEMY_KINDS)
 
+  // The character is read before anything else is built: a save that fails to
+  // parse must produce a fresh swordsman, never a boot that dies halfway.
+  const character: Character = await loadCharacter()
+  const persist = (): void => {
+    void saveCharacter(character)
+  }
+
   const player = createPlayer(0, 0)
   const camera = createCamera(0, 0)
   const runSeed = dailySeed()
-  const swarm = new Swarm(new Rng(runSeed))
+  const swarm = new Swarm(new Rng(runSeed), character.depth)
   const motes = new Motes()
   const bolts = new Bolts()
   const hazards = new Hazards()
@@ -94,14 +117,20 @@ async function boot(): Promise<void> {
   // sequence a seed is supposed to guarantee.
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
   let loadout: Loadout = new Map()
-  let stats = deriveStats(loadout)
+  let stats = deriveStats(loadout, character.spent)
   let run = createRun()
+  run.hp = stats.maxHp
+  /** The road being walked. Chosen in the hub before every expedition. */
+  let depth = clampDepth(character.depth, character.depth)
 
   resetCamera(camera, 0, 0)
   fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
   const ui = createHud(uiRoot)
   const levelUp = createLevelUp(uiRoot)
+  const banners = createBanners(uiRoot)
+  const hub = createHub(uiRoot, persist)
+  const floaters = createFloaters()
 
   // ---- Scene ------------------------------------------------------------
 
@@ -141,7 +170,9 @@ async function boot(): Promise<void> {
   orbitGfx.zIndex = 3
   stage.world.addChild(orbitGfx)
 
-  const character = new Container()
+  stage.world.addChild(floaters.view)
+
+  const swordsman = new Container()
   const sashGfx = new Graphics()
 
   const bladeGfx = new Graphics()
@@ -159,11 +190,11 @@ async function boot(): Promise<void> {
 
   // Depth inside the character is dynamic: a blade aimed away from the camera
   // passes BEHIND the body, a sash streaming toward it falls in FRONT.
-  character.sortableChildren = true
+  swordsman.sortableChildren = true
   bodyGfx.zIndex = 0
-  character.addChild(sashGfx, bodyGfx, bladeGfx)
-  character.zIndex = 2
-  stage.world.addChild(character)
+  swordsman.addChild(sashGfx, bodyGfx, bladeGfx)
+  swordsman.zIndex = 2
+  stage.world.addChild(swordsman)
 
   /** Chest height, in world units — where the blade pivots. */
   const BLADE_PIVOT_Y = -26
@@ -176,26 +207,95 @@ async function boot(): Promise<void> {
   // ---- Run lifecycle ----------------------------------------------------
 
   let gameOverShown = false
+  /** True between "Set out" and the end screen. False while the hub is up. */
+  let playing = false
 
-  const restart = (): void => {
+  /**
+   * The simulation's channel to the screen.
+   *
+   * Everything here answers the same reported problem — not being able to tell
+   * what was happening. A number over a struck enemy, a number over the player
+   * when something lands, and a banner naming whatever just took a bite.
+   */
+  const events = {
+    hit(x: number, y: number, amount: number, killed: boolean): void {
+      floaters.hit(x, y, amount, killed)
+    },
+    hurt(amount: number, source: string): void {
+      floaters.hurt(player.x, player.y, amount)
+      banners.show(source, 'danger', `−${Math.round(amount)}`)
+    },
+  }
+
+  const beginExpedition = (chosen: number): void => {
+    depth = clampDepth(chosen, character.depth)
     player.x = 0
     player.y = 0
     player.prevX = 0
     player.prevY = 0
     player.vx = 0
     player.vy = 0
-    swarm.reset(runSeed)
+    swarm.reset(runSeed, depth)
     motes.clear()
     bolts.clear()
     hazards.clear()
+    floaters.clear()
+    banners.clear()
     loadout = new Map()
-    stats = deriveStats(loadout)
+    // Attributes are folded in here, which is the only place permanent power
+    // touches a run: after this the expedition knows nothing about the hub.
+    stats = deriveStats(loadout, character.spent)
     pickRng = new Rng(runSeed ^ 0x5bf03635)
     levelUp.hide()
     run = createRun()
+    run.hp = stats.maxHp
     resetCamera(camera, 0, 0)
     gameOverShown = false
+    playing = true
     ui.hideGameOver()
+    ui.setPlaying(true)
+    ui.setDepth(depth)
+    hub.hide()
+
+    const road = roadOf(depth)
+    banners.show(road.name, 'plain', road.seal)
+  }
+
+  const openHub = (): void => {
+    playing = false
+    ui.hideGameOver()
+    ui.setPlaying(false)
+    banners.clear()
+    floaters.clear()
+    hub.show(character, beginExpedition)
+  }
+
+  /**
+   * Converts a finished expedition into permanent progress.
+   *
+   * Called exactly once per death, before the end screen is drawn, so the
+   * screen can itemise what the run was actually worth rather than promising it.
+   */
+  const settleExpedition = (): RunSummary => {
+    const result = {
+      kills: run.kills,
+      seconds: run.elapsed,
+      insight: run.level,
+      depth,
+    }
+    const reward = rewardFor(result)
+    const gain = grantXp(character, reward.total)
+    recordRun(character, result)
+    persist()
+    return {
+      seconds: run.elapsed,
+      kills: run.kills,
+      depth,
+      killedBy: run.killedBy,
+      reward,
+      gain,
+      level: character.level,
+    }
   }
 
   // ---- Simulation -------------------------------------------------------
@@ -205,8 +305,10 @@ async function boot(): Promise<void> {
   const update = (dt: number): void => {
     time += dt
     joystick.tick(dt)
+    banners.update(dt)
+    floaters.update(dt)
 
-    if (run.over) return
+    if (!playing || run.over) return
 
     // A pending choice freezes the field. The player is reading three cards;
     // being surrounded while doing so would be indefensible.
@@ -215,7 +317,7 @@ async function boot(): Promise<void> {
         levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
           const before = stats.maxHp
           loadout.set(tech.id, (loadout.get(tech.id) ?? 0) + 1)
-          stats = deriveStats(loadout)
+          stats = deriveStats(loadout, character.spent)
           // Iron Skin heals for what it adds, so taking it while badly hurt is
           // a real decision rather than a promise for the next run.
           run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
@@ -226,11 +328,22 @@ async function boot(): Promise<void> {
       return
     }
 
+    const insightBefore = run.level
+
     const { x: ix, y: iy } = joystick.state
     updatePlayer(player, ix, iy, dt, stats.moveSpeed)
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
-    updateCombat({ run, player, swarm, motes, bolts, hazards, stats, rng: pickRng }, dt)
+    updateCombat({ run, player, swarm, motes, bolts, hazards, stats, rng: pickRng, events }, dt)
     updateCamera(camera, player, stats.moveSpeed, dt)
+
+    // A boss used to simply walk on from off-screen, indistinguishable from a
+    // larger silhouette in a crowd of silhouettes until it started firing.
+    if (swarm.takeBossArrival()) {
+      banners.show(KIND_BY_ID.get('warlord')!.name, 'danger', strings.bossApproaches)
+    }
+    if (run.level > insightBefore) {
+      banners.show(`${strings.insightReached} ${run.level}`, 'gold')
+    }
   }
 
   // ---- Render -----------------------------------------------------------
@@ -419,11 +532,11 @@ async function boot(): Promise<void> {
     }
 
     // --- character -----------------------------------------------------
-    character.x = wx
-    character.y = wy + bob
-    character.rotation = clamp01(ratio) * (player.vx / stats.moveSpeed) * 0.13
+    swordsman.x = wx
+    swordsman.y = wy + bob
+    swordsman.rotation = clamp01(ratio) * (player.vx / stats.moveSpeed) * 0.13
     // Flash the swordsman while immune, so being hit is legible.
-    character.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
+    swordsman.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
 
     shadow.x = wx
     shadow.y = wy
@@ -454,13 +567,13 @@ async function boot(): Promise<void> {
 
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, stats.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
-    if (run.over && !gameOverShown) {
+    if (playing && run.over && !gameOverShown) {
       gameOverShown = true
-      ui.showGameOver(run.elapsed, run.kills, restart)
+      ui.showGameOver(settleExpedition(), openHub)
     }
 
     stickGfx.clear()
-    if (joystick.state.active && !run.over && !levelUp.visible) {
+    if (playing && joystick.state.active && !run.over && !levelUp.visible) {
       const s = joystick.state
       stickGfx
         .circle(s.originX, s.originY, 54)
@@ -485,8 +598,12 @@ async function boot(): Promise<void> {
       ui.updateLoadout(loadout)
       // The hint must not bleed through the level-up cards, which sit exactly
       // where it is drawn.
-      const showHint = joystick.idleTime() > 3 && !run.over && !levelUp.visible
+      const showHint = playing && joystick.idleTime() > 3 && !run.over && !levelUp.visible
       hint.style.opacity = showHint ? '0.55' : '0'
+      // The harness needs to know which screen it is looking at: a screenshot
+      // of the hub and a screenshot of a stalled boot are both "not the game".
+      document.body.dataset.screen = hub.visible ? 'hub' : run.over ? 'over' : 'run'
+      document.body.dataset.level = String(character.level)
       // Published so the screenshot harness can assert that a synthetic drag
       // actually moved the player. An invisible overlay once swallowed every
       // touch on the device while the game itself kept running perfectly, and
@@ -498,6 +615,11 @@ async function boot(): Promise<void> {
     requestAnimationFrame(hudTick)
   }
   hudTick()
+
+  // The game opens on the character, not in a fight. A player arriving at a
+  // fight already in progress has nothing to orient against, which is most of
+  // what "I do not understand what is happening" was describing.
+  openHub()
 
   const fadeStart = performance.now()
   const fade = (): void => {
