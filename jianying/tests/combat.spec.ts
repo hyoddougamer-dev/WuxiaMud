@@ -3,6 +3,9 @@ import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { MAX_ENEMIES, pickEnemyKind, spawnRate, healthScale } from '../src/data/enemies'
 import { Swarm } from '../src/sim/enemies'
+import { Motes } from '../src/sim/pickups'
+import { Bolts } from '../src/sim/projectiles'
+import { deriveStats } from '../src/sim/loadout'
 import { createPlayer, updatePlayer, type Player } from '../src/sim/player'
 import {
   HURT_IMMUNITY,
@@ -15,12 +18,25 @@ import {
 interface Sim {
   player: Player
   swarm: Swarm
+  motes: Motes
+  bolts: Bolts
+  rng: Rng
   run: RunState
 }
 
 function newSim(seed = 4242): Sim {
-  return { player: createPlayer(0, 0), swarm: new Swarm(new Rng(seed)), run: createRun() }
+  return {
+    player: createPlayer(0, 0),
+    swarm: new Swarm(new Rng(seed)),
+    motes: new Motes(),
+    bolts: new Bolts(),
+    rng: new Rng(seed ^ 0x5bf03635),
+    run: createRun(),
+  }
 }
+
+/** Baseline stats — no techniques taken. */
+const BASE_STATS = deriveStats(new Map())
 
 /**
  * Runs the full simulation headlessly. This is the payoff of the deterministic
@@ -33,7 +49,21 @@ function play(sim: Sim, seconds: number, input: (t: number) => [number, number])
     const [ix, iy] = input(sim.run.elapsed)
     updatePlayer(sim.player, ix, iy, TICK_S)
     sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S)
-    updateCombat(sim.run, sim.player, sim.swarm, TICK_S)
+    // Level-ups would freeze the simulation waiting for a choice no bot can
+    // make, so headless runs spend them immediately without taking anything.
+    sim.run.pendingLevelUps = 0
+    updateCombat(
+      {
+        run: sim.run,
+        player: sim.player,
+        swarm: sim.swarm,
+        motes: sim.motes,
+        bolts: sim.bolts,
+        stats: BASE_STATS,
+        rng: sim.rng,
+      },
+      TICK_S,
+    )
   }
 }
 

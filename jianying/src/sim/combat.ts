@@ -1,5 +1,5 @@
 /**
- * Combat: the sweeping slash, contact damage, and the end of a run.
+ * Combat: the sweeping slash, the arts, contact damage, and the end of a run.
  *
  * The player's only input is movement. Attacking is automatic and aimed at the
  * nearest threat, which is what makes the genre work one-handed: the tactical
@@ -8,13 +8,16 @@
  */
 import type { Swarm } from './enemies'
 import type { Player } from './player'
+import type { Motes } from './pickups'
+import type { Bolts } from './projectiles'
+import { BOLT_RADIUS } from './projectiles'
+import type { Stats } from './loadout'
+import type { Rng } from '../core/rng'
+import { xpForLevel } from '../data/techniques'
 
-/** Seconds between sweeps. */
+/** Baselines. Techniques scale these; see sim/loadout.ts. */
 export const SLASH_INTERVAL = 0.46
-
-/** How far the arc reaches, in world units. */
 export const SLASH_RANGE = 95
-
 /** Half-width of the arc, in radians. ~100 degrees either side of the aim. */
 export const SLASH_HALF_ANGLE = 1.75
 
@@ -45,22 +48,44 @@ export const PLAYER_MAX_HP = 120
  */
 export const HURT_IMMUNITY = 0.85
 
+/** The player's collision radius, in world units. */
+export const PLAYER_RADIUS = 11
+
+/** Radius of an orbiting blade's hitbox. */
+export const ORBIT_RADIUS = 74
+const ORBIT_BLADE_RADIUS = 15
+const ORBIT_SPEED = 2.1
+
+/** Seconds an orbiting blade cannot re-hit the same enemy. */
+const ORBIT_RECHARGE = 0.4
+
 export interface RunState {
   hp: number
   elapsed: number
   kills: number
-  /** Counts down; while positive the player cannot be hurt again. */
   immunity: number
-  /** Counts down to the next sweep. */
   slashCooldown: number
-  /** Counts down while the sweep is being drawn. */
   slashVisual: number
   /** Where the blade currently points — the nearest threat, or facing. */
   aimX: number
   aimY: number
-  /** Aim direction the last sweep was actually thrown along. */
   slashAimX: number
   slashAimY: number
+
+  // --- progression ---
+  xp: number
+  level: number
+  /** Level-ups earned but not yet spent. The game pauses while > 0. */
+  pendingLevelUps: number
+
+  // --- arts ---
+  orbitAngle: number
+  boltCooldown: number
+  novaCooldown: number
+  /** Counts down while a shockwave is being drawn. */
+  novaVisual: number
+  novaVisualRadius: number
+
   over: boolean
 }
 
@@ -76,8 +101,23 @@ export function createRun(): RunState {
     aimY: 0,
     slashAimX: 1,
     slashAimY: 0,
+    xp: 0,
+    level: 1,
+    pendingLevelUps: 0,
+    orbitAngle: 0,
+    boltCooldown: 1.5,
+    novaCooldown: 4.2,
+    novaVisual: 0,
+    novaVisualRadius: 0,
     over: false,
   }
+}
+
+/** Shortest absolute angular distance between two directions, in radians. */
+function angleBetween(ax: number, ay: number, bx: number, by: number): number {
+  const dot = ax * bx + ay * by
+  const det = ax * by - ay * bx
+  return Math.abs(Math.atan2(det, dot))
 }
 
 /**
@@ -88,16 +128,8 @@ export function createRun(): RunState {
  * with the simulation: enemies chase, so they sit BEHIND a moving player, and
  * a forward-facing arc swept empty ground. Headless runs scored zero kills
  * across every style except standing perfectly still.
- *
- * Auto-targeting also fits the control scheme. With one thumb spent entirely on
- * movement, the interesting decision is where to *stand* — what to pull the
- * crowd into and what to walk away from — not which way to face.
  */
-function chooseAim(
-  run: RunState,
-  player: Player,
-  swarm: Swarm,
-): void {
+function chooseAim(run: RunState, player: Player, swarm: Swarm): void {
   let bestDist = TARGET_SEARCH_RANGE * TARGET_SEARCH_RANGE
   let bestX = 0
   let bestY = 0
@@ -126,29 +158,62 @@ function chooseAim(
   }
 }
 
-/** Shortest absolute angular distance between two directions, in radians. */
-function angleBetween(ax: number, ay: number, bx: number, by: number): number {
-  const dot = ax * bx + ay * by
-  const det = ax * by - ay * bx
-  return Math.abs(Math.atan2(det, dot))
+export interface CombatContext {
+  run: RunState
+  player: Player
+  swarm: Swarm
+  motes: Motes
+  bolts: Bolts
+  stats: Stats
+  rng: Rng
+}
+
+/** Applies damage to the enemy at `index`, dropping qi and scoring if it dies. */
+function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean {
+  const e = ctx.swarm.pool.at(index)
+  e.hp -= amount
+  e.hitFlash = 0.12
+  if (e.hp > 0) return false
+
+  ctx.motes.drop(e.x, e.y, 1, ctx.rng)
+  ctx.swarm.kill(index)
+  ctx.run.kills++
+  return true
 }
 
 /** Advances one tick of combat. */
-export function updateCombat(run: RunState, player: Player, swarm: Swarm, dt: number): void {
-  if (run.over) return
+export function updateCombat(ctx: CombatContext, dt: number): void {
+  const { run, player, swarm, stats } = ctx
+  // A pending level-up freezes the world: the player is choosing, and enemies
+  // walking into them while a menu is open would be indefensible.
+  if (run.over || run.pendingLevelUps > 0) return
 
   run.elapsed += dt
   if (run.immunity > 0) run.immunity = Math.max(0, run.immunity - dt)
   if (run.slashVisual > 0) run.slashVisual = Math.max(0, run.slashVisual - dt)
+  if (run.novaVisual > 0) run.novaVisual = Math.max(0, run.novaVisual - dt)
 
   chooseAim(run, player, swarm)
   const aimX = run.aimX
   const aimY = run.aimY
 
+  // --- qi motes --------------------------------------------------------
+  const gained = ctx.motes.update(player.x, player.y, stats.pickupRadius, dt)
+  if (gained > 0) {
+    run.xp += gained
+    // A loop, not an if: a dense harvest can cross several thresholds at once,
+    // and swallowing the extra levels would quietly rob the player.
+    while (run.xp >= xpForLevel(run.level)) {
+      run.xp -= xpForLevel(run.level)
+      run.level++
+      run.pendingLevelUps++
+    }
+  }
+
   // --- the sweep -------------------------------------------------------
   run.slashCooldown -= dt
   if (run.slashCooldown <= 0) {
-    run.slashCooldown += SLASH_INTERVAL
+    run.slashCooldown += stats.slashInterval
     run.slashVisual = SLASH_VISUAL
     run.slashAimX = aimX
     run.slashAimY = aimY
@@ -160,20 +225,75 @@ export function updateCombat(run: RunState, player: Player, swarm: Swarm, dt: nu
       const dx = e.x - player.x
       const dy = e.y - player.y
       const distance = Math.hypot(dx, dy)
-      // The enemy's own radius counts, so a big body is hit at its edge rather
-      // than only when its centre is inside the arc.
-      if (distance > SLASH_RANGE + e.kind.radius) continue
-      // A body overlapping the player is always in the arc; at zero distance
-      // there is no direction to compare against.
+      if (distance > stats.slashRange + e.kind.radius) continue
       if (distance > 0.001) {
-        if (angleBetween(aimX, aimY, dx / distance, dy / distance) > SLASH_HALF_ANGLE) continue
+        if (angleBetween(aimX, aimY, dx / distance, dy / distance) > stats.slashHalfAngle) continue
       }
+      damageEnemy(ctx, i, stats.slashDamage)
+    }
+  }
 
-      e.hp -= SLASH_DAMAGE
-      e.hitFlash = 0.12
-      if (e.hp <= 0) {
-        swarm.kill(i)
-        run.kills++
+  // --- guardian blades -------------------------------------------------
+  if (stats.orbitBlades > 0) {
+    run.orbitAngle += ORBIT_SPEED * dt
+    const step = (Math.PI * 2) / stats.orbitBlades
+    for (let b = 0; b < stats.orbitBlades; b++) {
+      const a = run.orbitAngle + step * b
+      const bx = player.x + Math.cos(a) * ORBIT_RADIUS
+      const by = player.y + Math.sin(a) * ORBIT_RADIUS
+      for (let i = swarm.pool.size - 1; i >= 0; i--) {
+        const e = swarm.pool.at(i)
+        // Per-enemy cooldown, or a blade parked on a slow enemy would delete it
+        // sixty times a second.
+        if (e.orbitImmunity > 0) continue
+        const reach = ORBIT_BLADE_RADIUS + e.kind.radius
+        const dx = e.x - bx
+        const dy = e.y - by
+        if (dx * dx + dy * dy > reach * reach) continue
+        e.orbitImmunity = ORBIT_RECHARGE
+        damageEnemy(ctx, i, stats.orbitDamage)
+      }
+    }
+  }
+
+  // --- sword qi --------------------------------------------------------
+  if (stats.boltInterval > 0) {
+    run.boltCooldown -= dt
+    if (run.boltCooldown <= 0) {
+      run.boltCooldown += stats.boltInterval
+      ctx.bolts.fire(player.x, player.y - 20, aimX, aimY, stats.boltDamage, 2)
+    }
+  }
+  ctx.bolts.update(dt)
+
+  for (let bi = ctx.bolts.pool.size - 1; bi >= 0; bi--) {
+    const bolt = ctx.bolts.pool.at(bi)
+    for (let i = swarm.pool.size - 1; i >= 0; i--) {
+      if (bolt.pierce <= 0) break
+      const e = swarm.pool.at(i)
+      const reach = BOLT_RADIUS + e.kind.radius
+      const dx = e.x - bolt.x
+      const dy = e.y - bolt.y
+      if (dx * dx + dy * dy > reach * reach) continue
+      bolt.pierce--
+      damageEnemy(ctx, i, bolt.damage)
+    }
+  }
+
+  // --- thunder palm ----------------------------------------------------
+  if (stats.novaInterval > 0) {
+    run.novaCooldown -= dt
+    if (run.novaCooldown <= 0) {
+      run.novaCooldown += stats.novaInterval
+      run.novaVisual = 0.42
+      run.novaVisualRadius = stats.novaRadius
+      for (let i = swarm.pool.size - 1; i >= 0; i--) {
+        const e = swarm.pool.at(i)
+        const reach = stats.novaRadius + e.kind.radius
+        const dx = e.x - player.x
+        const dy = e.y - player.y
+        if (dx * dx + dy * dy > reach * reach) continue
+        damageEnemy(ctx, i, stats.novaDamage)
       }
     }
   }
@@ -198,6 +318,3 @@ export function updateCombat(run: RunState, player: Player, swarm: Swarm, dt: nu
     }
   }
 }
-
-/** The player's collision radius, in world units. */
-export const PLAYER_RADIUS = 11

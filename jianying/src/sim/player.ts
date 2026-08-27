@@ -54,13 +54,20 @@ export function createPlayer(x = 0, y = 0): Player {
  *
  * @param inputX -1..1
  * @param inputY -1..1  (already dead-zoned and clamped to a unit disc)
+ * @param maxSpeed top speed for this loadout; techniques raise it.
  */
-export function updatePlayer(player: Player, inputX: number, inputY: number, dt: number): void {
+export function updatePlayer(
+  player: Player,
+  inputX: number,
+  inputY: number,
+  dt: number,
+  maxSpeed: number = MAX_SPEED,
+): void {
   player.prevX = player.x
   player.prevY = player.y
 
-  const targetVx = inputX * MAX_SPEED
-  const targetVy = inputY * MAX_SPEED
+  const targetVx = inputX * maxSpeed
+  const targetVy = inputY * maxSpeed
 
   const moving = inputX !== 0 || inputY !== 0
   const halfLife = moving ? ACCEL_HALF_LIFE : BRAKE_HALF_LIFE
@@ -103,5 +110,5 @@ export function updatePlayer(player: Player, inputX: number, inputY: number, dt:
 export const playerSpeed = (player: Player): number => Math.hypot(player.vx, player.vy)
 
 /** 0..1, how close the player is to top speed. Drives lean, bob and sash pull. */
-export const playerSpeedRatio = (player: Player): number =>
-  Math.min(1, playerSpeed(player) / MAX_SPEED)
+export const playerSpeedRatio = (player: Player, maxSpeed: number = MAX_SPEED): number =>
+  Math.min(1, playerSpeed(player) / maxSpeed)

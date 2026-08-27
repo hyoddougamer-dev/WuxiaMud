@@ -162,6 +162,15 @@ async function main(): Promise<void> {
 
       const after = await readPos()
       moved = Math.max(moved, Math.hypot(after[0] - before[0], after[1] - before[1]))
+
+      // Levelling pauses the game behind a choice. Left unanswered, every
+      // later stride would push against a frozen simulation and the harness
+      // would report input as broken.
+      const card = page.locator('.levelup .card').first()
+      if (await card.isVisible().catch(() => false)) {
+        await card.click()
+        await page.waitForTimeout(150)
+      }
     }
 
     // A screenshot cannot tell a moving character from a stationary one, so

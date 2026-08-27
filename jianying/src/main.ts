@@ -20,20 +20,18 @@ import { createCamera, fitCamera, resetCamera, updateCamera } from './render/cam
 import { mixColor, palette } from './render/palette'
 import { createStage } from './render/stage'
 import { Swarm } from './sim/enemies'
-import {
-  PLAYER_MAX_HP,
-  SLASH_HALF_ANGLE,
-  SLASH_RANGE,
-  SLASH_VISUAL,
-  createRun,
-  updateCombat,
-} from './sim/combat'
-import { createPlayer, MAX_SPEED, playerSpeedRatio, updatePlayer } from './sim/player'
+import { Motes } from './sim/pickups'
+import { Bolts } from './sim/projectiles'
+import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
+import { deriveStats } from './sim/loadout'
+import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
+import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
 import { createHud } from './ui/hud'
 import { createJoystick } from './ui/joystick'
+import { createLevelUp } from './ui/levelup'
 import { strings } from './ui/strings'
 
-const BUILD = '1.0.0'
+const BUILD = '1.1.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -88,12 +86,20 @@ async function boot(): Promise<void> {
   const camera = createCamera(0, 0)
   const runSeed = dailySeed()
   const swarm = new Swarm(new Rng(runSeed))
+  const motes = new Motes()
+  const bolts = new Bolts()
+  // A stream of its own, so drawing technique offers never shifts the enemy
+  // sequence a seed is supposed to guarantee.
+  let pickRng = new Rng(runSeed ^ 0x5bf03635)
+  let loadout: Loadout = new Map()
+  let stats = deriveStats(loadout)
   let run = createRun()
 
   resetCamera(camera, 0, 0)
   fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
   const ui = createHud(uiRoot)
+  const levelUp = createLevelUp(uiRoot)
 
   // ---- Scene ------------------------------------------------------------
 
@@ -109,10 +115,24 @@ async function boot(): Promise<void> {
   shadow.zIndex = -1
   stage.world.addChild(shadow)
 
-  // The sweep, drawn as an ink wedge that fades over its short life.
+  // Qi motes: the first colour on the field, and the reason to walk back into
+  // ground you have just cleared.
+  const moteGfx = new Graphics()
+  moteGfx.zIndex = -3
+  stage.world.addChild(moteGfx)
+
+  const boltGfx = new Graphics()
+  boltGfx.zIndex = 1
+  stage.world.addChild(boltGfx)
+
+  // The sweep and the shockwave, ink marks that fade over their short lives.
   const slashGfx = new Graphics()
   slashGfx.zIndex = 1
   stage.world.addChild(slashGfx)
+
+  const orbitGfx = new Graphics()
+  orbitGfx.zIndex = 3
+  stage.world.addChild(orbitGfx)
 
   const character = new Container()
   const sashGfx = new Graphics()
@@ -158,6 +178,12 @@ async function boot(): Promise<void> {
     player.vx = 0
     player.vy = 0
     swarm.reset(runSeed)
+    motes.clear()
+    bolts.clear()
+    loadout = new Map()
+    stats = deriveStats(loadout)
+    pickRng = new Rng(runSeed ^ 0x5bf03635)
+    levelUp.hide()
     run = createRun()
     resetCamera(camera, 0, 0)
     gameOverShown = false
@@ -174,11 +200,29 @@ async function boot(): Promise<void> {
 
     if (run.over) return
 
+    // A pending choice freezes the field. The player is reading three cards;
+    // being surrounded while doing so would be indefensible.
+    if (run.pendingLevelUps > 0) {
+      if (!levelUp.visible) {
+        levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
+          const before = stats.maxHp
+          loadout.set(tech.id, (loadout.get(tech.id) ?? 0) + 1)
+          stats = deriveStats(loadout)
+          // Iron Skin heals for what it adds, so taking it while badly hurt is
+          // a real decision rather than a promise for the next run.
+          run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
+          run.pendingLevelUps--
+          levelUp.hide()
+        })
+      }
+      return
+    }
+
     const { x: ix, y: iy } = joystick.state
-    updatePlayer(player, ix, iy, dt)
+    updatePlayer(player, ix, iy, dt, stats.moveSpeed)
     swarm.update(player.x, player.y, run.elapsed, dt)
-    updateCombat(run, player, swarm, dt)
-    updateCamera(camera, player, MAX_SPEED, dt)
+    updateCombat({ run, player, swarm, motes, bolts, stats, rng: pickRng }, dt)
+    updateCamera(camera, player, stats.moveSpeed, dt)
   }
 
   // ---- Render -----------------------------------------------------------
@@ -194,7 +238,7 @@ async function boot(): Promise<void> {
     stage.world.x = stage.width / 2 - camera.x * zoom
     stage.world.y = stage.height / 2 - camera.y * zoom
 
-    const ratio = playerSpeedRatio(player)
+    const ratio = playerSpeedRatio(player, stats.moveSpeed)
     const bobRate = 2.0 + ratio * 6
     const bob = Math.sin(time * bobRate) * (0.6 + ratio * 1.3)
 
@@ -236,7 +280,7 @@ async function boot(): Promise<void> {
       // 200-degree cone is most of the screen, and shading all of it buries the
       // characters. A crescent traces the same reach as a brush mark instead —
       // the edge of the sweep, not the area it covers.
-      const reach = SLASH_RANGE * (0.72 + 0.28 * ease)
+      const reach = stats.slashRange * (0.72 + 0.28 * ease)
       const width = 15 * ease
       const steps = 20
 
@@ -244,7 +288,7 @@ async function boot(): Promise<void> {
       const inner: number[] = []
       for (let i = 0; i <= steps; i++) {
         const t = i / steps
-        const a = angle - SLASH_HALF_ANGLE + 2 * SLASH_HALF_ANGLE * t
+        const a = angle - stats.slashHalfAngle + 2 * stats.slashHalfAngle * t
         // Thickest mid-sweep, tapering to nothing at both ends, the way a blade
         // enters and leaves the arc.
         const w = width * Math.sin(t * Math.PI)
@@ -258,10 +302,77 @@ async function boot(): Promise<void> {
       slashGfx.poly(band).fill({ color: palette.ink, alpha: 0.5 * life })
     }
 
+    // --- qi motes ------------------------------------------------------
+    moteGfx.clear()
+    for (let i = 0; i < motes.pool.size; i++) {
+      const m = motes.pool.at(i)
+      const mx = lerp(m.prevX, m.x, alpha)
+      const my = lerp(m.prevY, m.y, alpha)
+      // A slow pulse, phase-shifted by age, so a field of motes shimmers
+      // instead of sitting there as flat dots.
+      const pulse = 0.78 + Math.sin(time * 5 + m.age * 9) * 0.22
+      moteGfx.circle(mx, my, 3.6 * pulse).fill({ color: palette.gold, alpha: 0.92 })
+      moteGfx.circle(mx, my, 7 * pulse).fill({ color: palette.gold, alpha: 0.16 })
+    }
+
+    // --- sword qi ------------------------------------------------------
+    boltGfx.clear()
+    for (let i = 0; i < bolts.pool.size; i++) {
+      const b = bolts.pool.at(i)
+      const bx = lerp(b.prevX, b.x, alpha)
+      const by = lerp(b.prevY, b.y, alpha)
+      const a = Math.atan2(b.vy, b.vx)
+      // Drawn as a short crescent aligned with travel — the same brush
+      // vocabulary as the sweep, so the arts read as one hand.
+      const pts: number[] = []
+      const steps = 9
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps
+        const spread = (t - 0.5) * 1.5
+        const w = 13 * Math.sin(t * Math.PI)
+        pts.push(bx + Math.cos(a + spread) * (16 + w * 0.5), by + Math.sin(a + spread) * (16 + w * 0.5))
+      }
+      for (let k = steps; k >= 0; k--) {
+        const t = k / steps
+        const spread = (t - 0.5) * 1.5
+        const w = 13 * Math.sin(t * Math.PI)
+        pts.push(bx + Math.cos(a + spread) * (16 - w * 0.5), by + Math.sin(a + spread) * (16 - w * 0.5))
+      }
+      boltGfx.poly(pts).fill({ color: palette.ink, alpha: 0.72 })
+    }
+
+    // --- guardian blades and thunder palm -------------------------------
+    orbitGfx.clear()
+    if (stats.orbitBlades > 0) {
+      const step = (Math.PI * 2) / stats.orbitBlades
+      for (let b = 0; b < stats.orbitBlades; b++) {
+        const a = run.orbitAngle + step * b
+        const bx = wx + Math.cos(a) * ORBIT_RADIUS
+        const by = wy + Math.sin(a) * ORBIT_RADIUS
+        // Each blade is a small tapered mark tangent to its circle, so the set
+        // reads as swords in flight rather than as beads on a string.
+        const tangent = a + Math.PI / 2
+        const tipX = Math.cos(tangent) * 15
+        const tipY = Math.sin(tangent) * 15
+        const perpX = Math.cos(a) * 3.4
+        const perpY = Math.sin(a) * 3.4
+        orbitGfx
+          .poly([bx - tipX, by - tipY, bx + perpX, by + perpY, bx + tipX, by + tipY, bx - perpX, by - perpY])
+          .fill({ color: palette.ink, alpha: 0.85 })
+      }
+    }
+    if (run.novaVisual > 0) {
+      const life = run.novaVisual / 0.42
+      const r = run.novaVisualRadius * (1.06 - 0.28 * life)
+      orbitGfx
+        .circle(wx, wy, r)
+        .stroke({ width: 3 + 7 * life, color: palette.gold, alpha: 0.55 * life })
+    }
+
     // --- character -----------------------------------------------------
     character.x = wx
     character.y = wy + bob
-    character.rotation = clamp01(ratio) * (player.vx / MAX_SPEED) * 0.13
+    character.rotation = clamp01(ratio) * (player.vx / stats.moveSpeed) * 0.13
     // Flash the swordsman while immune, so being hit is legible.
     character.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
 
@@ -279,7 +390,7 @@ async function boot(): Promise<void> {
     bladeGfx.zIndex = aimY < 0 ? -1 : 2
 
     sashRng.snapshot = 1337
-    const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * MAX_SPEED, 1)
+    const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * stats.moveSpeed, 1)
     const poly = sashPoly(spine, sashRng, 1)
     sashGfx.clear()
     if (poly.length >= 6) {
@@ -293,14 +404,14 @@ async function boot(): Promise<void> {
     stage.ground.tilePosition.y = -camera.y * zoom
 
     // --- ui ------------------------------------------------------------
-    ui.update(run.hp, PLAYER_MAX_HP, run.elapsed, run.kills)
+    ui.update(run.hp, stats.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
     if (run.over && !gameOverShown) {
       gameOverShown = true
       ui.showGameOver(run.elapsed, run.kills, restart)
     }
 
     stickGfx.clear()
-    if (joystick.state.active && !run.over) {
+    if (joystick.state.active && !run.over && !levelUp.visible) {
       const s = joystick.state
       stickGfx
         .circle(s.originX, s.originY, 54)
@@ -322,7 +433,10 @@ async function boot(): Promise<void> {
     if (hudTimer % 20 === 0) {
       hud.textContent =
         `${loop.stats.fps} fps · ${swarm.count} · ${stage.rendererType} · ${BUILD}`
-      hint.style.opacity = joystick.idleTime() > 3 && !run.over ? '0.55' : '0'
+      // The hint must not bleed through the level-up cards, which sit exactly
+      // where it is drawn.
+      const showHint = joystick.idleTime() > 3 && !run.over && !levelUp.visible
+      hint.style.opacity = showHint ? '0.55' : '0'
       // Published so the screenshot harness can assert that a synthetic drag
       // actually moved the player. An invisible overlay once swallowed every
       // touch on the device while the game itself kept running perfectly, and

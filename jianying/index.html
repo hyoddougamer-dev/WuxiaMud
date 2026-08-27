@@ -171,6 +171,104 @@
         transform: scale(0.97);
       }
 
+      /* --- level up -------------------------------------------------- */
+      .levelup {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 0 16px calc(env(safe-area-inset-bottom, 0) + 26px);
+        background: rgba(232, 220, 192, 0.93);
+        backdrop-filter: blur(3px);
+        pointer-events: auto;
+        opacity: 0;
+        transition: opacity 200ms ease;
+      }
+      .levelup[hidden] {
+        display: none;
+      }
+      .levelup.shown {
+        opacity: 1;
+      }
+      .levelup-title {
+        text-align: center;
+        font-size: 13px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      .levelup-sub {
+        text-align: center;
+        font-size: 19px;
+        color: var(--ink);
+        margin-bottom: 8px;
+      }
+      .levelup-cards {
+        display: grid;
+        gap: 10px;
+      }
+      .card {
+        display: block;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        padding: 15px 16px;
+        border: 1px solid rgba(13, 13, 13, 0.18);
+        border-left: 3px solid var(--ink);
+        border-radius: 2px;
+        background: rgba(255, 252, 244, 0.72);
+        cursor: pointer;
+      }
+      /* Arts get the gold edge: they change what the run looks like, and that
+         is the choice most worth noticing at a glance. */
+      .card-art {
+        border-left-color: var(--gold);
+        background: rgba(255, 250, 232, 0.85);
+      }
+      .card:active {
+        transform: scale(0.985);
+      }
+      .card-name {
+        font-size: 16px;
+        color: var(--ink);
+        margin-bottom: 3px;
+      }
+      .card-blurb {
+        font-size: 13px;
+        color: rgba(13, 13, 13, 0.62);
+        line-height: 1.35;
+      }
+      .card-rank {
+        margin-top: 7px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.4);
+      }
+      .card-art .card-rank {
+        color: var(--gold);
+      }
+
+      /* XP bar sits directly under health, thinner and gold. */
+      .hud-xp {
+        height: 3px;
+        margin-top: 3px;
+        background: rgba(13, 13, 13, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .hud-xp-fill {
+        height: 100%;
+        background: var(--gold);
+        transform-origin: left center;
+        transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .hud-realm {
+        color: var(--gold);
+      }
+
       #hint {
         position: fixed;
         left: 0;

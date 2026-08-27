@@ -28,6 +28,13 @@ export interface Enemy {
   hitFlash: number
   /** Small per-enemy phase so a crowd does not bob in unison. */
   phase: number
+  /**
+   * Counts down before an orbiting blade may strike this enemy again.
+   *
+   * Without it, a blade parked on a slow enemy deletes it sixty times a second
+   * and Guardian Blades becomes the only technique worth taking.
+   */
+  orbitImmunity: number
 }
 
 /**
@@ -72,6 +79,7 @@ export class Swarm {
         kind: base,
         hitFlash: 0,
         phase: 0,
+        orbitImmunity: 0,
       }),
       // Fields are set properly by spawnOne right after; this only guarantees
       // a recycled enemy never carries state from its previous life.
@@ -79,6 +87,7 @@ export class Swarm {
         e.hp = 1
         e.maxHp = 1
         e.hitFlash = 0
+        e.orbitImmunity = 0
       },
     )
   }
@@ -122,6 +131,7 @@ export class Swarm {
     enemy.maxHp = kind.hp * healthScale(elapsed)
     enemy.hp = enemy.maxHp
     enemy.hitFlash = 0
+    enemy.orbitImmunity = 0
     enemy.phase = this.rng.next() * Math.PI * 2
     return true
   }
@@ -187,6 +197,7 @@ export class Swarm {
       e.y += (dy * e.kind.speed + sepY * SEPARATION_FORCE) * dt
 
       if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt)
+      if (e.orbitImmunity > 0) e.orbitImmunity = Math.max(0, e.orbitImmunity - dt)
     }
 
     // --- recycle -------------------------------------------------------

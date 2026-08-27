@@ -16,6 +16,12 @@ export const strings = {
   survived: 'Survived',
   felled: 'Felled',
   again: 'Walk it again',
+  /** Level-up screen. */
+  realm: 'Realm',
+  chooseTechnique: 'Choose a technique',
+  newTechnique: 'New',
+  /** HUD. */
+  levelShort: 'Rlm',
 } as const
 
 export type StringKey = keyof typeof strings

@@ -10,7 +10,15 @@ import { strings } from './strings'
 
 export interface Hud {
   /** Called every frame with the current run state. */
-  update(hp: number, maxHp: number, elapsed: number, kills: number): void
+  update(
+    hp: number,
+    maxHp: number,
+    elapsed: number,
+    kills: number,
+    xp: number,
+    xpNeeded: number,
+    level: number,
+  ): void
   /** Shows the end screen. `onRestart` fires when the player asks for another. */
   showGameOver(elapsed: number, kills: number, onRestart: () => void): void
   hideGameOver(): void
@@ -28,7 +36,12 @@ export function createHud(root: HTMLElement): Hud {
   root.innerHTML = `
     <div class="hud-bar">
       <div class="hud-health"><div class="hud-health-fill"></div></div>
-      <div class="hud-stats"><span class="hud-time">0:00</span><span class="hud-kills">0</span></div>
+      <div class="hud-xp"><div class="hud-xp-fill"></div></div>
+      <div class="hud-stats">
+        <span class="hud-time">0:00</span>
+        <span class="hud-realm">${strings.levelShort} 1</span>
+        <span class="hud-kills">0</span>
+      </div>
     </div>
     <div class="over" hidden>
       <div class="over-seal">终</div>
@@ -42,6 +55,8 @@ export function createHud(root: HTMLElement): Hud {
   `
 
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!
+  const xpFill = root.querySelector<HTMLElement>('.hud-xp-fill')!
+  const realmEl = root.querySelector<HTMLElement>('.hud-realm')!
   const timeEl = root.querySelector<HTMLElement>('.hud-time')!
   const killsEl = root.querySelector<HTMLElement>('.hud-kills')!
   const over = root.querySelector<HTMLElement>('.over')!
@@ -54,12 +69,14 @@ export function createHud(root: HTMLElement): Hud {
   let lastTime = ''
   let lastKills = -1
   let lastPct = -1
+  let lastXpPct = -1
+  let lastLevel = -1
 
   let restartHandler: (() => void) | null = null
   again.addEventListener('click', () => restartHandler?.())
 
   return {
-    update(hp, maxHp, elapsed, kills) {
+    update(hp, maxHp, elapsed, kills, xp, xpNeeded, level) {
       const pct = Math.max(0, Math.min(1, hp / maxHp))
       if (pct !== lastPct) {
         fill.style.transform = `scaleX(${pct})`
@@ -76,6 +93,15 @@ export function createHud(root: HTMLElement): Hud {
       if (kills !== lastKills) {
         killsEl.textContent = String(kills)
         lastKills = kills
+      }
+      const xpPct = xpNeeded > 0 ? Math.max(0, Math.min(1, xp / xpNeeded)) : 0
+      if (xpPct !== lastXpPct) {
+        xpFill.style.transform = `scaleX(${xpPct})`
+        lastXpPct = xpPct
+      }
+      if (level !== lastLevel) {
+        realmEl.textContent = `${strings.levelShort} ${level}`
+        lastLevel = level
       }
     },
 
@@ -94,6 +120,8 @@ export function createHud(root: HTMLElement): Hud {
       restartHandler = null
       lastPct = -1
       lastKills = -1
+      lastXpPct = -1
+      lastLevel = -1
       lastTime = ''
     },
   }
