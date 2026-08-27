@@ -27,6 +27,12 @@ jobs:
     # Needed to publish the rolling release below. Nothing else is written.
     permissions:
       contents: write
+    env:
+      # Absolute path to the decrypted signing key. Gradle is pointed at this
+      # explicitly rather than left to find ~/.android/debug.keystore on its
+      # own: two builds proved it does not, and every build came out with a
+      # different signature.
+      JIANYING_DEBUG_KEYSTORE: ${{ github.workspace }}/jianying/ci/debug.keystore
 
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +80,27 @@ jobs:
           [ -d android ] || npx cap add android
           npx cap sync android
 
+          # Pin debug signing to our own keystore. Capacitor's generated
+          # build.gradle declares no debug signingConfig, so AGP falls back to a
+          # default location it resolves on its own — and on this runner that
+          # resolution does not land on ~/.android/debug.keystore, which is why
+          # restoring the key there changed nothing. An explicit path removes
+          # the guesswork. Groovy allows several android {} blocks, so this
+          # appends cleanly to a generated file.
+          cat >> android/app/build.gradle <<'GRADLE'
+
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file(System.getenv("JIANYING_DEBUG_KEYSTORE"))
+                      storePassword "android"
+                      keyAlias "androiddebugkey"
+                      keyPassword "android"
+                  }
+              }
+          }
+          GRADLE
+
       # Every runner is disposable, so Gradle would create a BRAND NEW
       # ~/.android/debug.keystore on each build. Android treats two APKs signed
       # with different keys as different apps, so installing an update over the
@@ -99,14 +126,13 @@ jobs:
             echo "::error::Define-o em Settings > Secrets and variables > Actions > New repository secret."
             exit 1
           fi
-          mkdir -p "$HOME/.android"
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
             -in ci/debug.keystore.enc \
-            -out "$HOME/.android/debug.keystore" \
+            -out "$JIANYING_DEBUG_KEYSTORE" \
             -pass "pass:$PASSPHRASE"
           # The fingerprint is public information, and printing it is what makes
           # "is this build signed with the stable key?" answerable from the log.
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+          keytool -list -v -keystore "$JIANYING_DEBUG_KEYSTORE" \
             -storepass android -alias androiddebugkey \
             | grep "SHA256:" || {
               echo "::error::A keystore desencriptou mas nao contem androiddebugkey."
@@ -117,6 +143,29 @@ jobs:
       - name: Assemble debug APK
         working-directory: jianying/android
         run: ./gradlew --no-daemon assembleDebug
+
+      # The check that would have caught all of this on the first build instead
+      # of the third: an APK signed with the wrong key looks completely healthy
+      # from the outside — green build, correct code inside — and only reveals
+      # itself as "App nao instalada" on a phone, or worse, as a phone silently
+      # still running the previous version.
+      - name: Verify the APK carries the stable signature
+        run: |
+          EXPECTED=$(keytool -list -v -keystore "$JIANYING_DEBUG_KEYSTORE" \
+            -storepass android -alias androiddebugkey \
+            | sed -n 's/.*SHA256: //p' | head -1)
+          ACTUAL=$(python3 ci/apk_cert_fingerprint.py \
+            android/app/build/outputs/apk/debug/app-debug.apk)
+
+          echo "esperado: $EXPECTED"
+          echo "no APK:   $ACTUAL"
+
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::O APK nao foi assinado com a keystore estavel."
+            echo "::error::Este APK nao instalaria por cima do anterior, por isso nao vai ser publicado."
+            exit 1
+          fi
+          echo "Assinatura confirmada."
 
       - name: Name the APK with the commit
         id: rename
