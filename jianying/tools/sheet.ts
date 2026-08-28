@@ -220,9 +220,9 @@ export function figure(
   gear: Gear,
   seed: number,
   scale: number,
-  opts: { accent?: number | null; rite?: Rite; build?: number } = {},
+  opts: { accent?: number | null; rite?: Rite; build?: number; rank?: number } = {},
 ): { markup: string; bottom: number; right: number } {
-  const { accent = null, rite, build = 1 } = opts
+  const { accent = null, rite, build = 1, rank = 0 } = opts
   const swordsman = buildSwordsmanTopDown(seed, scale, gear, build)
   const parts: string[] = []
   let bottom = 6 * scale
@@ -270,6 +270,8 @@ export function figure(
     }
   }
 
+  // Over the body, because a hem lies on top of the cloth it belongs to.
+  if (rank > 0) parts.push(rankMarks(rank, scale, build, accent ?? palette.gold))
   if (halo) parts.push(halo.front)
   return { markup: parts.join(''), bottom, right }
 }
@@ -340,3 +342,82 @@ export function columns(count: number, reach: number): (i: number) => number {
   return (i) => 40 + step * (i + 0.5)
 }
 
+
+// --- refinement -----------------------------------------------------------
+
+/**
+ * The marks a piece gains as it is tempered.
+ *
+ * 淬炼 — quenching and refining — is the same word the realm ladder already
+ * uses for the body (淬体, Body Tempering, realm one). Applying it to steel is
+ * not a metaphor borrowed from elsewhere: a named blade in this fiction IS one
+ * that has been folded and quenched many times, so the vocabulary was already
+ * sitting in the game waiting to be reused.
+ *
+ * The marks accumulate on the SILHOUETTE rather than brightening a colour,
+ * because "clearly visible" was the requirement and a hairline getting slightly
+ * warmer is not clearly visible. Hems stack at the skirt, cords hang from the
+ * belt — both read at a glance and both are things real robes of the period
+ * actually carried.
+ */
+export function rankMarks(rank: number, scale: number, build: number, colour: number): string {
+  if (rank <= 0) return ''
+  const c = hex(colour)
+  const parts: string[] = []
+  const w = 13 * build * scale
+
+  // Hems: one per rank for the first three. Drawn as shallow arcs so they read
+  // as cloth lying over a body rather than as rings drawn on a cylinder.
+  for (let i = 0; i < Math.min(3, rank); i++) {
+    const yy = (-3.5 - i * 3.4) * scale
+    // The FIRST hem is the heaviest. At an even weight, rank 0 and rank 1 were
+    // nearly indistinguishable on the sheet — and "you can see every rank" is
+    // the entire claim this makes, so the step that proves it cannot be the
+    // faint one. Later hems taper, which also reads as layers settling.
+    const weight = (i === 0 ? 2.0 : 1.5 - i * 0.15) * scale
+    parts.push(
+      `<path d="M ${(-w).toFixed(1)} ${yy.toFixed(1)} Q 0 ${(yy + 3.2 * scale).toFixed(1)} ${w.toFixed(1)} ${yy.toFixed(1)}" ` +
+        `fill="none" stroke="${c}" stroke-width="${weight.toFixed(1)}" stroke-opacity="0.95"/>`,
+    )
+  }
+  // Cords from the belt, from rank four. Knotted cord is what a tempered blade
+  // and a ranked robe both carry, and it is the clearest small mark available
+  // at this size that is not simply another line.
+  for (let i = 0; i < Math.max(0, rank - 3); i++) {
+    const x = (-5.5 + i * 5.5) * scale * build
+    parts.push(
+      `<path d="M ${x.toFixed(1)} ${(-19 * scale).toFixed(1)} l ${(1.4 * scale).toFixed(1)} ${(7 * scale).toFixed(1)}" ` +
+        `stroke="${c}" stroke-width="${(1.7 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.92"/>`,
+      `<circle cx="${(x + 1.4 * scale).toFixed(1)}" cy="${(-11.6 * scale).toFixed(1)}" ` +
+        `r="${(1.5 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.92"/>`,
+    )
+  }
+  return parts.join('')
+}
+
+/**
+ * How many inscription sockets a rank has opened.
+ *
+ * This is the modular half. A socket is empty until a rite is cut into it, so
+ * two pieces at the same rank in the same set are still not the same item —
+ * which is the whole point of the request that produced this.
+ */
+export function socketsAt(rank: number): number {
+  return rank >= 5 ? 3 : rank >= 4 ? 2 : rank >= 2 ? 1 : 0
+}
+
+/** The socket row as filled and empty pips, for a caption. */
+export function socketPips(x: number, y: number, open: number, filled: number, colour: number): string {
+  const parts: string[] = []
+  const step = 13
+  const left = x - ((open - 1) * step) / 2
+  for (let i = 0; i < open; i++) {
+    const cx = left + i * step
+    parts.push(
+      i < filled
+        ? `<circle cx="${cx}" cy="${y}" r="4" fill="${hex(colour)}" fill-opacity="0.9"/>`
+        : `<circle cx="${cx}" cy="${y}" r="4" fill="none" stroke="${hex(palette.ink)}" stroke-opacity="0.3"/>`,
+    )
+  }
+  return parts.join('')
+}
