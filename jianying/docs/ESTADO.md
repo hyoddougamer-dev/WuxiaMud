@@ -136,6 +136,7 @@ nunca recua para uma parede nem decide não matar uma efígie. Essa parte é tua
 |---|---|
 | `docs/progression.png` | O equipamento muda mesmo a personagem à medida que se joga? |
 | `docs/auras.png` | **Proposta.** Cor e encantamento resolvem a convergência do fim de jogo? |
+| `docs/sets.png` | **Proposta.** O que é um set, e o que distingue item de item e classe de classe? |
 | `docs/ESTADO.md` | Este. O que existe, o que falta, o que ainda incomoda. |
 | `docs/PLANO.md` | Que fases vêm a seguir, e o que saiu contra o que estava escrito. |
 
