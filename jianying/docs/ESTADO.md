@@ -1,6 +1,6 @@
 # 剑影 Jiànyǐng — Estado
 
-*build 1.5.0 · commit 0b516d5 · 11 511 linhas · 185 testes*
+*build 1.5.0 · commit a098ba8 · 13 122 linhas · 191 testes*
 
 > Um espadachim percorre as estradas de um império a cair. Cada estrada acaba em
 > morte — e cada morte levanta a espada que percorre a seguinte.
@@ -23,13 +23,15 @@ atributo permanente.
 
 | Sistema | Estado | Detalhe |
 |---|---|---|
-| Entrada | ✅ feito | Título → criação → codex → hub. Quem volta passa direto com «Continue». |
+| Entrada | ✅ feito | Título → criação → codex → hub. Quem volta passa direto com «Continue», e a criação continua alcançável pelo hub. |
 | Combate | ✅ feito | Golpe automático ao inimigo mais próximo. Seis armas com alcance, arco e ritmo próprios. |
 | Inimigos | ✅ feito | 21 tipos em 8 comportamentos. Cada região tem o seu bestiário e o seu mestre. |
 | Progressão na corrida | ✅ feito | 10 técnicas em duas famílias. ~5 subidas de Insight por corrida, ~20s de intervalo. |
 | Progressão permanente | ✅ feito | 8 reinos de 5 níveis (淬体 → 剑仙), 4 atributos. Capacitor Preferences. |
 | Equipamento | ⚠️ fino | Funciona: 22 itens, 4 slots, drops, inventário. Mas o wardrobe suporta 900 silhuetas e a tabela usa 22. |
 | O mundo | ✅ feito | Cinco lugares, cada um com uma regra, bestiário, mestre e tabela de loot próprios. Abrem a cada reino. |
+| Hub | ✅ refeito | Três abas (剑 装 界), identidade sempre visível, «Partir» fixo acima delas. Era um scroll único com dez blocos de texto. |
+| Aparência | ✅ feito | A personagem é desenhada em SVG a partir da geometria do jogo, no hub e na criação. Compleição, faixa e mão do pincel são persistentes. |
 | Legibilidade | ✅ feito | Números de dano em três cores, avisos de boss, «Felled by X», recompensa itemizada. |
 | Tutorial | ✅ feito | Seis lições na primeira expedição, por condição e não por cronómetro. |
 | Áudio | ❌ nada | Zero. Nem música nem efeitos. O buraco mais óbvio no *feel*. |
@@ -128,7 +130,18 @@ nunca recua para uma parede nem decide não matar uma efígie. Essa parte é tua
 - **Áudio e hápticos continuam a zero.** O maior buraco de *feel* que existe.
 - **A tabela de itens usa 22 das 900 silhuetas** que o wardrobe sabe desenhar.
 
-## 七 · O que vem a seguir
+## 七 · Documentos, e a que pergunta cada um responde
+
+| Documento | Responde a |
+|---|---|
+| `docs/progression.png` | O equipamento muda mesmo a personagem à medida que se joga? |
+| `docs/auras.png` | **Proposta.** Cor e encantamento resolvem a convergência do fim de jogo? |
+| `docs/ESTADO.md` | Este. O que existe, o que falta, o que ainda incomoda. |
+| `docs/PLANO.md` | Que fases vêm a seguir, e o que saiu contra o que estava escrito. |
+
+Só o `auras.png` é proposta. Os outros descrevem o que já está construído.
+
+## 八 · O que vem a seguir
 
 A Fase 1 fechou. Pela tua regra — uma fase de cada vez — o próximo passo é a
 Fase 2: **baralhos de técnicas por escola**, para que a escolha na criação de
