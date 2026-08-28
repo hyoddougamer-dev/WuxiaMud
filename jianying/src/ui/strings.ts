@@ -90,7 +90,9 @@ export const strings = {
    * by design, so a player who picked a robe here would watch it vanish on the
    * first drop — better to be told than to find out by losing something.
    */
-  bearingNote: 'What you wear is found on the road and will change. These three are yours.',
+  bearingNote: 'What you wear is found on the road and will change. These are yours, and no drop takes them back.',
+  bearingRow: 'You are',
+  pigmentLabel: 'Dye',
   buildLabel: 'Build',
   sashLabel: 'Sash',
   brushLabel: 'Brush',

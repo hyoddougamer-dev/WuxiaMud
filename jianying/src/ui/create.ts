@@ -36,7 +36,7 @@
 import { weaponById } from '../data/weapons'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
-import { BUILDS, SASHES, type Look } from '../meta/look'
+import { BEARINGS, BUILDS, PIGMENTS, SASHES, type Look } from '../meta/look'
 import { ITEM_BY_ID } from '../data/items'
 import { SCHOOLS, type School, rollName } from '../meta/schools'
 import { strings } from './strings'
@@ -85,7 +85,7 @@ export function createCreator(root: HTMLElement): CreateScreen {
     show(roll, onDone, onCancel) {
       onDoneHandler = onDone
       let school: School = SCHOOLS[0]!
-      let look: Look = { seed: Math.floor(roll() * 0xffff) + 1, build: 1, sash: 0 }
+      let look: Look = { seed: Math.floor(roll() * 0xffff) + 1, build: 1, sash: 0, bearing: 0, pigment: 0 }
 
       panel.innerHTML = `
         <div class="create-stage">
@@ -108,12 +108,18 @@ export function createCreator(root: HTMLElement): CreateScreen {
             <button class="create-roll" type="button" aria-label="${strings.rollName}">↻</button>
           </div>
 
-          <div class="create-section">${strings.yourSchool}</div>
-          <div class="create-origins"></div>
-
+          <!-- Who you are comes BEFORE where you trained. The first version put
+               the school picker first and buried "man or woman" and the dye
+               under five school cards, at the bottom of a long scroll — which
+               is the wrong order for the two questions a player expects to be
+               asked first, and the wrong order for the two that change the
+               figure most visibly. -->
           <div class="create-section">${strings.yourBearing}</div>
           <div class="create-note">${strings.bearingNote}</div>
           <div class="create-looks"></div>
+
+          <div class="create-section">${strings.yourSchool}</div>
+          <div class="create-origins"></div>
         </div>
         <div class="create-foot">
           ${onCancel ? `<button class="create-back" type="button">${strings.back}</button>` : ''}
@@ -210,6 +216,46 @@ export function createCreator(root: HTMLElement): CreateScreen {
         looks.appendChild(row)
       }
 
+      chipRow(
+        strings.bearingRow,
+        BEARINGS,
+        () => look.bearing,
+        (index) => (look = { ...look, bearing: index }),
+      )
+      // --- dye -------------------------------------------------------------
+      // Swatches, not named chips. A row of identical grey buttons reading
+      // "Cinnabar / Indigo / Malachite" would be an absurd control in a game
+      // whose complaint was that it looked monochrome.
+      {
+        const row = document.createElement('div')
+        row.className = 'look-row'
+        const title = document.createElement('div')
+        title.className = 'look-label'
+        title.textContent = strings.pigmentLabel
+        const chips = document.createElement('div')
+        chips.className = 'look-chips'
+        PIGMENTS.forEach((pigment, index) => {
+          const chip = document.createElement('button')
+          chip.type = 'button'
+          chip.className = 'dye-chip' + (index === look.pigment ? ' dye-chip-on' : '')
+          chip.textContent = pigment.seal
+          chip.style.background =
+            pigment.colour === null
+              ? 'rgba(13,13,13,0.08)'
+              : `#${pigment.colour.toString(16).padStart(6, '0')}`
+          if (pigment.colour === null) chip.style.color = 'rgba(13,13,13,0.55)'
+          chip.setAttribute('aria-label', pigment.name)
+          chip.addEventListener('click', () => {
+            look = { ...look, pigment: index }
+            for (const other of chips.children) other.classList.remove('dye-chip-on')
+            chip.classList.add('dye-chip-on')
+            redraw()
+          })
+          chips.appendChild(chip)
+        })
+        row.append(title, chips)
+        looks.appendChild(row)
+      }
       chipRow(
         strings.buildLabel,
         BUILDS,

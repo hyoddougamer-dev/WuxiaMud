@@ -149,6 +149,38 @@ async function main(): Promise<void> {
     await page.waitForTimeout(400)
     await page.screenshot({ path: join(OUT, 'create.png') })
 
+    // The appearance controls, and proof that they reach the figure. Two of
+    // these — man or woman, and the dye — were asked for by name, and a control
+    // that changes a stored field but not the drawing would photograph as a
+    // working screen while doing nothing.
+    const dyes = page.locator('.dye-chip')
+    const dyeCount = await dyes.count()
+    const bearings = page.locator('.look-chips').first().locator('.look-chip')
+    const bearingCount = await bearings.count()
+    if (dyeCount > 0) {
+      const before = await page.locator('.create-portrait svg').innerHTML()
+      // A dyed robe and the other bearing, then back to the top to photograph
+      // the figure they produce.
+      await dyes.nth(2).click()
+      await bearings.nth(1).click()
+      await page.waitForTimeout(250)
+      const after = await page.locator('.create-portrait svg').innerHTML()
+      await page.locator('.create-scroll').evaluate((el) => (el.scrollTop = 0))
+      await page.waitForTimeout(250)
+      await page.screenshot({ path: join(OUT, 'create-dyed.png') })
+      const dyed = /fill="#(2e4a6b|9e2b2b|40614a|8a5a2b|4a3355)"/.test(after)
+      console.log(
+        `look:   ${bearingCount} bearings, ${dyeCount} dyes — figure ${
+          after !== before ? 'redraws' : 'DID NOT CHANGE'
+        }, robe ${dyed ? 'dyed' : 'NOT DYED'}`,
+      )
+      if (after === before || !dyed) {
+        console.warn('warn:   an appearance control is not reaching the figure')
+      }
+    } else {
+      console.warn('warn:   no dye chips on the creation screen')
+    }
+
     // Pick a non-default origin, so the grant is visible in the hub that
     // follows rather than being indistinguishable from a blank character.
     await page.locator('.origin').nth(2).click()

@@ -15,6 +15,16 @@ import { DEFAULT_GEAR, type BladeStyle, type Gear } from './wardrobe'
 export interface FigureStroke {
   poly: number[]
   alpha: number
+  /**
+   * Which garment this mark belongs to.
+   *
+   * Exists so the robe can take a PIGMENT while everything else stays ink.
+   * That is not a compromise on the art direction, it is how ink-and-colour
+   * painting has always worked: 墨 for the line and the mass, mineral colour
+   * for the wash inside it. Without the tag the only options were an entirely
+   * black figure or an entirely coloured one, and both are wrong.
+   */
+  part?: 'robe'
 }
 
 /** Widens a profile by a constant, for the bleed pass. */
@@ -58,6 +68,7 @@ export function buildSwordsmanTopDown(
   scale = 1,
   gear: Gear = DEFAULT_GEAR,
   build = 1,
+  bearing: { shoulders: number; hem: number; hair: number } = { shoulders: 1, hem: 1, hair: 0 },
 ): Swordsman {
   const rng = new Rng(seed)
   const s = scale
@@ -74,17 +85,25 @@ export function buildSwordsmanTopDown(
     const { alpha = 1, segments = 22, jitter = 0.85 * s, bleedBy = 1.5 * s } = opts
     const spine = bowedSpine(from, to, bow, segments)
     const bleedPoly = sweep(spine, widen(width, bleedBy), rng, jitter * 1.5)
-    if (bleedPoly.length >= 6) bleed.push({ poly: bleedPoly, alpha: alpha * 0.16 })
+    if (bleedPoly.length >= 6) bleed.push({ poly: bleedPoly, alpha: alpha * 0.16, ...tag })
     const poly = sweep(spine, width, rng, jitter)
-    if (poly.length >= 6) body.push({ poly, alpha })
+    if (poly.length >= 6) body.push({ poly, alpha, ...tag })
   }
+
+  // Set around the robe marks below and cleared afterwards, so the tag is
+  // written once per garment rather than passed to twenty call sites.
+  let tag: { part?: 'robe' } = {}
 
   const { robe, shoulders, head } = gear
 
   // ---- Robe -------------------------------------------------------------
   // Seen from above the hem reads as a skirt spreading toward the camera, so
   // the flare is stronger and the whole shape shorter than in profile.
-  const spread = robe.hemWidth - robe.topWidth
+  tag = { part: 'robe' }
+  // The hem carries the bearing, not the whole figure: a wider hem against
+  // narrower shoulders is the silhouette difference, and scaling both by one
+  // number would cancel it out.
+  const spread = (robe.hemWidth - robe.topWidth) * bearing.hem
   mark(
     { x: 0, y: robe.top * s },
     { x: 0, y: robe.bottom * s },
@@ -107,10 +126,13 @@ export function buildSwordsmanTopDown(
     )
   }
 
+  tag = {}
+
   // ---- Shoulders and sleeves --------------------------------------------
   // Elliptic, not calligraphic: a brush profile keeps most of its width at the
   // ends, which turned the shoulders into a hard rectangle.
   const shoulderY = -32 * s
+  const span = shoulders.span * bearing.shoulders
 
   // A mantle sits behind everything, so it reads as cloth the arms hang over.
   if (shoulders.mantle) {
@@ -124,8 +146,8 @@ export function buildSwordsmanTopDown(
   }
 
   mark(
-    { x: -shoulders.span * s, y: shoulderY },
-    { x: shoulders.span * s, y: shoulderY },
+    { x: -span * s, y: shoulderY },
+    { x: span * s, y: shoulderY },
     0.5 * s,
     elliptic(shoulders.cap * s),
     { segments: 20, jitter: 0.6 * s },
@@ -133,7 +155,7 @@ export function buildSwordsmanTopDown(
 
   for (const side of [-1, 1]) {
     mark(
-      { x: side * (shoulders.span - 2) * s, y: shoulderY },
+      { x: side * (span - 2) * s, y: shoulderY },
       { x: side * shoulders.sleeveOut * s, y: (shoulderY / s + shoulders.sleeveDrop) * s },
       -side * shoulders.sleeveBow * s,
       calligraphic(shoulders.sleeveWidth * s, 0.7, 0.15),
@@ -141,8 +163,8 @@ export function buildSwordsmanTopDown(
     )
     if (shoulders.pauldron) {
       mark(
-        { x: side * (shoulders.span - 1) * s, y: (shoulderY / s - 1.5) * s },
-        { x: side * (shoulders.span + 5) * s, y: (shoulderY / s + 3) * s },
+        { x: side * (span - 1) * s, y: (shoulderY / s - 1.5) * s },
+        { x: side * (span + 5) * s, y: (shoulderY / s + 3) * s },
         side * 1.5 * s,
         elliptic(shoulders.pauldron * s),
         { segments: 16, jitter: 0.4 * s },
@@ -152,12 +174,27 @@ export function buildSwordsmanTopDown(
 
   // A belt is drawn after the sleeves so it reads as cinching them in.
   if (robe.belt !== undefined) {
+    tag = { part: 'robe' }
     mark(
       { x: -8 * s, y: robe.belt * s },
       { x: 8 * s, y: robe.belt * s },
       0,
       elliptic(4 * s),
       { alpha: 0.75, segments: 14, jitter: 0.3 * s },
+    )
+    tag = {}
+  }
+
+  // ---- Hair -------------------------------------------------------------
+  // Drawn before the head so it reads as falling BEHIND the collar. Nothing in
+  // the wardrobe touches it, which is what lets it survive every drop.
+  if (bearing.hair > 0) {
+    mark(
+      { x: 0, y: -38 * s },
+      { x: 0, y: (-38 + bearing.hair) * s },
+      0,
+      calligraphic(6.5 * s, 0.9, 0.25),
+      { alpha: 0.9, segments: 14, jitter: 0.5 * s, bleedBy: 0.9 * s },
     )
   }
 

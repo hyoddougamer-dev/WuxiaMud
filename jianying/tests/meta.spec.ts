@@ -739,7 +739,7 @@ describe('depth holds permanent power in check', () => {
 
 describe('appearance', () => {
   it('survives a save round-trip', () => {
-    const c = createCharacter('Bai', 'temple', { seed: 4242, build: 2, sash: 3 })
+    const c = createCharacter('Bai', 'temple', { seed: 4242, build: 2, sash: 3, bearing: 1, pigment: 2 })
     expect(parseCharacter(serialiseCharacter(c))!.look).toEqual(c.look)
   })
 

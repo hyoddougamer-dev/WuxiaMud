@@ -32,7 +32,66 @@ export interface Look {
   readonly build: number
   /** Index into SASHES. */
   readonly sash: number
+  /** Index into BEARINGS. */
+  readonly bearing: number
+  /** Index into PIGMENTS — the colour the robe is dyed. */
+  readonly pigment: number
 }
+
+/**
+ * Man or woman, expressed the only way a silhouette can express it.
+ *
+ * There is no face here and no interior detail, so this is proportion and
+ * carriage: shoulder span against hem, and whether hair falls below the collar.
+ * Both survive armour, which is the requirement — anything the first robe
+ * erased would be a choice the game took back within ten minutes.
+ *
+ * Honest about the size of it: at the forty pixels the game draws in play this
+ * is subtle. It is unmistakable in the hub and in creation, where the figure is
+ * four times larger and where the choice is actually made.
+ */
+export interface Bearing {
+  readonly id: string
+  readonly name: string
+  /** Multiplier on shoulder span. */
+  readonly shoulders: number
+  /** Multiplier on hem width. */
+  readonly hem: number
+  /** Hair falling below the collar, in figure units. 0 draws none. */
+  readonly hair: number
+}
+
+export const BEARINGS: readonly Bearing[] = [
+  { id: 'man', name: 'Man', shoulders: 1.07, hem: 0.96, hair: 0 },
+  { id: 'woman', name: 'Woman', shoulders: 0.93, hem: 1.06, hair: 9 },
+] as const
+
+/**
+ * The colour the robe is dyed.
+ *
+ * The game was built on ink alone and was reported, fairly, as monochrome. That
+ * rule was mine and it was too strict: ink-and-colour painting has always put
+ * 墨 in the line and mineral pigment in the wash, and 青绿山水 — the blue-green
+ * landscape tradition — is built on exactly these minerals. So the ROBE takes
+ * the colour and every other mark stays ink. The silhouette survives, because
+ * the head, the shoulders and the blade still read as black against paper.
+ */
+export interface Pigment {
+  readonly id: string
+  readonly seal: string
+  readonly name: string
+  /** 0xRRGGBB, or null for undyed cloth, which stays ink. */
+  readonly colour: number | null
+}
+
+export const PIGMENTS: readonly Pigment[] = [
+  { id: 'ink', seal: '墨', name: 'Undyed', colour: null },
+  { id: 'cinnabar', seal: '朱', name: 'Cinnabar', colour: 0x9e2b2b },
+  { id: 'indigo', seal: '靛', name: 'Indigo', colour: 0x2e4a6b },
+  { id: 'malachite', seal: '石绿', name: 'Malachite', colour: 0x40614a },
+  { id: 'ochre', seal: '赭', name: 'Ochre', colour: 0x8a5a2b },
+  { id: 'aubergine', seal: '紫', name: 'Aubergine', colour: 0x4a3355 },
+] as const
 
 export interface BuildStyle {
   readonly id: string
@@ -67,7 +126,7 @@ export const SASHES: readonly SashStyle[] = [
   { id: 'none', name: 'None', colour: null },
 ] as const
 
-export const DEFAULT_LOOK: Look = { seed: 7, build: 1, sash: 0 }
+export const DEFAULT_LOOK: Look = { seed: 7, build: 1, sash: 0, bearing: 0, pigment: 0 }
 
 export function buildOf(look: Look): BuildStyle {
   return BUILDS[Math.min(BUILDS.length - 1, Math.max(0, look.build))] ?? BUILDS[1]!
@@ -75,6 +134,14 @@ export function buildOf(look: Look): BuildStyle {
 
 export function sashOf(look: Look): SashStyle {
   return SASHES[Math.min(SASHES.length - 1, Math.max(0, look.sash))] ?? SASHES[0]!
+}
+
+export function bearingOf(look: Look): Bearing {
+  return BEARINGS[Math.min(BEARINGS.length - 1, Math.max(0, look.bearing))] ?? BEARINGS[0]!
+}
+
+export function pigmentOf(look: Look): Pigment {
+  return PIGMENTS[Math.min(PIGMENTS.length - 1, Math.max(0, look.pigment))] ?? PIGMENTS[0]!
 }
 
 /**
@@ -97,5 +164,7 @@ export function parseLook(raw: unknown): Look {
     seed: seed >>> 0 || DEFAULT_LOOK.seed,
     build: int(r.build, DEFAULT_LOOK.build, BUILDS.length - 1),
     sash: int(r.sash, DEFAULT_LOOK.sash, SASHES.length - 1),
+    bearing: int(r.bearing, DEFAULT_LOOK.bearing, BEARINGS.length - 1),
+    pigment: int(r.pigment, DEFAULT_LOOK.pigment, PIGMENTS.length - 1),
   }
 }

@@ -22,7 +22,7 @@
 import { buildBlade, buildSwordsmanTopDown, type FigureStroke } from './figure'
 import { palette } from './palette'
 import type { Gear } from './wardrobe'
-import { buildOf, sashOf, type Look } from '../meta/look'
+import { bearingOf, buildOf, pigmentOf, sashOf, type Look } from '../meta/look'
 
 const hex = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`
 
@@ -54,10 +54,14 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   const { box = 78, blade = true, ink = palette.ink } = options
   const build = buildOf(look).width
   const sash = sashOf(look)
+  const bearing = bearingOf(look)
+  // Null means undyed cloth, which stays ink — the default, and still the most
+  // common thing a swordsman on this road is wearing.
+  const dye = pigmentOf(look).colour
 
   // Scale 1: the viewBox does the sizing, so the geometry stays in its native
   // units and the brush jitter keeps the proportion it was tuned at.
-  const figure = buildSwordsmanTopDown(look.seed, 1, gear, build)
+  const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing)
 
   const parts: string[] = []
 
@@ -98,8 +102,13 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     parts.push('</g>')
   }
 
-  for (const stroke of figure.bleed) parts.push(strokeToPolygon(stroke, ink))
-  for (const stroke of figure.body) parts.push(strokeToPolygon(stroke, ink))
+  // The robe takes the dye; every other mark stays ink. That split is the whole
+  // of "colour without losing the silhouette" — the head, the shoulders and the
+  // blade still read black against paper no matter what the robe is dyed.
+  const inkOf = (stroke: { part?: 'robe' }): number =>
+    stroke.part === 'robe' && dye !== null ? dye : ink
+  for (const stroke of figure.bleed) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
+  for (const stroke of figure.body) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
 
   // Wider than tall in ratio terms, because a lowered blade reaches further to
   // the side than the figure does and a tighter box clipped its tip.

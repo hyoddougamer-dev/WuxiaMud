@@ -562,6 +562,27 @@
         background: var(--ink);
         border-color: var(--ink);
       }
+      /* A dye chip shows the dye. A row of identical grey chips labelled with
+         colour NAMES would be the single most absurd control in a game whose
+         complaint was that it looked monochrome. */
+      .dye-chip {
+        flex: 1;
+        min-height: 40px;
+        padding: 8px 4px;
+        font: inherit;
+        font-size: 15px;
+        color: var(--paper);
+        border: 1px solid rgba(13, 13, 13, 0.16);
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .dye-chip-on {
+        outline: 2px solid var(--ink);
+        outline-offset: 1px;
+      }
+      .dye-chip:active {
+        transform: scale(0.97);
+      }
       .look-chip:active {
         transform: scale(0.98);
       }

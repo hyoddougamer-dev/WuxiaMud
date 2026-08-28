@@ -39,7 +39,7 @@ import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
-import { buildOf, sashOf } from './meta/look'
+import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
 import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
@@ -59,7 +59,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.5.0'
+const BUILD = '1.6.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -300,19 +300,29 @@ async function boot(): Promise<void> {
     // The look drives the brush hand and the build, so the swordsman fought
     // with is the same one chosen at creation and shown in the hub — not a
     // default that quietly ignores half of what the player picked.
-    figure = buildSwordsmanTopDown(character.look.seed, 1, gear, buildOf(character.look).width)
+    figure = buildSwordsmanTopDown(
+      character.look.seed,
+      1,
+      gear,
+      buildOf(character.look).width,
+      bearingOf(character.look),
+    )
     bladeStrokes = buildBlade(character.look.seed + 1, 1, gear.blade)
+    // The dye the robe was given at creation. Null keeps it ink.
+    const dye = pigmentOf(character.look).colour
 
     bladeGfx.clear()
     for (const stroke of bladeStrokes) {
       bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
     }
     bodyGfx.clear()
-    for (const stroke of figure.bleed) {
-      bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
-    }
-    for (const stroke of figure.body) {
-      bodyGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+    for (const strokes of [figure.bleed, figure.body]) {
+      for (const stroke of strokes) {
+        // Robe marks carry the dye; the rest stay ink, so the silhouette still
+        // reads black against the paper at the size the game actually draws.
+        const colour = stroke.part === 'robe' && dye !== null ? dye : palette.ink
+        bodyGfx.poly(stroke.poly).fill({ color: colour, alpha: stroke.alpha })
+      }
     }
   }
   rebuildFigure()
