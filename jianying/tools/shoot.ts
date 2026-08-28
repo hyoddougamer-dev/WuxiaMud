@@ -23,12 +23,22 @@
 import { chromium, type Browser, type Page } from 'playwright'
 import { createServer, type Server } from 'node:http'
 import { readFile, mkdir, rm } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
+
+/** Most recent mtime under a directory, so a stale bundle can be detected. */
+function newestSourceTime(dir: string): number {
+  let newest = 0
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    newest = Math.max(newest, entry.isDirectory() ? newestSourceTime(path) : statSync(path).mtimeMs)
+  }
+  return newest
+}
 const OUT = join(ROOT, 'shots')
 
 // Pixel 5 — a realistic mid-range portrait target, not a flagship.
@@ -92,6 +102,20 @@ async function main(): Promise<void> {
   if (!url) {
     if (!existsSync(join(DIST, 'index.html'))) {
       console.error('dist/ is missing — run `npm run build` first.')
+      process.exitCode = 1
+      return
+    }
+    // A stale bundle is worse than no bundle: the harness passes, the shots
+    // look plausible, and every conclusion drawn from them is about code that
+    // is no longer there. This was not a hypothetical — a whole pass of figure
+    // work was reviewed against a build made before any of it existed.
+    const built = statSync(join(DIST, 'index.html')).mtimeMs
+    const newest = newestSourceTime(join(ROOT, 'src'))
+    if (newest > built) {
+      console.error(
+        `dist/ is older than src/ by ${((newest - built) / 1000).toFixed(0)}s — ` +
+          'run `npm run build` first, or the shots will show the previous build.',
+      )
       process.exitCode = 1
       return
     }
