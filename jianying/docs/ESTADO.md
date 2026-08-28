@@ -135,7 +135,8 @@ nunca recua para uma parede nem decide não matar uma efígie. Essa parte é tua
 | Documento | Responde a |
 |---|---|
 | `docs/progression.png` | O equipamento muda mesmo a personagem à medida que se joga? |
-| `docs/forge.png` | **Proposta escolhida. Começa por aqui.** O ecrã da forja ao tamanho real do telemóvel. Só níveis de peça. |
+| `docs/catalogue.png` | **Proposta. Começa por aqui.** Os 22 itens um a um, as marcas de grau por slot, e a tabela de stats refeita. |
+| `docs/forge.png` | **Proposta.** O ecrã da forja ao tamanho real do telemóvel. Só níveis de peça. |
 | `docs/system.png` | *Proposta completa, adiada.* Quatro eixos ao estilo PoE — profundo de mais para já. |
 | `docs/auras.png` | **Proposta.** Cor e encantamento resolvem a convergência do fim de jogo? |
 | `docs/sets.png` | *Substituído por `system.png`.* Os sets estavam ligados ao mapa. |

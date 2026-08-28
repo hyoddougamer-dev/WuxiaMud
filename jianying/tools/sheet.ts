@@ -230,9 +230,9 @@ export function figure(
   gear: Gear,
   seed: number,
   scale: number,
-  opts: { accent?: number | null; rite?: Rite; build?: number; rank?: number } = {},
+  opts: { accent?: number | null; rite?: Rite; build?: number; rank?: number; rankSlot?: Slot } = {},
 ): { markup: string; bottom: number; right: number } {
-  const { accent = null, rite, build = 1, rank = 0 } = opts
+  const { accent = null, rite, build = 1, rank = 0, rankSlot = 'robe' } = opts
   const swordsman = buildSwordsmanTopDown(seed, scale, gear, build)
   const parts: string[] = []
   let bottom = 6 * scale
@@ -281,7 +281,7 @@ export function figure(
   }
 
   // Over the body, because a hem lies on top of the cloth it belongs to.
-  if (rank > 0) parts.push(rankMarks(rank, scale, build, accent ?? palette.gold))
+  if (rank > 0) parts.push(rankMarksFor(rankSlot, rank, scale, build, accent ?? palette.gold))
   if (halo) parts.push(halo.front)
   return { markup: parts.join(''), bottom, right }
 }
@@ -371,6 +371,95 @@ export function columns(count: number, reach: number): (i: number) => number {
  * actually carried.
  */
 export function rankMarks(rank: number, scale: number, build: number, colour: number): string {
+  // Kept as the robe's marks. See rankMarksFor for why every slot needs its own.
+  return robeMarks(rank, scale, build, colour)
+}
+
+/**
+ * Rank marks for ONE slot.
+ *
+ * A hole in my own proposal, found by drawing every item separately instead of
+ * only the robe: hems at the skirt and cords at the belt are ROBE marks. A hat
+ * cannot grow a hem, and a pair of shoulders has no belt. Reusing one mark for
+ * every slot would have meant tempering a hat visibly changed the robe, which
+ * is worse than showing nothing at all.
+ *
+ * So each slot gets marks that belong to it, and they read differently from one
+ * another on purpose — you can tell WHICH piece was tempered, not merely that
+ * something was.
+ */
+export function rankMarksFor(
+  slot: Slot,
+  rank: number,
+  scale: number,
+  build: number,
+  colour: number,
+): string {
+  if (rank <= 0) return ''
+  switch (slot) {
+    case 'robe':
+      return robeMarks(rank, scale, build, colour)
+    case 'shoulders':
+      return shoulderMarks(rank, scale, build, colour)
+    case 'head':
+      return headMarks(rank, scale, build, colour)
+    case 'weapon':
+      return hiltMarks(rank, scale, build, colour)
+  }
+}
+
+/** Shoulders: tassels off the sleeve ends, alternating side. */
+function shoulderMarks(rank: number, scale: number, build: number, colour: number): string {
+  const c = hex(colour)
+  const parts: string[] = []
+  for (let i = 0; i < Math.min(5, rank); i++) {
+    const side = i % 2 === 0 ? -1 : 1
+    const tier = Math.floor(i / 2)
+    const x = side * (13 + tier * 3) * scale * build
+    const y0 = (-31 + tier * 2) * scale
+    parts.push(
+      `<path d="M ${x.toFixed(1)} ${y0.toFixed(1)} l ${(side * 1.2 * scale).toFixed(1)} ${(8 * scale).toFixed(1)}" ` +
+        `stroke="${c}" stroke-width="${(2 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.95"/>`,
+      `<circle cx="${(x + side * 1.2 * scale).toFixed(1)}" cy="${(y0 + 8 * scale).toFixed(1)}" ` +
+        `r="${(1.6 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.95"/>`,
+    )
+  }
+  return parts.join('')
+}
+
+/** Head: bands stacked above the crown, like rings on a monk's staff. */
+function headMarks(rank: number, scale: number, build: number, colour: number): string {
+  const c = hex(colour)
+  const parts: string[] = []
+  for (let i = 0; i < Math.min(5, rank); i++) {
+    const y = (-45 - i * 3.6) * scale
+    const w = (7 - i * 0.7) * scale * build
+    parts.push(
+      `<path d="M ${(-w).toFixed(1)} ${y.toFixed(1)} L ${w.toFixed(1)} ${y.toFixed(1)}" ` +
+        `stroke="${c}" stroke-width="${((i === 0 ? 2.4 : 1.8) * scale).toFixed(1)}" ` +
+        `stroke-linecap="round" stroke-opacity="0.95"/>`,
+    )
+  }
+  return parts.join('')
+}
+
+/** Weapon: a knotted cord at the hilt that lengthens with every temper. */
+function hiltMarks(rank: number, scale: number, build: number, colour: number): string {
+  const c = hex(colour)
+  const n = Math.min(5, rank)
+  const x = 8 * scale * build
+  const y = -26 * scale
+  const drop = (5 + n * 3.4) * scale
+  return (
+    `<path d="M ${x.toFixed(1)} ${y.toFixed(1)} q ${(-3 * scale).toFixed(1)} ${(drop * 0.6).toFixed(1)} ` +
+      `${(-1.5 * scale).toFixed(1)} ${drop.toFixed(1)}" fill="none" stroke="${c}" ` +
+      `stroke-width="${(2.2 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.95"/>` +
+    `<circle cx="${(x - 1.5 * scale).toFixed(1)}" cy="${(y + drop).toFixed(1)}" ` +
+      `r="${(1.9 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.95"/>`
+  )
+}
+
+function robeMarks(rank: number, scale: number, build: number, colour: number): string {
   if (rank <= 0) return ''
   const c = hex(colour)
   const parts: string[] = []
