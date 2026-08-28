@@ -133,20 +133,26 @@ export function auraFor(
       break
     }
     case 'wash': {
-      // A soft field behind the whole figure. This is the cheapest effect to
-      // draw and the one that changes the silhouette's read the least, which is
-      // exactly right for something meant to feel like cold air.
+      // Rewritten. The first version was a soft radial field and it read as a
+      // smudge — the one effect on the sheet you could not name after looking
+      // at it. Cold is now a RING of frost drawn on the ground the figure
+      // stands on, plus shards leaning off it. A mark on the ground is the
+      // clearest possible statement that an effect has a radius, and radius is
+      // exactly what "slows what it cuts" means.
       behind.push(
-        `<ellipse cx="0" cy="${-22 * scale}" rx="${30 * scale}" ry="${34 * scale}" ` +
-          `fill="url(#wash-${seed})"/>`,
+        `<ellipse cx="0" cy="${(1 * scale).toFixed(1)}" rx="${(26 * scale).toFixed(1)}" ry="${(8 * scale).toFixed(1)}" ` +
+          `fill="none" stroke="${c}" stroke-width="${(1.8 * scale).toFixed(1)}" stroke-opacity="0.72"/>`,
+        `<ellipse cx="0" cy="${(1 * scale).toFixed(1)}" rx="${(26 * scale).toFixed(1)}" ry="${(8 * scale).toFixed(1)}" ` +
+          `fill="${c}" fill-opacity="0.1"/>`,
       )
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 9; i++) {
         const a = rng.next() * Math.PI * 2
-        const d = (18 + rng.next() * 14) * scale
+        const d = (13 + rng.next() * 13) * scale
+        const x = Math.cos(a) * d
+        const yy = 1 * scale + Math.sin(a) * d * 0.3
         front.push(
-          `<path d="M ${(Math.cos(a) * d).toFixed(1)} ${(-24 * scale + Math.sin(a) * d).toFixed(1)} ` +
-            `l ${(3 * scale).toFixed(1)} ${(-4 * scale).toFixed(1)}" stroke="${c}" ` +
-            `stroke-width="${(1.1 * scale).toFixed(1)}" stroke-opacity="0.55" stroke-linecap="round"/>`,
+          `<path d="M ${x.toFixed(1)} ${yy.toFixed(1)} l ${(1.6 * scale).toFixed(1)} ${(-5.5 * scale).toFixed(1)}" ` +
+            `stroke="${c}" stroke-width="${(1.5 * scale).toFixed(1)}" stroke-opacity="0.8" stroke-linecap="round"/>`,
         )
       }
       break
@@ -155,16 +161,20 @@ export function auraFor(
       // Off the blade specifically, not the body: the point of Thunder is that
       // it is a property of the weapon, and the aura has to say which slot it
       // came from or enchantments become a single undifferentiated glow.
+      // Longer, fewer and heavier than the first attempt, which produced five
+      // short scribbles that read as noise rather than as lightning. A bolt
+      // needs length to be a bolt.
       const rad = (BLADE_ANGLE * Math.PI) / 180
-      for (let i = 0; i < 5; i++) {
-        const along = (14 + i * 7) * scale
+      for (let i = 0; i < 3; i++) {
+        const along = (16 + i * 11) * scale
         const bx = 8 * scale + Math.cos(rad) * along
         const by = -26 * scale + Math.sin(rad) * along
-        const j = () => (rng.next() - 0.5) * 9 * scale
+        const j = (m: number) => (rng.next() - 0.5) * m * scale
         front.push(
-          `<path d="M ${bx.toFixed(1)} ${by.toFixed(1)} l ${j().toFixed(1)} ${j().toFixed(1)} ` +
-            `l ${j().toFixed(1)} ${j().toFixed(1)}" fill="none" stroke="${c}" ` +
-            `stroke-width="${(0.9 * scale).toFixed(1)}" stroke-opacity="0.75" stroke-linecap="round"/>`,
+          `<path d="M ${bx.toFixed(1)} ${by.toFixed(1)} l ${j(11).toFixed(1)} ${(-7 * scale).toFixed(1)} ` +
+            `l ${j(9).toFixed(1)} ${(-6 * scale).toFixed(1)} l ${j(12).toFixed(1)} ${(-8 * scale).toFixed(1)}" ` +
+            `fill="none" stroke="${c}" stroke-width="${(1.6 * scale).toFixed(1)}" ` +
+            `stroke-opacity="0.9" stroke-linecap="round" stroke-linejoin="round"/>`,
         )
       }
       break
@@ -178,8 +188,8 @@ export function auraFor(
         .map((s) => strokeToPolygon(s, colour))
         .join('')
       behind.push(
-        `<g transform="translate(${(-9 * scale).toFixed(1)},${(1.5 * scale).toFixed(1)})" ` +
-          `opacity="0.28">${marks}</g>`,
+        `<g transform="translate(${(-13 * scale).toFixed(1)},${(2 * scale).toFixed(1)})" ` +
+          `opacity="0.42">${marks}</g>`,
       )
       break
     }
@@ -417,6 +427,56 @@ export function socketPips(x: number, y: number, open: number, filled: number, c
       i < filled
         ? `<circle cx="${cx}" cy="${y}" r="4" fill="${hex(colour)}" fill-opacity="0.9"/>`
         : `<circle cx="${cx}" cy="${y}" r="4" fill="none" stroke="${hex(palette.ink)}" stroke-opacity="0.3"/>`,
+    )
+  }
+  return parts.join('')
+}
+
+// --- lineage seals --------------------------------------------------------
+
+/**
+ * The seals a lineage stamps on the painting, one per piece worn.
+ *
+ * This answers "every piece has to make a visible difference" without needing a
+ * separate silhouette for every piece of every lineage — which would have been
+ * six lineages times four slots of new geometry, and would have collapsed the
+ * wardrobe's readability long before it was finished.
+ *
+ * Instead the answer comes from the medium itself. A Chinese painting collects
+ * SEALS: the artist's, then every owner's, stamped in cinnabar down the side of
+ * the work. So a swordsman collects the seals of the forges that made what they
+ * wear. One piece, one seal. It is exact — you can count what someone is
+ * wearing from across the screen — it costs one small square per piece, and it
+ * is the single most recognisably Chinese mark there is.
+ *
+ * The last seal lights only when the lineage is complete, which is what makes
+ * the fourth piece feel different from the third.
+ */
+export function lineageSeals(
+  x: number,
+  yBase: number,
+  seal: string,
+  worn: number,
+  total: number,
+  lit: boolean,
+): string {
+  const parts: string[] = []
+  const size = 19
+  const gap = 5
+  for (let i = 0; i < total; i++) {
+    const yy = yBase - i * (size + gap)
+    const has = i < worn
+    // An unstamped seal is an outline: the space is visibly reserved, so the
+    // player can see how many pieces the lineage still wants.
+    parts.push(
+      has
+        ? `<rect x="${x - size / 2}" y="${yy - size}" width="${size}" height="${size}" rx="2" ` +
+            `fill="${hex(lit && i === total - 1 ? palette.cinnabar : palette.cinnabar)}" ` +
+            `fill-opacity="${lit ? 1 : 0.78}"/>` +
+            `<text x="${x}" y="${yy - 5}" text-anchor="middle" font-family="serif" font-size="12" ` +
+            `fill="${hex(palette.paper)}">${seal}</text>`
+        : `<rect x="${x - size / 2}" y="${yy - size}" width="${size}" height="${size}" rx="2" ` +
+            `fill="none" stroke="${hex(palette.ink)}" stroke-opacity="0.18" stroke-dasharray="2 2"/>`,
     )
   }
   return parts.join('')

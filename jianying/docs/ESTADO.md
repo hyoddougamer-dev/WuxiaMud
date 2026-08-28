@@ -135,8 +135,9 @@ nunca recua para uma parede nem decide não matar uma efígie. Essa parte é tua
 | Documento | Responde a |
 |---|---|
 | `docs/progression.png` | O equipamento muda mesmo a personagem à medida que se joga? |
+| `docs/system.png` | **Proposta. Começa por aqui.** O sistema inteiro: as três escadas, as forjas, os selos, a bancada. |
 | `docs/auras.png` | **Proposta.** Cor e encantamento resolvem a convergência do fim de jogo? |
-| `docs/sets.png` | **Proposta.** O que é um set, e o que distingue item de item e classe de classe? |
+| `docs/sets.png` | *Substituído por `system.png`.* Os sets estavam ligados ao mapa. |
 | `docs/ranks.png` | **Proposta.** 淬炼 — uma peça sobe de nível, e cada nível vê-se. Modular por encaixes. |
 | `docs/ESTADO.md` | Este. O que existe, o que falta, o que ainda incomoda. |
 | `docs/PLANO.md` | Que fases vêm a seguir, e o que saiu contra o que estava escrito. |
