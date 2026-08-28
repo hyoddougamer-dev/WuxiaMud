@@ -101,7 +101,19 @@ export const RITES: readonly Rite[] = [
   },
 ]
 
-export const BLADE_ANGLE = 56
+/**
+ * The blade is raised, not lowered, and hangs off the hand the figure has.
+ *
+ * It used to be pinned at a fixed point on the chest and angled down. The
+ * figure now has arms and hands, and its hand sits about eleven units off the
+ * ground — so a forty-unit blade pointed down leaves the frame before it leaves
+ * the body. Kept in step with render/silhouette.ts on purpose: a contact sheet
+ * that draws the weapon differently from the game is a sheet that lies.
+ */
+export const BLADE_ANGLE = -62
+
+/** Longest blade a portrait draws at full length; past this it foreshortens. */
+export const BLADE_FIT = 46
 
 /** The aura markup for one effect, drawn behind or in front of the figure. */
 export function auraFor(
@@ -247,19 +259,21 @@ export function figure(
   )
 
   const rad = (BLADE_ANGLE * Math.PI) / 180
-  const originX = 8 * scale * build
-  const originY = -26 * scale
+  const fit = Math.min(1, BLADE_FIT / gear.blade.reach)
+  const originX = swordsman.hand.x
+  const originY = swordsman.hand.y
   const blade = buildBlade(seed + 1, scale, gear.blade)
   for (const stroke of blade) {
     for (let i = 0; i < stroke.poly.length; i += 2) {
-      const px = stroke.poly[i]!
-      const py = stroke.poly[i + 1]!
+      const px = stroke.poly[i]! * fit
+      const py = stroke.poly[i + 1]! * fit
       bottom = Math.max(bottom, originY + px * Math.sin(rad) + py * Math.cos(rad))
       right = Math.max(right, originX + px * Math.cos(rad) - py * Math.sin(rad))
     }
   }
   parts.push(
-    `<g transform="translate(${originX},${originY}) rotate(${BLADE_ANGLE})">` +
+    `<g transform="translate(${originX},${originY}) rotate(${BLADE_ANGLE}) ` +
+      `scale(${fit.toFixed(3)}) translate(${-7 * scale},${3 * scale})">` +
       blade.map((s) => strokeToPolygon(s, palette.ink)).join('') +
       `</g>`,
   )
@@ -267,13 +281,13 @@ export function figure(
   // The bleed carries the accent; the body stays ink, always.
   for (const stroke of swordsman.bleed) {
     parts.push(
-      accent === null
-        ? strokeToPolygon(stroke, palette.ink)
+      accent === null || stroke.part === 'cut'
+        ? strokeToPolygon(stroke, stroke.part === 'cut' ? palette.paper : palette.ink)
         : strokeToPolygon({ poly: stroke.poly, alpha: stroke.alpha * 3.4 }, accent),
     )
   }
   for (const stroke of swordsman.body) {
-    parts.push(strokeToPolygon(stroke, palette.ink))
+    parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? palette.paper : palette.ink))
     for (let i = 0; i < stroke.poly.length; i += 2) {
       bottom = Math.max(bottom, stroke.poly[i + 1]!)
       right = Math.max(right, stroke.poly[i]!)
