@@ -135,7 +135,8 @@ nunca recua para uma parede nem decide não matar uma efígie. Essa parte é tua
 | Documento | Responde a |
 |---|---|
 | `docs/progression.png` | O equipamento muda mesmo a personagem à medida que se joga? |
-| `docs/catalogue.png` | **Proposta. Começa por aqui.** Os 22 itens um a um, as marcas de grau por slot, e a tabela de stats refeita. |
+| `docs/ORDEM.md` | **Começa por aqui.** A sequência de implementação, e porque é esta e não outra. |
+| `docs/catalogue.png` | **Proposta.** Os 22 itens um a um, as marcas de grau por slot, e a tabela de stats refeita. |
 | `docs/mixing.png` | **Proposta.** Sets misturados, e a resposta à pergunta das classes: o jogo é classless, a arma é a classe. |
 | `docs/forge.png` | **Proposta.** O ecrã da forja ao tamanho real do telemóvel. Só níveis de peça. |
 | `docs/system.png` | *Proposta completa, adiada.* Quatro eixos ao estilo PoE — profundo de mais para já. |

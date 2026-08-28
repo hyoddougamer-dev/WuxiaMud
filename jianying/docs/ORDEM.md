@@ -1,0 +1,98 @@
+# A ordem de implementação
+
+*Escrito depois de oito documentos de proposta e nenhuma linha implementada.
+O objetivo aqui não é decidir O QUÊ — isso já está nas folhas em `docs/` — é
+decidir a SEQUÊNCIA, de forma a que nenhum passo obrigue a refazer o anterior.*
+
+---
+
+## O único nó de arquitetura, e porque tem de vir primeiro
+
+Hoje, no save, um item que possuis é **uma string**:
+
+```ts
+// src/meta/inventory.ts
+owned: string[]                    // ['r-lamellar', 'h-hat', ...]
+equipped: Record<Slot, string>
+```
+
+Uma string não tem onde guardar um grau, nem encaixes, nem uma tinta própria.
+**Tudo o que discutimos precisa de uma instância.**
+
+Se construir o ecrã da forja antes de mudar isto, escrevo a forja contra
+strings e volto a escrevê-la contra instâncias. Se mudar o save primeiro, a
+forja nasce certa à primeira.
+
+### A regra que evita a segunda migração
+
+Definir a instância **uma vez, com espaço para o que vem a seguir**, mesmo que
+os campos fiquem vazios durante meses:
+
+```ts
+interface ItemInstance {
+  id: string        // qual item
+  rank: number      // 阶 0..5 — usado no passo 4
+  rites: string[]   // encaixes — vazio até ao passo 7, mas o campo existe
+}
+```
+
+Acrescentar `rites` mais tarde seria **uma segunda migração de save** em
+telemóveis que já têm progresso. Acrescentar agora custa uma linha.
+
+---
+
+## A sequência
+
+| # | Passo | Depende de | Muda algo visível? |
+|---|---|---|---|
+| **1** | **Instância de item no save** | — | **Não.** É o passo invisível. |
+| 2 | Stats: 10 tipos → 4 com escala | — | Sim, as linhas dos itens |
+| 3 | Sets: agrupar os 22 em 5 + inicial | 2 | Sim, nomes e agrupamento |
+| 4 | Marcas de grau na figura | 1 | Sim, o grau vê-se |
+| 5 | Aba 炉 Forja: temperar com repetidas | 1, 2, 4 | Sim, o ciclo novo |
+| 6 | *APK e jogar* | 5 | — |
+| 7 | Encaixes e ritos (auras) | 1, 6 | Sim, muito |
+
+### Porquê esta ordem e não outra
+
+**1 antes de tudo.** É o único passo que toca no formato do save. Fazê-lo
+primeiro, sozinho e sem nada visível, significa que a migração pode ser testada
+isoladamente — e uma migração de save partida apaga o progresso de quem já
+está a jogar. Nenhum outro passo tem esse risco.
+
+**2 antes de 3.** Um set é dono de um stat. Agrupar antes de saber que stats
+existem obriga a reagrupar.
+
+**4 antes de 5.** A forja mostra a peça antes e depois de temperar. Sem as
+marcas, o botão principal do ecrã não tem consequência visível — e um botão
+sem consequência visível não se consegue testar no telemóvel.
+
+**6 antes de 7.** Os ritos são a parte pesada (desenho + efeito real em
+combate). Não vale construí-los antes de o ciclo de baixo ter sido sentido num
+aparelho. Se temperar não souber bem, ritos por cima também não vão saber.
+
+---
+
+## O que fica de fora, de propósito
+
+- **Áudio e vibração.** Não tocam em nada disto e podem ser feitos a qualquer
+  altura, em paralelo. Continuam a ser o maior salto de sensação por esforço.
+- **Mais itens.** A tabela tem 22 e não há folga no guarda-roupa. Os graus
+  compram profundidade sem itens novos; expandir a tabela é um projeto próprio
+  e vem depois de 6.
+- **O sistema completo de quatro eixos** (`docs/system.png`). Fica guardado.
+  É profundidade de Path of Exile num ecrã que se joga com um polegar, e não
+  se constrói antes de o primeiro eixo estar provado.
+
+---
+
+## Uma decisão ainda por tomar
+
+Cinco sets contra quatro stats não dividem. Duas saídas, e é preciso escolher
+antes do passo 3:
+
+- **Quatro sets**, um por stat, e o quinto conjunto de peças fica solto.
+- **Cinco sets**, e dois partilham 锋 Edge distinguindo-se pela arma.
+
+Nenhuma das duas obriga a refazer nada mais à frente — só têm de estar
+decididas antes de agrupar.
