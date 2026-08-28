@@ -59,7 +59,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.6.1'
+const BUILD = '1.7.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -324,7 +324,14 @@ async function boot(): Promise<void> {
       for (const stroke of strokes) {
         // Robe marks carry the dye; the rest stay ink, so the silhouette still
         // reads black against the paper at the size the game actually draws.
-        const colour = stroke.part === 'robe' && dye !== null ? dye : palette.ink
+        // A cut is painted the colour of the ground it sits on, which is what
+        // makes it a hole rather than a pale mark — see FigureStroke.part.
+        const colour =
+          stroke.part === 'cut'
+            ? palette.paper
+            : stroke.part === 'robe' && dye !== null
+              ? dye
+              : palette.ink
         bodyGfx.poly(stroke.poly).fill({ color: colour, alpha: stroke.alpha })
       }
     }

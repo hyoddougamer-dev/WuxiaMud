@@ -59,11 +59,34 @@ export interface Bearing {
   readonly hem: number
   /** Hair falling below the collar, in figure units. 0 draws none. */
   readonly hair: number
+  /**
+   * Where the waist sits, 0 at the collar and 1 at the hem.
+   *
+   * This is the measurement that actually carries the difference, and the first
+   * version did not have it at all: the robe was ONE stroke from collar to hem
+   * with a straight width ramp, which is a bell, not a body. Widening the
+   * shoulders by seven percent against a bell changes nothing you can see —
+   * reported, correctly, as "não se percebe diferença".
+   *
+   * 汉服 is cut at the natural waist for women and lower for men, and that one
+   * proportion is what the eye reads first in any period silhouette.
+   */
+  readonly waist: number
+  /**
+   * How much the waist pinches in, as a multiple of the collar width.
+   *
+   * Below 1 cinches; above 1 lets the torso run straight down. A cinched waist
+   * over a flared skirt is unmistakable at any size; two slightly different
+   * bells are not.
+   */
+  readonly cinch: number
+  /** Multiplier on how far the sleeves reach. */
+  readonly sleeve: number
 }
 
 export const BEARINGS: readonly Bearing[] = [
-  { id: 'man', name: 'Man', shoulders: 1.07, hem: 0.96, hair: 0 },
-  { id: 'woman', name: 'Woman', shoulders: 0.93, hem: 1.06, hair: 9 },
+  { id: 'man', name: 'Man', shoulders: 1.1, hem: 0.94, hair: 0, waist: 0.5, cinch: 1.28, sleeve: 1.06 },
+  { id: 'woman', name: 'Woman', shoulders: 0.88, hem: 1.12, hair: 13, waist: 0.3, cinch: 0.82, sleeve: 0.94 },
 ] as const
 
 /**
