@@ -84,7 +84,26 @@ export const strings = {
   yourName: 'Name',
   rollName: 'Another name',
   yourSchool: 'Where you trained',
+  yourBearing: 'Your bearing',
+  /**
+   * Says outright which choices survive. Armour is the rest of the appearance
+   * by design, so a player who picked a robe here would watch it vanish on the
+   * first drop — better to be told than to find out by losing something.
+   */
+  bearingNote: 'What you wear is found on the road and will change. These three are yours.',
+  buildLabel: 'Build',
+  sashLabel: 'Sash',
+  brushLabel: 'Brush',
+  anotherHand: 'Another hand',
   takeUpTheSword: 'Begin the road',
+  back: 'Back',
+
+  // --- starting over ------------------------------------------------------
+  newSwordsman: 'New swordsman',
+  discardTitle: 'Take up a new sword?',
+  discardBody: 'This swordsman is lost for good — level, attributes and everything found.',
+  discardConfirm: 'Begin anew',
+  keep: 'Keep',
 
   // --- equipment ---------------------------------------------------------
   equipment: 'Equipment',

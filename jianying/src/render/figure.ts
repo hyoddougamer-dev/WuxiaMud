@@ -53,7 +53,12 @@ export interface Swordsman {
  * over the character, it is where the robe's spine goes, so a longer hem really
  * is a longer silhouette. See render/wardrobe.ts.
  */
-export function buildSwordsmanTopDown(seed = 1, scale = 1, gear: Gear = DEFAULT_GEAR): Swordsman {
+export function buildSwordsmanTopDown(
+  seed = 1,
+  scale = 1,
+  gear: Gear = DEFAULT_GEAR,
+  build = 1,
+): Swordsman {
   const rng = new Rng(seed)
   const s = scale
   const body: FigureStroke[] = []
@@ -223,6 +228,27 @@ export function buildSwordsmanTopDown(seed = 1, scale = 1, gear: Gear = DEFAULT_
 
   // The tallest thing worn decides how much room the figure needs.
   const crest = 50 + (head.hat ? head.hat.lift + 2 : 0) + (head.crown ? head.crown.rise - 6 : 0)
+
+  // ---- Build ------------------------------------------------------------
+  // Applied here, to finished polygons, rather than threaded through the
+  // twenty mark() calls above. Those calls mix x-positions with perpendicular
+  // width profiles — for a vertical spine the width IS the horizontal extent,
+  // for a horizontal one the endpoints are — so widening "correctly" at the
+  // call site means two different rules and twenty chances to apply the wrong
+  // one. Scaling x once at the end is exact by construction, and it widens the
+  // brush jitter along with everything else, which is what a broader stroke
+  // genuinely looks like.
+  //
+  // x only. Height is deliberately untouched: it decides how much room the
+  // figure needs and how the camera frames it, so scaling it would be a
+  // simulation change dressed up as a cosmetic one.
+  if (build !== 1) {
+    for (const strokes of [bleed, body]) {
+      for (const stroke of strokes) {
+        for (let i = 0; i < stroke.poly.length; i += 2) stroke.poly[i]! *= build
+      }
+    }
+  }
 
   return {
     bleed,

@@ -1,21 +1,35 @@
 /**
  * The hub — where the character lives between expeditions.
  *
- * This screen is the answer to two separate pieces of feedback. The first was
- * that the game had no shape: it opened straight into a fight and ended in a
- * fight, so there was nowhere for a player to stand and see what they had. The
- * second, and the one that drove the whole redesign, was not understanding what
- * was happening — and a survivors-like where every number is temporary and
- * invisible is genuinely hard to understand, no matter how well it plays.
+ * The version this replaces was reported, accurately, as a wall of text. It was
+ * one continuous scroll holding a header, a cultivation bar, four attribute
+ * rows carrying two numbers each, four equipment slots of stacked full-width
+ * cards, five map cards with a rule and a drop list apiece, a button and a row
+ * of lifetime totals. Ten blocks, all text, all at once — and in a game drawn
+ * entirely in ink silhouettes it never once drew the swordsman.
  *
- * So the hub states everything plainly and in one place: what realm you are,
- * how far to the next level, what each attribute does in the units the HUD
- * shows, and which road you are about to walk. Nothing here is a surprise to be
- * discovered. The discovery belongs in the expedition.
+ * That last part was the real failure. The wardrobe can assemble nine hundred
+ * distinguishable figures and the whole point of the loot is that you can see
+ * it, yet the screen where you choose your equipment described it in words.
+ *
+ * The rebuild follows what mobile action games have converged on, for reasons
+ * that hold here too:
+ *
+ *   THE CHARACTER IS THE SCREEN.  Rendered large, centred, above everything.
+ *     It is the reward for playing, so it gets the space rather than the stats.
+ *   THREE TABS, NOT ONE SCROLL.  剑 who you are · 装 what you carry · 界 where
+ *     you go. One screen answers one question. Three to five destinations is
+ *     also the ceiling before a tab bar starts costing more than it saves.
+ *   THE PRIMARY ACTION IS PINNED.  "Set out" sits above the tabs and never
+ *     scrolls away, so leaving is never something you have to go and find.
+ *   ONE LINE PER FACT.  An attribute is its rank and what it currently buys, on
+ *     one line. It used to take two.
  *
  * Built as DOM rather than canvas for the same reason the HUD is: crisp text at
  * any device pixel ratio, real scrolling, real tap targets, and none of it
- * competing with the render loop — which is idle on this screen anyway.
+ * competing with the render loop — which is idle on this screen anyway. The
+ * figure is inline SVG from the same pure geometry the game renders in play, so
+ * it costs no canvas and cannot drift from what you will actually be.
  */
 import {
   ATTRIBUTES,
@@ -25,7 +39,7 @@ import {
   spendPoint,
   xpForCultivation,
 } from '../meta/character'
-import { MAX_DEPTH, REGIONS, depthReward } from '../data/regions'
+import { MAX_DEPTH, REGIONS, depthReward, regionAt } from '../data/regions'
 import { schoolById } from '../meta/schools'
 import { equip, equippedIn, equippedItems, ownedInSlot } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
@@ -33,6 +47,8 @@ import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } from '../sim/loadout'
 import { PLAYER_MAX_HP } from '../sim/combat'
+import { portraitSvg } from '../render/silhouette'
+import { gearFromIds } from '../render/wardrobe'
 import { strings } from './strings'
 
 export interface HubScreen {
@@ -42,12 +58,25 @@ export interface HubScreen {
   readonly visible: boolean
 }
 
+type TabId = 'self' | 'gear' | 'world'
+
+interface Tab {
+  readonly id: TabId
+  readonly seal: string
+  readonly name: string
+}
+
+const TABS: readonly Tab[] = [
+  { id: 'self', seal: '剑', name: 'Swordsman' },
+  { id: 'gear', seal: '装', name: 'Equipment' },
+  { id: 'world', seal: '界', name: 'World' },
+] as const
+
 /** Escapes text destined for innerHTML. The name comes from a text field. */
 function escapeHtml(text: string): string {
   return text.replace(
     /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
   )
 }
 
@@ -60,9 +89,9 @@ function formatTime(seconds: number): string {
 /**
  * What an attribute is currently worth, in the units the player sees in play.
  *
- * Showing "Body 4" tells a player nothing. Showing "Body 4 · 148 health" tells
- * them what the next point buys and what the last four bought, which is the
- * difference between spending a point and guessing.
+ * Showing "Body 4" tells a player nothing. Showing "148 health" tells them what
+ * the last four points bought, which is the difference between spending a point
+ * and guessing.
  */
 function currentValue(id: string, spent: Attributes, weapon: WeaponClass): string {
   const attr = attributeBonuses(spent)
@@ -109,6 +138,7 @@ export function createHub(
   root: HTMLElement,
   onSave: () => void,
   onOpenCodex: () => void,
+  onNewCharacter: () => void,
 ): HubScreen {
   const panel = document.createElement('div')
   panel.className = 'hub'
@@ -119,9 +149,30 @@ export function createHub(
   let character: Character | null = null
   let onSetOutHandler: ((depth: number) => void) | null = null
   let chosenDepth = 1
+  // Kept across renders so spending a point does not throw the player back to
+  // the first tab — a screen that loses your place on every tap feels broken
+  // long before anyone works out why.
+  let tab: TabId = 'self'
+
+  /** The swordsman as they currently stand, gear and all. */
+  const portrait = (c: Character, box: number): string => {
+    const worn = equippedItems(c.inventory)
+    const styleFor = (slot: Slot): string | undefined =>
+      worn.find((item) => item.slot === slot)?.styleId
+    return portraitSvg(
+      gearFromIds({
+        robe: styleFor('robe'),
+        shoulders: styleFor('shoulders'),
+        head: styleFor('head'),
+        blade: styleFor('weapon') ?? schoolById(c.origin).weaponId,
+      }),
+      c.look,
+      { box },
+    )
+  }
 
   /**
-   * One tappable equipment card.
+   * One tappable equipment chip.
    *
    * A weapon shows how it plays rather than a stat, because that is what
    * changes when you equip it — "+2 damage" on a spear would describe the least
@@ -132,9 +183,7 @@ export function createHub(
     card.type = 'button'
     card.className =
       'item' + (worn ? ' item-worn' : '') + (item.rarity > 0 ? ` item-r${item.rarity}` : '')
-
-    const line =
-      slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat)
+    const line = slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat)
     card.innerHTML = `
       <div class="item-name">${item.name}</div>
       <div class="item-line">${line}</div>
@@ -148,82 +197,22 @@ export function createHub(
     return card
   }
 
-  const render = (): void => {
-    const c = character
-    if (!c) return
+  // --- the panes ---------------------------------------------------------
 
-    const realm = realmOf(c.level)
-    const need = xpForCultivation(c.level)
-    const pct = Math.max(0, Math.min(1, c.xp / need))
-    const unlocked = Math.min(MAX_DEPTH, c.depth)
+  /** 剑 — who you are. Figure, what your numbers currently buy, and the points. */
+  const paneSelf = (c: Character, total: Attributes, weapon: WeaponClass): HTMLElement => {
+    const pane = document.createElement('div')
+    pane.className = 'pane'
 
-    panel.innerHTML = ''
+    const stage = document.createElement('div')
+    stage.className = 'stage'
+    stage.innerHTML = portrait(c, 84)
+    pane.appendChild(stage)
 
-    // --- identity ------------------------------------------------------
-    // The name and origin lead, and the realm follows. A panel that opens on
-    // "Body Tempering" describes a rank; one that opens on "Bai Anzhi, of the
-    // Mountain Sect" describes somebody the numbers below belong to.
-    const school = schoolById(c.origin)
-    const weaponItem = equippedIn(c.inventory, 'weapon')
-    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
-
-    // Attributes granted by worn equipment count exactly like bought ones in
-    // combat, so the hub must quote the combined figure. Quoting only the
-    // bought half was a straightforward lie: it read "0.26s per sweep" while
-    // the game ran at 0.24s, and this screen exists to be believed.
-    const fromGear = emptyAttributes()
-    for (const item of equippedItems(c.inventory)) {
-      const stat = item.stat
-      if (!stat) continue
-      if (stat.kind === 'body' || stat.kind === 'edge' || stat.kind === 'swift' || stat.kind === 'spirit') {
-        fromGear[stat.kind] += stat.amount
-      }
-    }
-    const total: Attributes = {
-      body: c.spent.body + fromGear.body,
-      edge: c.spent.edge + fromGear.edge,
-      swift: c.spent.swift + fromGear.swift,
-      spirit: c.spent.spirit + fromGear.spirit,
-    }
-    const head = document.createElement('div')
-    head.className = 'hub-head'
-    head.innerHTML = `
-      <div class="hub-seal">${realm.seal}</div>
-      <div class="hub-ident">
-        <div class="hub-name">${escapeHtml(c.name)}</div>
-        <div class="hub-origin">${school.seal} ${school.name}</div>
-        <div class="hub-realm">${realm.name}
-          <span class="hub-level">${strings.level} ${c.level}</span>
-          <span class="hub-step">${realmStep(c.level)} / ${
-            // The top realm never promotes, so a "/ 5" there would promise a
-            // ceremony that is never coming.
-            realmIndex(c.level) === REALMS.length - 1 ? '∞' : LEVELS_PER_REALM
-          }</span>
-        </div>
-      </div>
-      <button class="hub-codex" type="button" aria-label="${strings.openCodex}">?</button>
-    `
-    head.querySelector<HTMLButtonElement>('.hub-codex')!.addEventListener('click', onOpenCodex)
-    panel.appendChild(head)
-
-    // --- cultivation bar -----------------------------------------------
-    const bar = document.createElement('div')
-    bar.className = 'hub-cult'
-    bar.innerHTML = `
-      <div class="hub-cult-row">
-        <span>${strings.cultivation}</span>
-        <b>${c.xp} / ${need}</b>
-      </div>
-      <div class="hub-cult-track"><div class="hub-cult-fill"></div></div>
-    `
-    panel.appendChild(bar)
-    bar.querySelector<HTMLElement>('.hub-cult-fill')!.style.transform = `scaleX(${pct})`
-
-    // --- attributes -----------------------------------------------------
     const attrs = document.createElement('div')
-    attrs.className = 'hub-section'
+    attrs.className = 'block'
     const attrHead = document.createElement('div')
-    attrHead.className = 'hub-section-head'
+    attrHead.className = 'block-head'
     attrHead.innerHTML = `<span>${strings.attributes}</span>`
     if (c.points > 0) {
       const badge = document.createElement('b')
@@ -239,21 +228,22 @@ export function createHub(
       const row = document.createElement('div')
       row.className = 'attr'
 
-      const seal = document.createElement('div')
-      seal.className = 'attr-seal'
-      seal.textContent = attr.seal
-
-      const text = document.createElement('div')
-      text.className = 'attr-text'
-      // The gear half is shown as its own "+n" rather than folded into the
-      // rank, so a player can see which of their numbers they bought and which
-      // they are wearing — and therefore what they would lose by swapping.
-      const gear = fromGear[attr.id]
-      text.innerHTML = `
-        <div class="attr-name">${attr.name} <span class="attr-rank">${c.spent[attr.id]}</span>${
-          gear > 0 ? `<span class="attr-gear">+${gear}</span>` : ''
-        }</div>
-        <div class="attr-now">${currentValue(attr.id, total, weapon)}</div>
+      // One line, not two. Seal, name, rank, and what it currently buys — the
+      // old layout stacked the value under the name and doubled the height of
+      // this block for no information gained.
+      const gear = attr.id in c.spent ? total[attr.id] - c.spent[attr.id] : 0
+      row.innerHTML = `
+        <div class="attr-seal">${attr.seal}</div>
+        <div class="attr-text">
+          <span class="attr-name">${attr.name}</span>
+          <span class="attr-rank">${c.spent[attr.id]}</span>${
+            // The gear half is shown separately so a player can see which of
+            // their numbers they bought and which they are wearing — and
+            // therefore what a swap would cost them.
+            gear > 0 ? `<span class="attr-gear">+${gear}</span>` : ''
+          }
+          <span class="attr-now">${currentValue(attr.id, total, weapon)}</span>
+        </div>
       `
 
       const button = document.createElement('button')
@@ -277,19 +267,44 @@ export function createHub(
         render()
       })
 
-      row.append(seal, text, button)
+      row.appendChild(button)
       attrs.appendChild(row)
     }
-    panel.appendChild(attrs)
+    pane.appendChild(attrs)
 
-    // --- equipment --------------------------------------------------------
-    // Four slots, each a row of what you own that fits it. No comparison table
-    // and no tooltips: an item is a name, one line, and the silhouette it gives
-    // you. A phone cannot hold a spreadsheet, and a player who has to study one
-    // during a game about not standing still will simply stop reading it.
-    const gearSection = document.createElement('div')
-    gearSection.className = 'hub-section'
-    gearSection.innerHTML = `<div class="hub-section-head"><span>${strings.equipment}</span></div>`
+    if (c.runs > 0) {
+      const totals = document.createElement('div')
+      totals.className = 'hub-totals'
+      totals.innerHTML = `
+        <span>${strings.expeditions} <b>${c.runs}</b></span>
+        <span>${strings.longest} <b>${formatTime(c.bestSeconds)}</b></span>
+        <span>${strings.lifetimeKills} <b>${c.totalKills}</b></span>
+      `
+      pane.appendChild(totals)
+    }
+
+    // Creation used to be reachable only on a save-less first launch, which
+    // meant the school picker — the game's opening question — was unreachable
+    // forever after. This is the way back to it.
+    const again = document.createElement('button')
+    again.type = 'button'
+    again.className = 'hub-again'
+    again.textContent = strings.newSwordsman
+    again.addEventListener('click', onNewCharacter)
+    pane.appendChild(again)
+
+    return pane
+  }
+
+  /** 装 — what you carry. The figure stays, because this is where it changes. */
+  const paneGear = (c: Character): HTMLElement => {
+    const pane = document.createElement('div')
+    pane.className = 'pane'
+
+    const stage = document.createElement('div')
+    stage.className = 'stage stage-small'
+    stage.innerHTML = portrait(c, 84)
+    pane.appendChild(stage)
 
     for (const slot of SLOTS) {
       const owned = ownedInSlot(c.inventory, slot)
@@ -304,23 +319,21 @@ export function createHub(
       group.appendChild(label)
 
       const row = document.createElement('div')
+      // Scrolls sideways rather than stacking. A slot with six finds used to
+      // add six full-width cards to a page that was already too long.
       row.className = 'slot-items'
-      for (const item of owned) {
-        row.appendChild(itemCard(item, item.id === wornId, slot))
-      }
+      for (const item of owned) row.appendChild(itemCard(item, item.id === wornId, slot))
       group.appendChild(row)
-      gearSection.appendChild(group)
+      pane.appendChild(group)
     }
-    panel.appendChild(gearSection)
+    return pane
+  }
 
-    // --- the map ---------------------------------------------------------
-    // Five places, not eight numbered squares. Each one shows the rule that
-    // makes it itself and what can only be found there, because those two
-    // facts are the entire reason to pick one over another — and a numbered
-    // pip communicated neither.
-    const roads = document.createElement('div')
-    roads.className = 'hub-section'
-    roads.innerHTML = `<div class="hub-section-head"><span>${strings.theWorld}</span></div>`
+  /** 界 — where you go. Five places, each with its rule and what it keeps. */
+  const paneWorld = (c: Character): HTMLElement => {
+    const pane = document.createElement('div')
+    pane.className = 'pane'
+    const unlocked = Math.min(MAX_DEPTH, c.depth)
 
     const map = document.createElement('div')
     map.className = 'map'
@@ -357,33 +370,118 @@ export function createHub(
       })
       map.appendChild(card)
     }
-    roads.appendChild(map)
-    panel.appendChild(roads)
+    pane.appendChild(map)
+    return pane
+  }
 
-    // --- set out --------------------------------------------------------
-    const go = document.createElement('button')
-    go.type = 'button'
-    go.className = 'hub-go'
-    go.textContent = strings.setOut
-    go.addEventListener('click', () => {
+  const render = (): void => {
+    const c = character
+    if (!c) return
+
+    const realm = realmOf(c.level)
+    const need = xpForCultivation(c.level)
+    const pct = Math.max(0, Math.min(1, c.xp / need))
+
+    const school = schoolById(c.origin)
+    const weaponItem = equippedIn(c.inventory, 'weapon')
+    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
+
+    // Attributes granted by worn equipment count exactly like bought ones in
+    // combat, so the hub must quote the combined figure. Quoting only the
+    // bought half was a straightforward lie: it read "0.26s per sweep" while
+    // the game ran at 0.24s, and this screen exists to be believed.
+    const fromGear = emptyAttributes()
+    for (const item of equippedItems(c.inventory)) {
+      const stat = item.stat
+      if (!stat) continue
+      if (
+        stat.kind === 'body' ||
+        stat.kind === 'edge' ||
+        stat.kind === 'swift' ||
+        stat.kind === 'spirit'
+      ) {
+        fromGear[stat.kind] += stat.amount
+      }
+    }
+    const total: Attributes = {
+      body: c.spent.body + fromGear.body,
+      edge: c.spent.edge + fromGear.edge,
+      swift: c.spent.swift + fromGear.swift,
+      spirit: c.spent.spirit + fromGear.spirit,
+    }
+
+    panel.innerHTML = ''
+
+    // --- identity, always on screen ---------------------------------------
+    const head = document.createElement('div')
+    head.className = 'hub-head'
+    head.innerHTML = `
+      <div class="hub-seal">${realm.seal}</div>
+      <div class="hub-ident">
+        <div class="hub-name">${escapeHtml(c.name)}</div>
+        <div class="hub-realm">${realm.name}
+          <span class="hub-level">${strings.level} ${c.level}</span>
+          <span class="hub-step">${realmStep(c.level)} / ${
+            // The top realm never promotes, so a "/ 5" there would promise a
+            // ceremony that is never coming.
+            realmIndex(c.level) === REALMS.length - 1 ? '∞' : LEVELS_PER_REALM
+          }</span>
+        </div>
+        <div class="hub-cult-track"><div class="hub-cult-fill"></div></div>
+      </div>
+      <button class="hub-codex" type="button" aria-label="${strings.openCodex}">?</button>
+    `
+    head.querySelector<HTMLButtonElement>('.hub-codex')!.addEventListener('click', onOpenCodex)
+    head.querySelector<HTMLElement>('.hub-cult-fill')!.style.transform = `scaleX(${pct})`
+    head.title = `${strings.cultivation} ${c.xp} / ${need}`
+    panel.appendChild(head)
+
+    // --- the pane ---------------------------------------------------------
+    const body = document.createElement('div')
+    body.className = 'hub-body'
+    body.appendChild(
+      tab === 'self' ? paneSelf(c, total, weapon) : tab === 'gear' ? paneGear(c) : paneWorld(c),
+    )
+    panel.appendChild(body)
+
+    // --- pinned action ----------------------------------------------------
+    // Above the tabs and never scrolled away. Leaving is the reason the screen
+    // exists; having to hunt for it was the single worst thing about the old
+    // layout, since it sat under everything else.
+    const region = regionAt(chosenDepth)
+    const action = document.createElement('div')
+    action.className = 'hub-action'
+    action.innerHTML = `
+      <div class="hub-dest">
+        <span class="hub-dest-seal">${region.seal}</span>
+        <span class="hub-dest-name">${region.name}</span>
+      </div>
+      <button class="hub-go" type="button">${strings.setOut}</button>
+    `
+    action.querySelector<HTMLButtonElement>('.hub-go')!.addEventListener('click', () => {
       const handler = onSetOutHandler
       // Cleared before calling, so a double tap cannot start two expeditions.
       onSetOutHandler = null
       handler?.(chosenDepth)
     })
-    panel.appendChild(go)
+    panel.appendChild(action)
 
-    // --- lifetime -------------------------------------------------------
-    if (c.runs > 0) {
-      const totals = document.createElement('div')
-      totals.className = 'hub-totals'
-      totals.innerHTML = `
-        <span>${strings.expeditions} <b>${c.runs}</b></span>
-        <span>${strings.longest} <b>${formatTime(c.bestSeconds)}</b></span>
-        <span>${strings.lifetimeKills} <b>${c.totalKills}</b></span>
-      `
-      panel.appendChild(totals)
+    // --- tabs -------------------------------------------------------------
+    const tabs = document.createElement('div')
+    tabs.className = 'hub-tabs'
+    for (const item of TABS) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'tab' + (item.id === tab ? ' tab-on' : '')
+      button.innerHTML = `<span class="tab-seal">${item.seal}</span><span class="tab-name">${item.name}</span>`
+      button.addEventListener('click', () => {
+        if (tab === item.id) return
+        tab = item.id
+        render()
+      })
+      tabs.appendChild(button)
     }
+    panel.appendChild(tabs)
   }
 
   return {
@@ -395,10 +493,12 @@ export function createHub(
       character = c
       onSetOutHandler = onSetOut
       chosenDepth = Math.min(Math.max(1, c.depth), MAX_DEPTH)
+      // Opens on the swordsman. A player returning from a death wants to see
+      // what the death bought before deciding where to go next.
+      tab = 'self'
       render()
       panel.hidden = false
       shown = true
-      panel.scrollTop = 0
       requestAnimationFrame(() => panel.classList.add('shown'))
     },
 

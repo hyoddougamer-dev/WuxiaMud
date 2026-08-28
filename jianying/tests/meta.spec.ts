@@ -31,6 +31,10 @@ import {
 } from '../src/meta/realms'
 import { SCHOOLS, SCHOOL_BY_ID, applySchool, rollName } from '../src/meta/schools'
 import { parseCharacter, serialiseCharacter } from '../src/meta/save'
+import { BUILDS, DEFAULT_LOOK, SASHES, buildOf } from '../src/meta/look'
+import { buildSwordsmanTopDown } from '../src/render/figure'
+import { gearFromIds } from '../src/render/wardrobe'
+import { portraitSvg } from '../src/render/silhouette'
 import { createRun, updateCombat } from '../src/sim/combat'
 import {
   DEFAULT_WEAPON,
@@ -730,5 +734,62 @@ describe('depth holds permanent power in check', () => {
     // No build may run forever: an expedition that never resolves never pays,
     // and the whole meta loop stalls.
     expect(survive(attrs({ body: 40, edge: 40, swift: 30, spirit: 30 }), 1)).toBeLessThan(400)
+  })
+})
+
+describe('appearance', () => {
+  it('survives a save round-trip', () => {
+    const c = createCharacter('Bai', 'temple', { seed: 4242, build: 2, sash: 3 })
+    expect(parseCharacter(serialiseCharacter(c))!.look).toEqual(c.look)
+  })
+
+  it('gives a save written before appearance existed a usable default', () => {
+    // A character already on someone's phone has no `look` at all. Leaving it
+    // undefined would reach the figure builder as NaN widths, which does not
+    // throw — it silently draws nothing, and an invisible player character is
+    // the worst failure this field could cause.
+    const back = parseCharacter(JSON.stringify({ name: 'Lu', level: 6, runs: 4 }))!
+    expect(back.look).toEqual(DEFAULT_LOOK)
+    expect(Number.isFinite(buildOf(back.look).width)).toBe(true)
+  })
+
+  it('clamps indices that no longer exist to something drawable', () => {
+    const back = parseCharacter(
+      JSON.stringify({ look: { seed: Number.NaN, build: 99, sash: -4 } }),
+    )!
+    expect(BUILDS[back.look.build]).toBeDefined()
+    expect(SASHES[back.look.sash]).toBeDefined()
+    expect(Number.isFinite(back.look.seed)).toBe(true)
+    expect(back.look.seed).toBeGreaterThan(0)
+  })
+
+  it('changes the silhouette rather than only the label', () => {
+    // A build option that does not alter the geometry is a menu entry with no
+    // consequence, which is precisely what the first creation screen was.
+    const gear = gearFromIds({})
+    const wide = (b: number): number => {
+      const figure = buildSwordsmanTopDown(7, 1, gear, b)
+      let max = 0
+      for (const stroke of figure.body) {
+        for (let i = 0; i < stroke.poly.length; i += 2) max = Math.max(max, Math.abs(stroke.poly[i]!))
+      }
+      return max
+    }
+    expect(wide(BUILDS[2]!.width)).toBeGreaterThan(wide(BUILDS[0]!.width) * 1.15)
+    // Height must not move: it decides how the camera frames the figure, so
+    // scaling it would be a simulation change wearing a cosmetic costume.
+    expect(buildSwordsmanTopDown(7, 1, gear, 1.4).height).toBe(
+      buildSwordsmanTopDown(7, 1, gear, 0.8).height,
+    )
+  })
+
+  it('draws every school as a different silhouette in the DOM', () => {
+    // The creation screen's whole claim is that picking a school changes what
+    // you see. Identical markup for two schools would make that a lie.
+    const drawn = SCHOOLS.map((school) =>
+      portraitSvg(gearFromIds({ blade: school.weaponId }), DEFAULT_LOOK),
+    )
+    expect(new Set(drawn).size).toBe(SCHOOLS.length)
+    for (const svg of drawn) expect(svg).toContain('<polygon')
   })
 })

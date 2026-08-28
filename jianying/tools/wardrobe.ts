@@ -15,7 +15,8 @@
 import { writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildBlade, buildSwordsmanTopDown, type FigureStroke } from '../src/render/figure'
+import { buildBlade, buildSwordsmanTopDown } from '../src/render/figure'
+import { strokeToPolygon } from '../src/render/silhouette'
 import { palette } from '../src/render/palette'
 import {
   BLADES,
@@ -35,13 +36,10 @@ const COLS = 6
 
 const hex = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`
 
-function polygon(stroke: FigureStroke, colour: number): string {
-  const pts: string[] = []
-  for (let i = 0; i < stroke.poly.length; i += 2) {
-    pts.push(`${stroke.poly[i]!.toFixed(2)},${stroke.poly[i + 1]!.toFixed(2)}`)
-  }
-  return `<polygon points="${pts.join(' ')}" fill="${hex(colour)}" fill-opacity="${stroke.alpha.toFixed(3)}"/>`
-}
+// Shared with the DOM screens rather than duplicated. The sheet exists to be
+// trusted as evidence about what the game draws, so it must not be able to
+// render polygons by a slightly different rule than the hub does.
+const polygon = strokeToPolygon
 
 /** One figure, drawn in its own translated group. */
 function cell(gear: Gear, label: string, x: number, y: number, index: number): string {

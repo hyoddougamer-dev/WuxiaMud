@@ -446,7 +446,6 @@
          every touch while the game ran perfectly underneath it — so every
          panel below carries its own [hidden] rule. */
       .title,
-      .create,
       .codex {
         position: absolute;
         inset: 0;
@@ -459,6 +458,112 @@
         pointer-events: auto;
         opacity: 0;
         transition: opacity 320ms ease;
+      }
+      /* Creation is a column, not a scroll: the swordsman is pinned at the top
+         and the controls scroll beneath, so the figure you are shaping never
+         leaves the screen while you shape it. */
+      .create {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--ink);
+        pointer-events: auto;
+        opacity: 0;
+        transition: opacity 320ms ease;
+      }
+      .create-stage {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: calc(env(safe-area-inset-top, 0) + 14px) 20px 6px;
+      }
+      .create-stage .portrait-svg {
+        width: 152px;
+        height: 176px;
+      }
+      .create-caption {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        text-align: center;
+      }
+      .create-cap-school {
+        font-size: 13px;
+        color: rgba(13, 13, 13, 0.62);
+      }
+      .create-cap-weapon {
+        font-size: 12px;
+        color: var(--cinnabar);
+      }
+      .create-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 6px 20px 14px;
+      }
+      .create-foot {
+        flex: none;
+        display: flex;
+        gap: 10px;
+        padding: 10px 20px calc(env(safe-area-inset-bottom, 0) + 14px);
+        border-top: 1px solid rgba(13, 13, 13, 0.1);
+        background: var(--paper);
+      }
+      .create-note {
+        margin: -4px 0 8px;
+        font-size: 11.5px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.45);
+      }
+
+      /* --- bearing: the three things equipment cannot overwrite --------- */
+      .look-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .look-label {
+        flex: none;
+        width: 54px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.42);
+      }
+      .look-chips {
+        display: flex;
+        flex: 1;
+        gap: 6px;
+      }
+      /* Deliberately NOT called .chip: that class already exists for the
+         in-run technique chips on the HUD, and reusing it would have styled
+         both from whichever rule happened to come last in this file. */
+      .look-chip {
+        flex: 1;
+        padding: 9px 6px;
+        font: inherit;
+        font-size: 12.5px;
+        color: var(--ink);
+        background: rgba(255, 252, 244, 0.55);
+        border: 1px solid rgba(13, 13, 13, 0.12);
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .look-chip-on {
+        color: var(--paper);
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .look-chip:active {
+        transform: scale(0.98);
       }
       .title[hidden],
       .create[hidden],
@@ -591,22 +696,23 @@
         background: rgba(255, 250, 232, 0.92);
         border-left-color: var(--cinnabar);
       }
-      .origin-seal {
+      /* The card leads with the swordsman this school produces, so the row is
+         five different silhouettes rather than five paragraphs. This is the
+         whole reason the figure builder was kept free of Pixi. */
+      .origin-figure {
         flex: none;
-        width: 40px;
-        height: 40px;
+        width: 54px;
         display: grid;
         place-content: center;
-        font-size: 13px;
-        line-height: 1.15;
-        text-align: center;
-        color: rgba(13, 13, 13, 0.6);
-        background: rgba(13, 13, 13, 0.06);
+        background: rgba(13, 13, 13, 0.045);
         border-radius: 2px;
       }
-      .origin-on .origin-seal {
-        color: var(--paper);
-        background: var(--cinnabar);
+      .origin-figure .portrait-svg {
+        width: 52px;
+        height: 66px;
+      }
+      .origin-on .origin-figure {
+        background: rgba(193, 39, 45, 0.1);
       }
       .origin-text {
         flex: 1;
@@ -655,8 +761,11 @@
         padding-bottom: 3px;
       }
       .item {
-        flex: none;
-        width: 158px;
+        /* Grows to fill the row when a slot holds one find, overflows into the
+           horizontal scroll when it holds six. `flex: none` did the second half
+           and left a single item sitting in a half-empty row looking like a
+           layout that had failed. */
+        flex: 1 0 158px;
         min-height: 58px;
         padding: 9px 11px;
         text-align: left;
@@ -715,10 +824,19 @@
       .loot-dupe b {
         color: rgba(13, 13, 13, 0.35);
       }
+      .create-back {
+        flex: none;
+        padding: 16px 20px;
+        font: inherit;
+        font-size: 13px;
+        color: rgba(13, 13, 13, 0.55);
+        background: none;
+        border: 1px solid rgba(13, 13, 13, 0.16);
+        border-radius: 3px;
+        cursor: pointer;
+      }
       .create-go {
-        display: block;
-        width: 100%;
-        margin-top: 18px;
+        flex: 1;
         padding: 16px;
         font: inherit;
         font-size: 16px;
@@ -779,18 +897,188 @@
       }
 
       /* --- hub -------------------------------------------------------- */
+      /* A column with three fixed bands and one scrolling one, not a single
+         long scroll. Identity is always on screen, "Set out" is always within
+         thumb reach, and only the pane between them moves. The old layout put
+         everything in one scroll and buried the button that leaves. */
       .hub {
         position: absolute;
         inset: 0;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        padding: calc(env(safe-area-inset-top, 0) + 26px) 18px
-          calc(env(safe-area-inset-bottom, 0) + 26px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         background: var(--paper);
         color: var(--ink);
         pointer-events: auto;
         opacity: 0;
         transition: opacity 300ms ease;
+      }
+      .hub-body {
+        flex: 1;
+        /* Without this a flex child refuses to shrink below its content and the
+           pane pushes the tab bar off the bottom of the phone. */
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px 18px 18px;
+      }
+      .pane {
+        display: block;
+      }
+
+      /* The swordsman, drawn from the same geometry the game renders in play. */
+      .stage {
+        display: flex;
+        justify-content: center;
+        padding: 0 0 6px;
+      }
+      /* The geometry is tuned to read at roughly this size in play. Blown up
+         much larger the robe stops being a silhouette and becomes a blob, so
+         the portrait is deliberately modest rather than filling the pane. */
+      .stage .portrait-svg {
+        width: 150px;
+        height: 166px;
+      }
+      .stage-small .portrait-svg {
+        width: 120px;
+        height: 140px;
+      }
+      .portrait-svg {
+        display: block;
+        overflow: visible;
+      }
+
+      /* --- pinned action ------------------------------------------------ */
+      .hub-action {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 18px;
+        border-top: 1px solid rgba(13, 13, 13, 0.1);
+      }
+      .hub-dest {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .hub-dest-seal {
+        font-size: 12px;
+        color: var(--cinnabar);
+      }
+      .hub-dest-name {
+        font-size: 13px;
+        color: rgba(13, 13, 13, 0.62);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* --- tabs --------------------------------------------------------- */
+      .hub-tabs {
+        flex: none;
+        display: flex;
+        border-top: 1px solid rgba(13, 13, 13, 0.12);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        background: rgba(13, 13, 13, 0.035);
+      }
+      .tab {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 9px 4px 10px;
+        font: inherit;
+        background: none;
+        border: 0;
+        border-top: 2px solid transparent;
+        color: rgba(13, 13, 13, 0.4);
+        cursor: pointer;
+      }
+      .tab-on {
+        color: var(--ink);
+        border-top-color: var(--cinnabar);
+        background: var(--paper);
+      }
+      .tab-seal {
+        font-size: 17px;
+        line-height: 1.1;
+      }
+      .tab-name {
+        font-size: 9.5px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      /* --- starting over ------------------------------------------------ */
+      .hub-again {
+        display: block;
+        width: 100%;
+        margin-top: 18px;
+        padding: 12px;
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: rgba(13, 13, 13, 0.45);
+        background: none;
+        border: 1px solid rgba(13, 13, 13, 0.14);
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      /* The destructive path asks first, and defaults to keeping: the safe
+         button comes first and a tap on the darkened area dismisses. */
+      .confirm {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        padding: 24px;
+        background: rgba(13, 13, 13, 0.55);
+        pointer-events: auto;
+        z-index: 40;
+      }
+      .confirm-box {
+        width: min(320px, 84vw);
+        padding: 20px;
+        background: var(--paper);
+        color: var(--ink);
+        border-radius: 4px;
+      }
+      .confirm-title {
+        font-size: 17px;
+      }
+      .confirm-body {
+        margin-top: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(13, 13, 13, 0.6);
+      }
+      .confirm-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .confirm-keep,
+      .confirm-go {
+        flex: 1;
+        padding: 13px;
+        font: inherit;
+        font-size: 13px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .confirm-keep {
+        color: var(--ink);
+        background: none;
+        border: 1px solid rgba(13, 13, 13, 0.2);
+      }
+      .confirm-go {
+        color: var(--paper);
+        background: var(--cinnabar);
+        border: 0;
       }
       /* A class selector beats the UA's [hidden] { display: none }. Getting
          this wrong once shipped a full-screen invisible panel that swallowed
@@ -803,9 +1091,12 @@
       }
 
       .hub-head {
+        flex: none;
         display: flex;
         align-items: center;
         gap: 14px;
+        padding: calc(env(safe-area-inset-top, 0) + 14px) 18px 12px;
+        border-bottom: 1px solid rgba(13, 13, 13, 0.1);
       }
       .hub-seal {
         flex: none;
@@ -888,6 +1179,9 @@
         letter-spacing: 0.02em;
         text-transform: none;
       }
+      .hub-ident .hub-cult-track {
+        margin-top: 7px;
+      }
       .hub-cult-track {
         margin-top: 5px;
         height: 5px;
@@ -902,9 +1196,11 @@
         transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
       }
 
+      .block,
       .hub-section {
         margin-top: 22px;
       }
+      .block-head,
       .hub-section-head {
         display: flex;
         justify-content: space-between;
@@ -961,8 +1257,10 @@
         color: var(--cinnabar);
         font-variant-numeric: tabular-nums;
       }
+      /* On the same line as the name now, not stacked under it. Four attributes
+         each taking two lines was half the reason this screen read as a wall. */
       .attr-now {
-        margin-top: 1px;
+        margin-left: 7px;
         font-size: 12px;
         color: rgba(13, 13, 13, 0.5);
         font-variant-numeric: tabular-nums;
@@ -1088,10 +1386,8 @@
       }
 
       .hub-go {
-        display: block;
-        width: 100%;
-        margin-top: 22px;
-        padding: 16px;
+        flex: none;
+        padding: 15px 26px;
         font: inherit;
         font-size: 16px;
         letter-spacing: 0.16em;

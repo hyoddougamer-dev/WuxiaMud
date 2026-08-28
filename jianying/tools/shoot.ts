@@ -183,19 +183,51 @@ async function main(): Promise<void> {
       console.warn('warn:   no attribute point available to spend')
     }
 
-    // The map sits below the fold, so a top-of-hub screenshot cannot show it.
-    // It is the screen where the player decides where to walk, which makes it
-    // worth its own still — and worth asserting it has all five places on it.
-    const places = page.locator('.place')
-    const placeCount = await places.count()
-    if (placeCount > 0) {
-      await places.last().scrollIntoViewIfNeeded()
-      await page.waitForTimeout(200)
-      await page.screenshot({ path: join(OUT, 'hub-map.png') })
-      await page.locator('.hub').evaluate((el) => (el.scrollTop = 0))
-      await page.waitForTimeout(200)
+    // The hub is three tabs now, so one screenshot can only ever show a third
+    // of it. Walking them also proves the tab bar actually switches panes —
+    // a bar that looks right and does nothing would photograph identically.
+    const tabs = page.locator('.hub-tabs .tab')
+    const tabCount = await tabs.count()
+    for (let i = 0; i < tabCount; i++) {
+      await tabs.nth(i).click()
+      await page.waitForTimeout(220)
+      await page.screenshot({ path: join(OUT, `hub-${i + 1}.png`) })
     }
-    console.log(`map:    ${placeCount} places`)
+    // The world tab is last, and the map must have all five places on it.
+    const placeCount = await page.locator('.place').count()
+    // Back to the swordsman, so what follows starts where a player would.
+    await tabs.first().click()
+    await page.waitForTimeout(200)
+    console.log(`hub:    ${tabCount} tabs, ${placeCount} places`)
+    if (tabCount !== 3) console.warn('warn:   expected three tabs')
+    if (placeCount !== 5) console.warn('warn:   expected five places on the world tab')
+
+    // The swordsman must actually be drawn. This is the check that would have
+    // caught the whole reason for this redesign: a hub that describes your
+    // equipment in words and never shows it.
+    const portraitPolys = await page
+      .locator('.pane .portrait-svg polygon')
+      .count()
+      .catch(() => 0)
+    console.log(`figure: ${portraitPolys} ink strokes`)
+    if (portraitPolys < 8) console.warn('warn:   the hub is not drawing the swordsman')
+
+    // Character creation used to be reachable ONLY when no save existed, which
+    // meant that from the second launch onward the school picker could not be
+    // opened by any route. It was reported as "there is no character creation"
+    // and that was exactly right. This walks the way back to it, and checks the
+    // dialogue defaults to keeping rather than discarding.
+    await page.locator('.hub-again').click()
+    await page.waitForSelector('.confirm', { timeout: 4000 })
+    await page.screenshot({ path: join(OUT, 'hub-discard.png') })
+    await page.locator('.confirm-keep').click()
+    await page.waitForTimeout(200)
+    const keptCharacter = await page.locator('.confirm').count()
+    const stillOnHub = await page.locator('.hub-tabs').isVisible()
+    console.log(`again:  reachable, keep ${keptCharacter === 0 && stillOnHub ? 'ok' : 'BROKEN'}`)
+    if (keptCharacter !== 0 || !stillOnHub) {
+      console.warn('warn:   dismissing the discard dialogue did not return to the hub')
+    }
 
     const levelBefore = await page.evaluate(() => Number(document.body.dataset.level ?? '0'))
 

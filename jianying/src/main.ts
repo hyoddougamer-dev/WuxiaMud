@@ -39,6 +39,7 @@ import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
+import { buildOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
 import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
@@ -187,13 +188,58 @@ async function boot(): Promise<void> {
   // Declared before the hub so the codex button has something to call; the hub
   // is what closes it, so the two would otherwise reference each other.
   let openHub: () => void = () => {}
-  const hub = createHub(uiRoot, persist, () => {
-    hub.hide()
-    codex.show(() => {
-      codex.hide()
-      openHub()
+  // Assigned below, once creation exists. Declared here because the hub's
+  // "new swordsman" button needs something to call and creation needs the hub
+  // to return to, so one of the two has to be forward-declared.
+  let startCreation: (fromHub?: boolean) => void = () => {}
+  const hub = createHub(
+    uiRoot,
+    persist,
+    () => {
+      hub.hide()
+      codex.show(() => {
+        codex.hide()
+        openHub()
+      })
+    },
+    () => confirmNewCharacter(),
+  )
+
+  /**
+   * Asks before discarding a swordsman, and means it.
+   *
+   * Creation used to be reachable only when there was no save, which made the
+   * school picker unreachable for everyone who had ever played — the one screen
+   * a returning player most wanted to see was the one screen they could not.
+   * Opening it now has a cost, so it is stated in full and defaults to keeping:
+   * the destructive button is the second one, and dismissing does nothing.
+   */
+  const confirmNewCharacter = (): void => {
+    const veil = document.createElement('div')
+    veil.className = 'confirm'
+    veil.innerHTML = `
+      <div class="confirm-box">
+        <div class="confirm-title">${strings.discardTitle}</div>
+        <div class="confirm-body">${strings.discardBody}</div>
+        <div class="confirm-row">
+          <button class="confirm-keep" type="button">${strings.keep}</button>
+          <button class="confirm-go" type="button">${strings.discardConfirm}</button>
+        </div>
+      </div>
+    `
+    uiRoot.appendChild(veil)
+    const close = (): void => veil.remove()
+    veil.querySelector<HTMLButtonElement>('.confirm-keep')!.addEventListener('click', close)
+    // A tap on the darkened area is a dismissal, and dismissal keeps.
+    veil.addEventListener('click', (event) => {
+      if (event.target === veil) close()
     })
-  })
+    veil.querySelector<HTMLButtonElement>('.confirm-go')!.addEventListener('click', () => {
+      close()
+      hub.hide()
+      startCreation()
+    })
+  }
 
   // ---- Scene ------------------------------------------------------------
 
@@ -251,8 +297,11 @@ async function boot(): Promise<void> {
    */
   const rebuildFigure = (): void => {
     const gear = currentGear()
-    figure = buildSwordsmanTopDown(7, 1, gear)
-    bladeStrokes = buildBlade(2, 1, gear.blade)
+    // The look drives the brush hand and the build, so the swordsman fought
+    // with is the same one chosen at creation and shown in the hub — not a
+    // default that quietly ignores half of what the player picked.
+    figure = buildSwordsmanTopDown(character.look.seed, 1, gear, buildOf(character.look).width)
+    bladeStrokes = buildBlade(character.look.seed + 1, 1, gear.blade)
 
     bladeGfx.clear()
     for (const stroke of bladeStrokes) {
@@ -744,8 +793,11 @@ async function boot(): Promise<void> {
     const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * stats.moveSpeed, 1)
     const poly = sashPoly(spine, sashRng, 1)
     sashGfx.clear()
-    if (poly.length >= 6) {
-      sashGfx.poly(poly).fill({ color: palette.cinnabar, alpha: 0.88 })
+    // A null colour is a swordsman who wears no sash, and drawing nothing is
+    // the honest reading of that — not a grey one.
+    const sashColour = sashOf(character.look).colour
+    if (poly.length >= 6 && sashColour !== null) {
+      sashGfx.poly(poly).fill({ color: sashColour, alpha: 0.88 })
     }
     sashGfx.zIndex = -aimY > 0 ? 3 : -2
 
@@ -857,6 +909,58 @@ async function boot(): Promise<void> {
    * no premise, and no reason to care about a single number on the screen. A
    * management screen is a fine second impression and a poor first one.
    */
+  /**
+   * Opens character creation.
+   *
+   * Reached two ways, and the difference is one argument: on a first launch
+   * there is nothing to go back to, so no way out is offered; from the hub
+   * there is, so cancelling returns the existing swordsman untouched.
+   */
+  startCreation = (fromHub = true): void => {
+    // Named for readability rather than reproducibility: this stream feeds
+    // nothing the simulation depends on.
+    const nameRng = new Rng((Date.now() ^ 0x9e3779b9) >>> 0)
+    creator.show(
+      () => nameRng.next(),
+      (name, school, look) => {
+        character = createCharacter(name, school.id, look)
+        character.spent = applySchool(school, character.spent)
+        // The school's kit and weapon are handed over and worn, so the very
+        // first expedition is fought with the weapon that was chosen rather
+        // than with a default the player never picked.
+        const weaponItem = ITEMS.find((i) => i.slot === 'weapon' && i.styleId === school.weaponId)
+        for (const id of [...school.kit, weaponItem?.id]) {
+          if (!id) continue
+          acquire(character.inventory, id)
+          equip(character.inventory, id)
+        }
+        kit = currentKit()
+        stats = deriveStats(loadout, kit)
+        rebuildFigure()
+        persist()
+        creator.hide()
+        // The codex lands here on a first launch, between choosing a swordsman
+        // and first seeing the hub — after the player has something to care
+        // about, and before they are shown numbers they have no frame for. A
+        // returning player has read it, so they go straight through.
+        if (fromHub) {
+          openHub()
+          return
+        }
+        codex.show(() => {
+          codex.hide()
+          openHub()
+        })
+      },
+      fromHub
+        ? () => {
+            creator.hide()
+            openHub()
+          }
+        : undefined,
+    )
+  }
+
   const enter = (): void => {
     title.show(isFirstLaunch ? null : character.name, () => {
       title.hide()
@@ -864,39 +968,7 @@ async function boot(): Promise<void> {
         openHub()
         return
       }
-      // Named for readability rather than reproducibility: this stream feeds
-      // nothing the simulation depends on.
-      const nameRng = new Rng((Date.now() ^ 0x9e3779b9) >>> 0)
-      creator.show(
-        () => nameRng.next(),
-        (name, school) => {
-          character = createCharacter(name, school.id)
-          character.spent = applySchool(school, character.spent)
-          // The school's kit and weapon are handed over and worn, so the very
-          // first expedition is fought with the weapon that was chosen rather
-          // than with a default the player never picked.
-          const weaponItem = ITEMS.find(
-            (i) => i.slot === 'weapon' && i.styleId === school.weaponId,
-          )
-          for (const id of [...school.kit, weaponItem?.id]) {
-            if (!id) continue
-            acquire(character.inventory, id)
-            equip(character.inventory, id)
-          }
-          kit = currentKit()
-          stats = deriveStats(loadout, kit)
-          rebuildFigure()
-          persist()
-          creator.hide()
-          // The codex lands here, between choosing a swordsman and first
-          // seeing the hub — after the player has something to care about,
-          // and before they are shown numbers they have no frame for.
-          codex.show(() => {
-            codex.hide()
-            openHub()
-          })
-        },
-      )
+      startCreation(false)
     })
   }
   enter()

@@ -23,6 +23,7 @@ import {
 import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
 import { acquire, emptyInventory, equip, sanitise, type Inventory } from './inventory'
+import { parseLook } from './look'
 import { SCHOOL_BY_ID, schoolById } from './schools'
 
 /** Versioned: a future shape change gets a new key rather than a silent misread. */
@@ -111,6 +112,9 @@ export function parseCharacter(raw: string): Character | null {
     // should not be able to break the hub.
     name: name.slice(0, 24),
     origin,
+    // A save written before appearance existed has no `look` at all, and gets
+    // the default rather than an undefined that would draw an invisible figure.
+    look: parseLook(record.look),
     // Anything already carrying progress has plainly been played, so it must
     // not be handed a tutorial. Only a genuinely fresh save gets taught.
     taught: record.taught === true || int(record.runs, 0) > 0,

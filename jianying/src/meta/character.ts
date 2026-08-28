@@ -23,6 +23,7 @@
  */
 import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
+import { DEFAULT_LOOK, type Look } from './look'
 import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
 
 /** The four things a point can be spent on. */
@@ -65,6 +66,13 @@ export interface Character {
    * what you are. That matters on the one screen where the player knows least.
    */
   origin: string
+  /**
+   * Appearance the equipment cannot overwrite — build, sash and brush hand.
+   *
+   * Armour is the rest of the appearance by design, so these three are what is
+   * left for the player to actually own. See meta/look.ts.
+   */
+  look: Look
   /** Owned and worn equipment. */
   inventory: Inventory
   /**
@@ -100,10 +108,15 @@ export function emptyAttributes(): Attributes {
  * through `applyOrigin`, so this stays the one place that defines what "new"
  * means and the origins stay pure data.
  */
-export function createCharacter(name = 'Wanderer', origin = 'mountain'): Character {
+export function createCharacter(
+  name = 'Wanderer',
+  origin = 'mountain',
+  look: Look = DEFAULT_LOOK,
+): Character {
   return {
     name,
     origin,
+    look,
     inventory: emptyInventory(),
     taught: false,
     level: 1,
