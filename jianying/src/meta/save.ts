@@ -20,14 +20,42 @@ import {
   createCharacter,
   emptyAttributes,
 } from './character'
-import { ITEMS } from '../data/items'
+import { ITEMS, MAX_RANK } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
-import { acquire, emptyInventory, equip, sanitise, type Inventory } from './inventory'
+import {
+  acquire,
+  emptyInventory,
+  equip,
+  sanitise,
+  type Inventory,
+  type OwnedItem,
+} from './inventory'
 import { parseLook } from './look'
 import { SCHOOL_BY_ID, schoolById } from './schools'
 
-/** Versioned: a future shape change gets a new key rather than a silent misread. */
-export const SAVE_KEY = 'jianying.character.v1'
+/**
+ * Versioned: a shape change gets a new key rather than a silent misread.
+ *
+ * v2 changes two things at once, on purpose. Ownership became instances
+ * (`{ id, rank, rites }` per piece) and the file became a ROSTER rather than a
+ * single swordsman. Either alone would have been a migration over every real
+ * player's save; done together it is one. The roster envelope is written even
+ * while only one swordsman exists, so the screen that lets a player keep
+ * several costs no further migration when it arrives.
+ */
+export const SAVE_KEY = 'jianying.save.v2'
+
+/** Where v1 saves live. Read once, migrated forward, then left alone. */
+export const SAVE_KEY_V1 = 'jianying.character.v1'
+
+/** How many swordsmen one player may keep. */
+export const ROSTER_LIMIT = 6
+
+export interface Roster {
+  /** Index into `swordsmen`. Always in range once parsed. */
+  active: number
+  swordsmen: Character[]
+}
 
 /** A finite, non-negative integer, or `fallback`. */
 function int(value: unknown, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER): number {
@@ -59,15 +87,29 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
     for (const id of school.kit) acquire(inv, id)
     const weapon = ITEMS.find((i) => i.slot === 'weapon' && i.styleId === school.weaponId)
     if (weapon) acquire(inv, weapon.id)
-    for (const id of inv.owned) equip(inv, id)
+    for (const entry of inv.owned) equip(inv, entry.id)
     return inv
   }
 
   if (typeof value !== 'object' || value === null) return starter()
   const record = value as Record<string, unknown>
-  const owned = Array.isArray(record.owned)
-    ? record.owned.filter((id): id is string => typeof id === 'string')
-    : []
+  // Two shapes are accepted: v2's instances, and v1's bare id strings, which
+  // come forward at rank 0. A v1 player keeps every piece they found; they
+  // simply start the new axis at the bottom, which is where a piece found
+  // before ranks existed honestly sits.
+  const owned: OwnedItem[] = []
+  if (Array.isArray(record.owned)) {
+    for (const raw of record.owned) {
+      if (typeof raw === 'string') {
+        owned.push({ id: raw, rank: 0, rites: [] })
+      } else if (typeof raw === 'object' && raw !== null) {
+        const entry = raw as Record<string, unknown>
+        if (typeof entry.id === 'string') {
+          owned.push({ id: entry.id, rank: int(entry.rank, 0, 0, MAX_RANK), rites: [] })
+        }
+      }
+    }
+  }
   if (owned.length === 0) return starter()
 
   const equipped: Record<string, string> = {}
@@ -133,6 +175,49 @@ export function serialiseCharacter(character: Character): string {
   return JSON.stringify(character)
 }
 
+/**
+ * Reads a whole save file: v2's roster, or a v1 single character wrapped as a
+ * roster of one.
+ *
+ * Both shapes are accepted from the same text, because the migration reads the
+ * old KEY and hands the result straight here — the caller should not have to
+ * know which era a blob came from.
+ */
+export function parseRoster(raw: string): Roster | null {
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (typeof value !== 'object' || value === null) return null
+  const record = value as Record<string, unknown>
+
+  if (!Array.isArray(record.swordsmen)) {
+    // v1: the file WAS the character.
+    const single = parseCharacter(raw)
+    return single ? { active: 0, swordsmen: [single] } : null
+  }
+
+  const swordsmen: Character[] = []
+  for (const entry of record.swordsmen.slice(0, ROSTER_LIMIT)) {
+    const parsed = parseCharacter(JSON.stringify(entry))
+    if (parsed) swordsmen.push(parsed)
+  }
+  // A roster that parsed to nothing is not a roster. Saying so lets the caller
+  // land on creation rather than on a hub with no swordsman to draw.
+  if (swordsmen.length === 0) return null
+  return { active: int(record.active, 0, 0, swordsmen.length - 1), swordsmen }
+}
+
+export function serialiseRoster(roster: Roster): string {
+  return JSON.stringify({
+    v: 2,
+    active: Math.max(0, Math.min(roster.swordsmen.length - 1, roster.active)),
+    swordsmen: roster.swordsmen.slice(0, ROSTER_LIMIT),
+  })
+}
+
 /** Resolved once and cached; `null` means the plugin is not available here. */
 let prefsModule: typeof import('@capacitor/preferences') | null | undefined
 
@@ -176,6 +261,8 @@ function localSet(key: string, value: string): void {
 }
 
 export interface LoadedSave {
+  /** The whole roster. `character` is the active one, and the same object. */
+  roster: Roster
   character: Character
   /**
    * True when nothing was stored — this is a first launch.
@@ -188,23 +275,36 @@ export interface LoadedSave {
   fresh: boolean
 }
 
-/** Loads the stored character, or creates a fresh one. Never throws. */
-export async function loadCharacter(): Promise<LoadedSave> {
+/** Reads one key from whichever backend has it. Never throws. */
+async function readKey(key: string): Promise<string | null> {
   let raw: string | null = null
   try {
     const mod = await preferences()
-    if (mod) raw = (await mod.Preferences.get({ key: SAVE_KEY })).value
+    if (mod) raw = (await mod.Preferences.get({ key })).value
   } catch {
     // Web, or a platform where the plugin is not installed. localStorage next.
     raw = null
   }
-  raw ??= localGet(SAVE_KEY)
-  if (!raw) return { character: createCharacter(), fresh: true }
-  const parsed = parseCharacter(raw)
+  return raw ?? localGet(key)
+}
+
+/** Loads the stored roster, or creates a fresh swordsman. Never throws. */
+export async function loadCharacter(): Promise<LoadedSave> {
+  // v2 first, then the v1 key. A player who installed this build over the last
+  // one has a v1 blob and no v2 one, and reading the old key is the entire
+  // migration — the parser already accepts both inventory shapes.
+  const raw = (await readKey(SAVE_KEY)) ?? (await readKey(SAVE_KEY_V1))
+  const fresh = (): LoadedSave => {
+    const character = createCharacter()
+    return { roster: { active: 0, swordsmen: [character] }, character, fresh: true }
+  }
+  if (!raw) return fresh()
+  const roster = parseRoster(raw)
   // A save that existed but could not be read is still not a first launch in
   // spirit, but there is nothing to continue from, so creation is the honest
   // place to land.
-  return parsed ? { character: parsed, fresh: false } : { character: createCharacter(), fresh: true }
+  if (!roster) return fresh()
+  return { roster, character: roster.swordsmen[roster.active]!, fresh: false }
 }
 
 /**
@@ -215,8 +315,8 @@ export async function loadCharacter(): Promise<LoadedSave> {
  * both keeps a single code path rather than branching on platform, and the cost
  * is a few hundred bytes written a handful of times per session.
  */
-export async function saveCharacter(character: Character): Promise<void> {
-  const raw = serialiseCharacter(character)
+export async function saveCharacter(roster: Roster): Promise<void> {
+  const raw = serialiseRoster(roster)
   localSet(SAVE_KEY, raw)
   try {
     const mod = await preferences()
@@ -226,17 +326,24 @@ export async function saveCharacter(character: Character): Promise<void> {
   }
 }
 
-/** Forgets the character. Used by the hub's reset, which asks first. */
+/**
+ * Forgets everything. Used by the hub's reset, which asks first.
+ *
+ * Clears the v1 key as well: leaving it behind would make the next boot read
+ * the pre-migration save and resurrect the swordsman the player just discarded.
+ */
 export async function clearCharacter(): Promise<void> {
-  try {
-    globalThis.localStorage?.removeItem(SAVE_KEY)
-  } catch {
-    /* ignore */
-  }
-  try {
-    const mod = await preferences()
-    if (mod) await mod.Preferences.remove({ key: SAVE_KEY })
-  } catch {
-    /* ignore */
+  for (const key of [SAVE_KEY, SAVE_KEY_V1]) {
+    try {
+      globalThis.localStorage?.removeItem(key)
+    } catch {
+      /* ignore */
+    }
+    try {
+      const mod = await preferences()
+      if (mod) await mod.Preferences.remove({ key })
+    } catch {
+      /* ignore */
+    }
   }
 }

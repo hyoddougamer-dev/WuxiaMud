@@ -866,6 +866,21 @@
       .loot-dupe b {
         color: rgba(13, 13, 13, 0.35);
       }
+      /* A piece already owned, found better. Cinnabar because it is the one
+         line on the reward screen that changed the player's equipment. */
+      .loot-raised b {
+        color: var(--cinnabar);
+      }
+      /* Rank, as pips rather than a number. An item card is 158px wide and
+         already carries a name and a line of effect; "rank 3" would need a word
+         of explanation that three dots does not. */
+      .item-rank,
+      .loot-rank {
+        margin-left: 5px;
+        color: #8a6d16;
+        font-style: normal;
+        letter-spacing: 2px;
+      }
       .create-back {
         flex: none;
         padding: 16px 20px;

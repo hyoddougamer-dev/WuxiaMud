@@ -111,6 +111,7 @@ export const strings = {
   equipment: 'Equipment',
   found: 'Found',
   alreadyYours: 'already yours',
+  raised: 'sharpened',
 
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',

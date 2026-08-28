@@ -30,7 +30,13 @@ import {
   realmStep,
 } from '../src/meta/realms'
 import { SCHOOLS, SCHOOL_BY_ID, applySchool, rollName } from '../src/meta/schools'
-import { parseCharacter, serialiseCharacter } from '../src/meta/save'
+import {
+  ROSTER_LIMIT,
+  parseCharacter,
+  parseRoster,
+  serialiseCharacter,
+  serialiseRoster,
+} from '../src/meta/save'
 import { BUILDS, DEFAULT_LOOK, SASHES, buildOf } from '../src/meta/look'
 import { buildSwordsmanTopDown } from '../src/render/figure'
 import { gearFromIds } from '../src/render/wardrobe'
@@ -47,13 +53,23 @@ import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats, type Kit } from '../src/sim/loadout'
-import { ITEMS, ITEM_BY_ID, dropChance, rollDrop, statLine, type Item } from '../src/data/items'
+import {
+  ITEMS,
+  ITEM_BY_ID,
+  MAX_RANK,
+  dropChance,
+  rollDrop,
+  rollRank,
+  statLine,
+  type Item,
+} from '../src/data/items'
 import {
   acquire,
   emptyInventory,
   equip,
   equippedIn,
   ownedInSlot,
+  rankOf,
   sanitise,
 } from '../src/meta/inventory'
 import { Motes } from '../src/sim/pickups'
@@ -539,16 +555,16 @@ describe('items', () => {
 describe('inventory', () => {
   it('records an item once and reports the duplicate', () => {
     const inv = emptyInventory()
-    expect(acquire(inv, 'r-plain')).toBe(true)
+    expect(acquire(inv, 'r-plain')).toBe('new')
     // Owning is a fact, not a quantity: the hundredth Hemp Robe is worth
     // nothing, and a list that grew each time would be unusable by evening.
-    expect(acquire(inv, 'r-plain')).toBe(false)
-    expect(inv.owned).toEqual(['r-plain'])
+    expect(acquire(inv, 'r-plain')).toBe('duplicate')
+    expect(inv.owned.map((e) => e.id)).toEqual(['r-plain'])
   })
 
   it('refuses an id this build does not know', () => {
     const inv = emptyInventory()
-    expect(acquire(inv, 'not-a-real-item')).toBe(false)
+    expect(acquire(inv, 'not-a-real-item')).toBe('duplicate')
     expect(inv.owned).toEqual([])
   })
 
@@ -570,18 +586,167 @@ describe('inventory', () => {
     expect(ownedInSlot(inv, 'robe')).toHaveLength(2)
   })
 
+  it('raises a held piece when the same one is found better', () => {
+    // The point of instances. A second Hemp Robe used to be worth nothing; a
+    // second Hemp Robe found two regions deeper is now a better Hemp Robe.
+    const inv = emptyInventory()
+    expect(acquire(inv, 'r-plain', 1)).toBe('new')
+    expect(acquire(inv, 'r-plain', 3)).toBe('raised')
+    expect(rankOf(inv, 'r-plain')).toBe(3)
+    // Worse or equal is still just a duplicate, and must not lower what is held.
+    expect(acquire(inv, 'r-plain', 2)).toBe('duplicate')
+    expect(acquire(inv, 'r-plain', 3)).toBe('duplicate')
+    expect(rankOf(inv, 'r-plain')).toBe(3)
+    // One row per piece, however many copies were found.
+    expect(inv.owned).toHaveLength(1)
+  })
+
+  it('keeps rites when a piece is raised', () => {
+    // A piece the forge has worked on is still that piece. Losing that work to
+    // a lucky drop would make the forge feel like a trap.
+    const inv = emptyInventory()
+    acquire(inv, 'r-plain', 0)
+    inv.owned[0]!.rites = ['temper']
+    acquire(inv, 'r-plain', 4)
+    expect(inv.owned[0]).toEqual({ id: 'r-plain', rank: 4, rites: ['temper'] })
+  })
+
+  it('clamps a rank out of range rather than storing it', () => {
+    const inv = emptyInventory()
+    acquire(inv, 'r-plain', 99)
+    expect(rankOf(inv, 'r-plain')).toBe(MAX_RANK)
+  })
+
+  it('collapses a hand-edited save that lists one piece twice', () => {
+    // Two rows for one piece would show as two cards equipping over each other.
+    const repaired = sanitise({
+      owned: [
+        { id: 'r-plain', rank: 3, rites: [] },
+        { id: 'r-plain', rank: 1, rites: [] },
+      ],
+      equipped: {},
+    })
+    expect(repaired.owned).toHaveLength(1)
+    expect(repaired.owned[0]!.rank).toBe(3)
+  })
+
   it('drops ids a later build removed, and unequips the dangling slot', () => {
     // The migration that matters: an item renamed between builds must not make
     // a piece of the figure silently vanish.
     const repaired = sanitise({
-      owned: ['r-plain', 'an-item-that-was-deleted'],
+      owned: [
+        { id: 'r-plain', rank: 2, rites: [] },
+        { id: 'an-item-that-was-deleted', rank: 0, rites: [] },
+      ],
       equipped: { robe: 'an-item-that-was-deleted', head: 'h-hat' },
     })
-    expect(repaired.owned).toEqual(['r-plain'])
+    expect(repaired.owned).toEqual([{ id: 'r-plain', rank: 2, rites: [] }])
     expect(repaired.equipped.robe).toBeUndefined()
     // Equipped-but-not-owned is not a state the game can produce, but a
     // hand-edited save can, and honouring it would be a free item.
     expect(repaired.equipped.head).toBeUndefined()
+  })
+})
+
+describe('the v1 -> v2 migration', () => {
+  // These are the tests that protect a save somebody actually played for. The
+  // shape changed twice at once — ownership became instances, and the file
+  // became a roster — precisely so it would only ever change once.
+
+  it('reads a v1 file, which was the bare character', () => {
+    const c = createCharacter('Bai', 'temple')
+    acquire(c.inventory, 'r-plain')
+    equip(c.inventory, 'r-plain')
+    grantXp(c, 900)
+
+    // Exactly what a v1 build wrote: the character, with owned as bare ids.
+    const v1 = JSON.stringify({
+      ...c,
+      inventory: { owned: ['r-plain', 'w-jian'], equipped: { robe: 'r-plain' } },
+    })
+
+    const roster = parseRoster(v1)!
+    expect(roster.swordsmen).toHaveLength(1)
+    expect(roster.active).toBe(0)
+    const back = roster.swordsmen[0]!
+    expect(back.name).toBe('Bai')
+    expect(back.level).toBe(c.level)
+    // Every piece survives, at the bottom of the new axis — which is honestly
+    // where a piece found before ranks existed sits.
+    expect(back.inventory.owned.map((e) => e.id).sort()).toEqual(['r-plain', 'w-jian'])
+    expect(back.inventory.owned.every((e) => e.rank === 0 && e.rites.length === 0)).toBe(true)
+    expect(back.inventory.equipped.robe).toBe('r-plain')
+  })
+
+  it('round-trips a v2 roster', () => {
+    const a = createCharacter('Bai', 'temple')
+    const b = createCharacter('Qin', 'mountain')
+    acquire(a.inventory, 'r-plain', 4)
+    equip(a.inventory, 'r-plain')
+    acquire(b.inventory, 'w-spear', 2)
+    grantXp(b, 4000)
+
+    const back = parseRoster(serialiseRoster({ active: 1, swordsmen: [a, b] }))!
+    expect(back.swordsmen.map((s) => s.name)).toEqual(['Bai', 'Qin'])
+    expect(back.active).toBe(1)
+    expect(rankOf(back.swordsmen[0]!.inventory, 'r-plain')).toBe(4)
+    expect(rankOf(back.swordsmen[1]!.inventory, 'w-spear')).toBe(2)
+    expect(back.swordsmen[1]!.level).toBe(b.level)
+  })
+
+  it('pulls an out-of-range active index back into the roster', () => {
+    // A hand-edited or truncated file must not index past the end and leave the
+    // hub with nothing to draw.
+    const c = createCharacter('Bai', 'temple')
+    const back = parseRoster(JSON.stringify({ v: 2, active: 9, swordsmen: [c] }))!
+    expect(back.active).toBe(0)
+  })
+
+  it('refuses a roster that parsed to nothing rather than returning an empty one', () => {
+    // The caller lands on character creation when this returns null. Returning
+    // { swordsmen: [] } would instead crash the hub on its first render.
+    expect(parseRoster(JSON.stringify({ v: 2, active: 0, swordsmen: [] }))).toBeNull()
+    expect(parseRoster('not json')).toBeNull()
+    expect(parseRoster('null')).toBeNull()
+  })
+
+  it('never keeps more swordsmen than the roster allows', () => {
+    const many = Array.from({ length: ROSTER_LIMIT + 4 }, (_, i) =>
+      createCharacter(`Bai ${i}`, 'temple'),
+    )
+    const back = parseRoster(serialiseRoster({ active: 0, swordsmen: many }))!
+    expect(back.swordsmen).toHaveLength(ROSTER_LIMIT)
+  })
+
+  it('survives whatever nonsense is in the swordsmen array', () => {
+    for (const raw of ['{"v":2,"swordsmen":[null,3,"x"]}', '{"v":2,"swordsmen":{}}']) {
+      expect(() => parseRoster(raw)).not.toThrow()
+    }
+  })
+})
+
+describe('rank from depth', () => {
+  it('never leaves the scale, at any depth', () => {
+    const rng = new Rng(11)
+    for (let depth = 1; depth <= MAX_DEPTH + 4; depth++) {
+      for (let i = 0; i < 200; i++) {
+        const rank = rollRank(depth, rng.next())
+        expect(rank).toBeGreaterThanOrEqual(0)
+        expect(rank).toBeLessThanOrEqual(MAX_RANK)
+      }
+    }
+  })
+
+  it('rises with depth, which is the whole reason it exists', () => {
+    const mean = (depth: number): number => {
+      const rng = new Rng(depth * 7 + 1)
+      let total = 0
+      for (let i = 0; i < 2000; i++) total += rollRank(depth, rng.next())
+      return total / 2000
+    }
+    // Not merely non-decreasing: a curve that is flat between the first and the
+    // last region would make walking harder ground pointless for equipment.
+    expect(mean(MAX_DEPTH)).toBeGreaterThan(mean(1) + 1)
   })
 })
 

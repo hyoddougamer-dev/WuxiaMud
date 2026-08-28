@@ -41,7 +41,13 @@ import {
 } from '../meta/character'
 import { MAX_DEPTH, REGIONS, depthReward, regionAt } from '../data/regions'
 import { schoolById } from '../meta/schools'
-import { equip, equippedIn, equippedItems, ownedInSlot } from '../meta/inventory'
+import {
+  equip,
+  equippedIn,
+  equippedItems,
+  ownedInSlot,
+  type OwnedItem,
+} from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
 import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
@@ -178,14 +184,26 @@ export function createHub(
    * changes when you equip it — "+2 damage" on a spear would describe the least
    * interesting thing about picking up a spear.
    */
-  const itemCard = (item: Item, worn: boolean, slot: Slot): HTMLButtonElement => {
+  const itemCard = (
+    item: Item,
+    entry: OwnedItem,
+    worn: boolean,
+    slot: Slot,
+  ): HTMLButtonElement => {
     const card = document.createElement('button')
     card.type = 'button'
     card.className =
       'item' + (worn ? ' item-worn' : '') + (item.rarity > 0 ? ` item-r${item.rarity}` : '')
     const line = slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat)
+    // Rank as pips rather than a number: the card is 158px wide on a phone and
+    // already carries a name and a line of effect, and "rank 3" would need a
+    // word of explanation that four dots does not.
+    const pips =
+      entry.rank > 0
+        ? `<span class="item-rank">${'·'.repeat(entry.rank)}</span>`
+        : ''
     card.innerHTML = `
-      <div class="item-name">${item.name}</div>
+      <div class="item-name">${item.name}${pips}</div>
       <div class="item-line">${line}</div>
     `
     card.addEventListener('click', () => {
@@ -322,7 +340,9 @@ export function createHub(
       // Scrolls sideways rather than stacking. A slot with six finds used to
       // add six full-width cards to a page that was already too long.
       row.className = 'slot-items'
-      for (const item of owned) row.appendChild(itemCard(item, item.id === wornId, slot))
+      for (const { item, entry } of owned) {
+        row.appendChild(itemCard(item, entry, item.id === wornId, slot))
+      }
       group.appendChild(row)
       pane.appendChild(group)
     }

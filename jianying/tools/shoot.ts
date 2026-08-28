@@ -20,7 +20,7 @@
  * Defaults to the production build in dist/ (served statically) so what is
  * captured is what ships, not what the dev server transforms.
  */
-import { chromium, type Browser, type Page } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { createServer, type Server } from 'node:http'
 import { readFile, mkdir, rm } from 'node:fs/promises'
 import { existsSync, readdirSync, statSync } from 'node:fs'
@@ -77,6 +77,68 @@ function serveDist(port: number): Promise<Server> {
     }
   })
   return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)))
+}
+
+/**
+ * A save written by the previous build, exactly as v1 wrote it: the file WAS
+ * the character, and `owned` was a list of bare ids.
+ */
+const V1_SAVE = JSON.stringify({
+  name: 'Wen Zhaoyi',
+  origin: 'mountain',
+  level: 7,
+  xp: 40,
+  points: 3,
+  runs: 5,
+  depth: 2,
+  taught: true,
+  inventory: {
+    owned: ['r-plain', 's-plain', 'h-topknot', 'w-jian', 'r-travelling'],
+    equipped: { robe: 'r-travelling', shoulders: 's-plain', head: 'h-topknot', weapon: 'w-jian' },
+  },
+})
+
+/**
+ * Boots once with a v1 save in storage and asserts the swordsman came through.
+ *
+ * Runs in its own browser context so it cannot leave state behind for the
+ * screenshots that follow.
+ */
+async function migrationCheck(parent: BrowserContext, url: string): Promise<void> {
+  const context = await parent.browser()!.newContext({ viewport: VIEWPORT })
+  try {
+    const page = await context.newPage()
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key!, value!)
+        } catch {
+          /* private mode; the assertion below will report it */
+        }
+      },
+      ['jianying.character.v1', V1_SAVE],
+    )
+    await page.goto(url, { waitUntil: 'load' })
+    await waitForFirstFrame(page)
+    await page.waitForFunction(() => document.body.dataset.screen !== undefined, undefined, {
+      timeout: 15_000,
+    })
+    const screen = await page.evaluate(() => document.body.dataset.screen)
+    const level = await page.evaluate(() => document.body.dataset.level)
+    // Landing on creation means the save was not read, which for a real player
+    // is indistinguishable from their character having been deleted.
+    if (screen === 'create') {
+      console.error('v1:     MIGRATION LOST THE SAVE — booted into character creation')
+      process.exitCode = 1
+    } else if (level !== '7') {
+      console.error(`v1:     migration read the save but level came back ${level}, expected 7`)
+      process.exitCode = 1
+    } else {
+      console.log(`v1:     save migrated (screen ${screen}, level ${level})`)
+    }
+  } finally {
+    await context.close()
+  }
 }
 
 /** Waits for main.ts to flag that a real frame has been presented. */
@@ -153,6 +215,15 @@ async function main(): Promise<void> {
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text())
     })
+
+    // --- the v1 save, read once and for real ------------------------------
+    // The unit tests prove the parser reads a v1 blob. They cannot prove the
+    // GAME does, because boot resolves storage through Capacitor Preferences
+    // first and only falls back to localStorage — so a migration that works in
+    // a test can still leave a real player at character creation with their
+    // swordsman gone. This is the only place that gap gets closed, and losing a
+    // save is the worst thing this project can do to somebody.
+    await migrationCheck(context, url)
 
     await page.goto(url, { waitUntil: 'load' })
     await waitForFirstFrame(page)

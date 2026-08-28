@@ -30,10 +30,18 @@ export interface RunSummary {
   gain: LevelGain
   /** Level after the reward was applied. */
   level: number
-  /** Equipment found for the first time. */
-  kept: readonly Item[]
+  /** Equipment found for the first time, with the rank it dropped at. */
+  kept: readonly Found[]
+  /** Already owned, but found BETTER — the held piece was raised to this rank. */
+  raised: readonly Found[]
   /** Equipment found that was already owned. Reported, not hidden. */
-  duplicates: readonly Item[]
+  duplicates: readonly Found[]
+}
+
+/** A piece as it came off the ground: which piece, and how good a one. */
+export interface Found {
+  item: Item
+  rank: number
 }
 
 export interface Hud {
@@ -246,14 +254,21 @@ export function createHud(root: HTMLElement): Hud {
       }
 
       // Loot last, because it is the part worth scrolling for.
-      if (summary.kept.length > 0 || summary.duplicates.length > 0) {
+      if (summary.kept.length + summary.raised.length + summary.duplicates.length > 0) {
         html += `<div class="rw-head rw-found">${strings.found}</div>`
-        for (const item of summary.kept) {
+        const rank = (n: number): string => (n > 0 ? ` <i class="loot-rank">${'·'.repeat(n)}</i>` : '')
+        for (const { item, rank: r } of summary.kept) {
           const line =
             item.slot === 'weapon' ? weaponById(item.styleId).name : statLine(item.stat)
-          html += `<div class="loot"><span>${item.name}</span><b>${line}</b></div>`
+          html += `<div class="loot"><span>${item.name}${rank(r)}</span><b>${line}</b></div>`
         }
-        for (const item of summary.duplicates) {
+        for (const { item, rank: r } of summary.raised) {
+          // The interesting middle case: a piece already owned, found better.
+          // Reporting this as "already yours" would hide the only thing that
+          // actually happened to the player's equipment this run.
+          html += `<div class="loot loot-raised"><span>${item.name}${rank(r)}</span><b>${strings.raised}</b></div>`
+        }
+        for (const { item } of summary.duplicates) {
           // Named rather than hidden: pretending a duplicate was a discovery
           // would be lying about the only loot the player actually got.
           html += `<div class="loot loot-dupe"><span>${item.name}</span><b>${strings.alreadyYours}</b></div>`

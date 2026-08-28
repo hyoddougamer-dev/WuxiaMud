@@ -264,6 +264,34 @@ export const SLOT_NAMES: Record<Slot, string> = {
   robe: 'Robe',
 }
 
+/**
+ * How far a single piece can be raised.
+ *
+ * Five and not more: rank has to be readable as a mark on a silhouette drawn
+ * about fifty units tall (see tools/sheet.ts rankMarksFor), and a scale with
+ * more steps than that cannot be told apart at the size the game actually
+ * draws. A number the player cannot see is a number that is not in the game.
+ */
+export const MAX_RANK = 5
+
+/**
+ * The rank a piece drops at, from the depth it dropped at.
+ *
+ * Where you found it decides how good it is. That is the whole vertical axis
+ * for now: the same Hemp Robe is a better robe off the mountain than off the
+ * post road, so walking harder ground improves what you already wear rather
+ * than only widening what you own.
+ *
+ * `pick` is a seeded roll, so a replay of the same expedition finds the same
+ * pieces at the same ranks.
+ */
+export function rollRank(depth: number, pick: number): number {
+  const floorRank = Math.min(MAX_RANK, Math.max(0, Math.floor((depth - 1) * 0.9)))
+  // Roughly a quarter of finds come out one step above the ground they were
+  // found on, which is what makes a deep run worth repeating.
+  return pick < 0.26 ? Math.min(MAX_RANK, floorRank + 1) : floorRank
+}
+
 /** What a new swordsman is handed. A school swaps the weapon; see meta/schools. */
 export const STARTING_ITEMS: readonly string[] = ['r-plain', 's-plain', 'h-topknot']
 

@@ -29,15 +29,44 @@ Definir a instância **uma vez, com espaço para o que vem a seguir**, mesmo que
 os campos fiquem vazios durante meses:
 
 ```ts
-interface ItemInstance {
+interface OwnedItem {
   id: string        // qual item
-  rank: number      // 阶 0..5 — usado no passo 4
+  rank: number      // 阶 0..5 — de onde caiu decide o quão boa é a peça
   rites: string[]   // encaixes — vazio até ao passo 7, mas o campo existe
 }
 ```
 
+**FEITO.** `src/meta/inventory.ts`, save `jianying.save.v2`. Continua a haver
+uma linha por peça — um telemóvel não aguenta uma lista de todas as cópias já
+encontradas — mas uma segunda cópia deixou de não valer nada: encontrada num
+sítio mais fundo, **sobe** a que já tens (`acquire` devolve `new` / `raised` /
+`duplicate`, e o ecrã de recompensa diz qual). Os ritos sobrevivem à subida,
+senão a forja seria uma armadilha.
+
 Acrescentar `rites` mais tarde seria **uma segunda migração de save** em
 telemóveis que já têm progresso. Acrescentar agora custa uma linha.
+
+---
+
+## Duas decisões tomadas, e porque cabem na mesma migração
+
+**A classe é a arma na mão.** Não há um seletor de classe na criação. Todas as
+armas caem, e a arma equipada decide as artes — trocar de lança para sabre é
+trocar de estilo de combate. Isto mantém o loot como motor: uma arma nova não é
+mais um número, é outra forma de lutar. O custo, declarado: nunca há uma
+identidade fixa. És *quem usa lança agora*, não *um lanceiro*.
+
+**`New swordsman` passa a ser um roster.** Com artes diferentes por arma,
+experimentar outro caminho não pode custar apagar a personagem. O save passa a
+guardar uma **lista** de espadachins (limite `ROSTER_LIMIT`), e criar um novo
+acrescenta em vez de destruir.
+
+A razão de estarem escritas aqui e não numa folha de proposta: as duas mudam o
+formato do save, e o passo 1 também. Feitas em separado seriam **três**
+migrações sobre telemóveis com progresso real. Feitas juntas são **uma** — e é
+por isso que `jianying.save.v2` já nasce com o envelope do roster, mesmo
+enquanto só lá está um espadachim. O ecrã do roster, quando chegar, não custa
+migração nenhuma.
 
 ---
 

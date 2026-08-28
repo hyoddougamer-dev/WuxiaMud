@@ -43,7 +43,7 @@ import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
 import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
-import { ITEMS, ITEM_BY_ID, type Item } from './data/items'
+import { ITEMS, ITEM_BY_ID, rollRank } from './data/items'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
 import type { Kit } from './sim/loadout'
@@ -51,7 +51,7 @@ import { loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
-import { createHud, type RunSummary } from './ui/hud'
+import { createHud, type Found, type RunSummary } from './ui/hud'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { createLevelUp } from './ui/levelup'
@@ -115,8 +115,12 @@ async function boot(): Promise<void> {
   // mutating a half-made one into shape.
   let character: Character = loaded.character
   const isFirstLaunch = loaded.fresh
+  // The whole roster is written, not just the swordsman being played. The save
+  // file is a roster from v2 onward even while it holds one — see meta/save.ts.
+  const roster = loaded.roster
   const persist = (): void => {
-    void saveCharacter(character)
+    roster.swordsmen[roster.active] = character
+    void saveCharacter(roster)
   }
 
   const player = createPlayer(0, 0)
@@ -131,6 +135,8 @@ async function boot(): Promise<void> {
   // A stream of its own, so drawing technique offers never shifts the enemy
   // sequence a seed is supposed to guarantee.
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
+  /** Drop quality, on its own stream for the same reason `pickRng` has one. */
+  let dropRng = new Rng(runSeed ^ 0x1b873593)
   let loadout: Loadout = new Map()
 
   /**
@@ -368,7 +374,7 @@ async function boot(): Promise<void> {
    * when something lands, and a banner naming whatever just took a bite.
    */
   /** Equipment found during the current expedition, in the order found. */
-  let foundThisRun: Item[] = []
+  let foundThisRun: Found[] = []
   /**
    * What the drop table should treat as already owned.
    *
@@ -392,7 +398,9 @@ async function boot(): Promise<void> {
       // Kept immediately rather than needing to be walked over. A drop the
       // player can fail to collect while being chased is a punishment dressed
       // as a reward, and this genre never gives them a safe moment to go back.
-      foundThisRun.push(item)
+      // Where it was found decides how good it is, on its own seeded stream
+      // so that adding ranks did not shift the technique offers a replay expects.
+      foundThisRun.push({ item, rank: rollRank(depthOf(), dropRng.next()) })
       ownedThisRun.add(item.id)
       banners.show(item.name, 'gold', strings.found)
       floaters.found(x, y)
@@ -416,13 +424,14 @@ async function boot(): Promise<void> {
     banners.clear()
     loadout = new Map()
     foundThisRun = []
-    ownedThisRun = new Set(character.inventory.owned)
+    ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
     // The kit is read here, and this is the only place permanent power touches
     // a run: after this the expedition knows nothing about the hub.
     kit = currentKit()
     stats = deriveStats(loadout, kit)
     rebuildFigure()
     pickRng = new Rng(runSeed ^ 0x5bf03635)
+    dropRng = new Rng(runSeed ^ 0x1b873593)
     levelUp.hide()
     run = createRun(kit.weapon.interval)
     run.hp = stats.maxHp
@@ -473,17 +482,23 @@ async function boot(): Promise<void> {
     // Duplicates are reported honestly rather than silently swallowed: owning
     // a second Hemp Robe is worth nothing here, and a reward screen that
     // pretended otherwise would be lying about the only loot the player got.
-    const kept: Item[] = []
-    const duplicates: Item[] = []
-    for (const item of foundThisRun) {
-      if (acquire(character.inventory, item.id)) {
-        kept.push(item)
+    const kept: Found[] = []
+    const raised: Found[] = []
+    const duplicates: Found[] = []
+    for (const found of foundThisRun) {
+      const outcome = acquire(character.inventory, found.item.id, found.rank)
+      if (outcome === 'new') {
+        kept.push(found)
         // Anything for an empty slot goes straight on. Making a player visit
         // the hub to equip their very first weapon would be ceremony for its
         // own sake.
-        if (!character.inventory.equipped[item.slot]) equip(character.inventory, item.id)
+        if (!character.inventory.equipped[found.item.slot]) {
+          equip(character.inventory, found.item.id)
+        }
+      } else if (outcome === 'raised') {
+        raised.push(found)
       } else {
-        duplicates.push(item)
+        duplicates.push(found)
       }
     }
     // One expedition is enough teaching. Coaching that keeps firing after the
@@ -500,6 +515,7 @@ async function boot(): Promise<void> {
       gain,
       level: character.level,
       kept,
+      raised,
       duplicates,
     }
   }
