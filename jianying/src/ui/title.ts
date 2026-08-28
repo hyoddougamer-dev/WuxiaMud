@@ -14,8 +14,17 @@
 import { strings } from './strings'
 
 export interface TitleScreen {
-  /** `returning` swaps Begin for Continue and shows who is waiting. */
-  show(returning: string | null, onBegin: () => void): void
+  /**
+   * `returning` swaps Begin for Continue and shows who is waiting.
+   *
+   * `onNew` adds a quiet second action for a returning player: start over.
+   * It lives here because this is where somebody looks for it — the hub has
+   * the same button, but on a tall phone with a levelled character it sits
+   * below the fold behind four attribute rows, which is the same as not
+   * existing. A screen with one action is a good first impression; a screen
+   * whose only other action is unreachable is a trap.
+   */
+  show(returning: string | null, onBegin: () => void, onNew?: () => void): void
   hide(): void
   readonly visible: boolean
 }
@@ -34,7 +43,7 @@ export function createTitle(root: HTMLElement): TitleScreen {
       return shown
     },
 
-    show(returning, onBegin) {
+    show(returning, onBegin, onNew) {
       onBeginHandler = onBegin
       panel.innerHTML = `
         <div class="title-mark">
@@ -46,12 +55,24 @@ export function createTitle(root: HTMLElement): TitleScreen {
           ${returning ? strings.continueRun : strings.beginRun}
         </button>
         ${returning ? `<div class="title-who">${returning}</div>` : ''}
+        ${
+          // Only for a returning player: on a first launch there is nothing to
+          // start over from, and the option would be noise.
+          returning && onNew
+            ? `<button class="title-new" type="button">${strings.newSwordsman}</button>`
+            : ''
+        }
       `
       panel.querySelector<HTMLButtonElement>('.title-go')!.addEventListener('click', () => {
         const handler = onBeginHandler
         // Cleared before calling, so a double tap cannot advance twice.
         onBeginHandler = null
         handler?.()
+      })
+      panel.querySelector<HTMLButtonElement>('.title-new')?.addEventListener('click', () => {
+        // Deliberately does NOT clear onBeginHandler: the confirmation can be
+        // dismissed, and Continue has to still work afterwards.
+        onNew?.()
       })
       panel.hidden = false
       shown = true

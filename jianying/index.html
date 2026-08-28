@@ -644,6 +644,27 @@
       .title-go:active {
         transform: scale(0.97);
       }
+      /* Quiet on purpose. It is destructive and it sits under Continue, so it
+         must be findable without ever competing with the thing you came for. */
+      .title-new {
+        margin-top: 18px;
+        padding: 10px 18px;
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        /* Paper on ink, NOT ink on paper. The title is the one screen that
+           keeps the dark ground, so the hub's button colours would have drawn
+           this in near-black on near-black — invisible, on the control whose
+           entire problem was that it could not be found. */
+        color: rgba(232, 220, 192, 0.5);
+        background: none;
+        border: 1px solid rgba(232, 220, 192, 0.22);
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .title-new:active {
+        transform: scale(0.98);
+      }
       .title-who {
         font-size: 12px;
         letter-spacing: 0.1em;

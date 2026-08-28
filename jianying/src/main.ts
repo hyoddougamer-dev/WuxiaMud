@@ -59,7 +59,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.6.0'
+const BUILD = '1.6.1'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -236,7 +236,11 @@ async function boot(): Promise<void> {
     })
     veil.querySelector<HTMLButtonElement>('.confirm-go')!.addEventListener('click', () => {
       close()
+      // Both callers land here — the hub's button and the title's. Hiding a
+      // screen that is not showing is harmless, and branching on which one is
+      // up would be one more thing to get wrong.
       hub.hide()
+      title.hide()
       startCreation()
     })
   }
@@ -979,7 +983,11 @@ async function boot(): Promise<void> {
         return
       }
       startCreation(false)
-    })
+    },
+    // Start over, from the one screen where somebody actually looks for it.
+    // The same confirmation as the hub's — destructive, and it says so.
+    () => confirmNewCharacter(),
+    )
   }
   enter()
 

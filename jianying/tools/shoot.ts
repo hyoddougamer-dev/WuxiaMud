@@ -141,6 +141,11 @@ async function main(): Promise<void> {
     })
     await page.waitForTimeout(600)
     await page.screenshot({ path: join(OUT, 'title.png') })
+    // A first launch has nothing to start over from, so the button must be
+    // absent here and present on the returning title captured at the end.
+    if ((await page.locator('.title-new').count()) > 0) {
+      console.warn('warn:   start-over offered on a first launch')
+    }
 
     await page.locator('.title-go').click()
     await page.waitForFunction(() => document.body.dataset.screen === 'create', undefined, {
@@ -395,6 +400,13 @@ async function main(): Promise<void> {
         return
       }
       await page.screenshot({ path: join(OUT, 'title-returning.png') })
+      // The reason this exists: the hub's own button sits below the fold on a
+      // tall phone with a levelled character, which is the same as not being
+      // there. A returning player must be able to start over from the screen
+      // they actually land on.
+      const canRestart = await page.locator('.title-new').count()
+      console.log(`restart: ${canRestart > 0 ? 'offered on the title' : 'MISSING'}`)
+      if (canRestart === 0) console.warn('warn:   no way to start over from the title')
       await page.locator('.title-go').click()
       await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
         timeout: 10_000,
