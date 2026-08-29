@@ -196,7 +196,7 @@ function screenPlay(): string {
   // --- top: health, insight, time ---
   o.push(
     text(M, 34, '128', 21, ink, 0.9, 'start', '600'),
-    text(M + 40, 34, '/ 160', 12, ink, 0.4),
+    text(M + 52, 34, '/ 160', 12, ink, 0.4),
     bar(M, 42, 200, 0.8, ink, 6),
     // Insight sits directly under health and is gold, because gold means
     // progression everywhere else in this game and nowhere else.
@@ -259,8 +259,8 @@ function screenPlay(): string {
 
   // --- region, bottom-left, fading ---
   o.push(
-    text(M, PH.h - 96, '断崖  The Broken Cliff', 11, cinnabar, 0.55),
-    text(M, PH.h - 80, 'Narrow ground. What falls on you was already above.', 9, ink, 0.32),
+    text(M, PH.h - 164, '断崖  The Broken Cliff', 11, cinnabar, 0.55),
+    text(M, PH.h - 149, 'Narrow ground. What falls on you was already above.', 9, ink, 0.32),
   )
 
   // --- the joystick, where the thumb is ---
@@ -586,12 +586,12 @@ function screenStates(): string {
   const M = 16
   o.push(
     text(M, 40, 'A BARRA DAS ARTES', 12, ink, 0.85, 'start', '600'),
-    text(M, 58, 'Um mostrador, nao botoes. O polegar fica no movimento.', 9.5, ink, 0.45),
+    text(M, 58, 'Um mostrador, não botões. O polegar fica no movimento.', 9.5, ink, 0.45),
   )
 
   const states: Array<[string, string, number]> = [
-    ['Adormecida', 'A condicao nao se cumpre. O selo esta apagado.', -1],
-    ['Acesa', 'A condicao cumpre-se agora. A arte esta a agir.', 0],
+    ['Adormecida', 'A condição não se cumpre. O selo está apagado.', -1],
+    ['Acesa', 'A condição cumpre-se agora. A arte está a agir.', 0],
     ['Outra acende', 'Corres em vez de parares: 静 apaga, 疾 acende.', 1],
   ]
   let y = 92
@@ -610,8 +610,8 @@ function screenStates(): string {
   )
   y += 34
   const lessons: Array<[string, string]> = [
-    ['静  Planta os pes', 'e o teu golpe estreita e atravessa.'],
-    ['疾  Nao pares', 'e os golpes vem mais depressa.'],
+    ['静  Planta os pés', 'e o teu golpe estreita e atravessa.'],
+    ['疾  Não pares', 'e os golpes vêm mais depressa.'],
     ['转  Inverte de repente', 'e fica um eco do golpe onde estavas.'],
     ['围  Deixa-te rodear', 'e o golpe corta a dobrar.'],
   ]
@@ -624,13 +624,30 @@ function screenStates(): string {
 
   o.push(
     box(M, PH.h - 132, PH.w - M * 2, 74, { fill: palette.gold, fillOp: 0.09, stroke: palette.gold, strokeOp: 0.5 }),
-    text(M + 14, PH.h - 108, 'Porque nao ha botao', 11.5, goldDeep, 0.95, 'start', '600'),
+    text(M + 14, PH.h - 108, 'Porque não há botão', 11.5, goldDeep, 0.95, 'start', '600'),
     text(M + 14, PH.h - 90, 'Um interruptor auto/manual obriga a desenhar', 9.5, ink, 0.55),
     text(M + 14, PH.h - 76, 'cada arte duas vezes e a equilibrar o jogo duas', 9.5, ink, 0.55),
-    text(M + 14, PH.h - 62, 'vezes. Se fizer falta, um botao — nao um modo.', 9.5, ink, 0.55),
+    text(M + 14, PH.h - 62, 'vezes. Se fizer falta, um botão — não um modo.', 9.5, ink, 0.55),
   )
   return o.join('')
 }
+
+// ===========================================================================
+// the screens
+// ===========================================================================
+/**
+ * Every screen, once, so the contact sheet and the single-screen files cannot
+ * disagree about what exists.
+ */
+const SCREENS: Array<{ file: string; title: string; tag: string; draw: () => string }> = [
+  { file: '01-play', title: 'Em jogo', tag: 'PROPOSTA', draw: screenPlay },
+  { file: '02-arts', title: 'Hub · 法 Artes', tag: 'PROPOSTA', draw: screenArts },
+  { file: '03-gear', title: 'Hub · 装 Equipamento', tag: 'HOJE', draw: screenGear },
+  { file: '04-reward', title: 'Fim de corrida', tag: 'PROPOSTA', draw: screenReward },
+  { file: '05-self', title: 'Hub · 剑 Espadachim', tag: 'HOJE', draw: screenSelf },
+  { file: '06-world', title: 'Hub · 界 Mundo', tag: 'HOJE', draw: screenWorld },
+  { file: '07-strip', title: 'A barra, nos 3 estados', tag: 'PROPOSTA', draw: screenStates },
+]
 
 // ===========================================================================
 // the sheet
@@ -639,20 +656,14 @@ parts.push(
   `<text x="40" y="42" font-family="system-ui, sans-serif" font-size="16" letter-spacing="3.5" ` +
     `fill="${ink}" fill-opacity="0.55">剑影 JIÀNYǏNG · A INTERFACE</text>`,
   `<text x="40" y="66" font-family="system-ui, sans-serif" font-size="12.5" fill="${cinnabar}">` +
-    `Ecras a 390×844, o tamanho real. As figuras e os itens vem do codigo do jogo; ` +
+    `Ecrãs a 390×844, o tamanho real. As figuras e os itens vêm do código do jogo; ` +
     `o que e proposta esta marcado como tal em cada ecra.</text>`,
 )
 
 {
   const top = 132
   const gap = (W - 80 - FW * 4) / 3
-  const screens: Array<[string, string, () => string]> = [
-    ['Em jogo', 'PROPOSTA', screenPlay],
-    ['Hub · 法 Artes', 'PROPOSTA', screenArts],
-    ['Hub · 装 Equipamento', 'HOJE', screenGear],
-    ['Fim de corrida', 'PROPOSTA', screenReward],
-  ]
-  screens.forEach(([title, tag, draw], i) => {
+  SCREENS.slice(0, 4).forEach(({ title, tag, draw }, i) => {
     parts.push(frame(40 + i * (FW + gap), top, title, tag, draw()))
   })
 }
@@ -660,12 +671,7 @@ parts.push(
 {
   const top = 132 + FH + 78
   const gap = (W - 80 - FW * 4) / 3
-  const screens: Array<[string, string, () => string]> = [
-    ['Hub · 剑 Espadachim', 'HOJE', screenSelf],
-    ['Hub · 界 Mundo', 'HOJE', screenWorld],
-    ['A barra, nos 3 estados', 'PROPOSTA', screenStates],
-  ]
-  screens.forEach(([title, tag, draw], i) => {
+  SCREENS.slice(4).forEach(({ title, tag, draw }, i) => {
     parts.push(frame(40 + i * (FW + gap), top, title, tag, draw()))
   })
 }
@@ -680,4 +686,27 @@ const svg =
 await mkdir(OUT, { recursive: true })
 await writeFile(join(OUT, 'ui.svg'), svg, 'utf8')
 console.log(`sheet:  docs/ui.svg  ${W}×${H.toFixed(0)}`)
-console.log(`frames: 4 at ${PH.w}×${PH.h} scaled ${SCALE}`)
+
+// --- and one file per screen, at 1:1 ---------------------------------------
+// The contact sheet was written for a wide monitor, and this project is read
+// on a phone: seven frames shrunk to 66% and then viewed on a 390-wide screen
+// leaves each one about a sixth of the phone's width, which is not a mockup,
+// it is a thumbnail of one. These are full size, one at a time.
+const ONE = join(OUT, 'ui')
+await mkdir(ONE, { recursive: true })
+const CAP = 46
+for (const { file, title, tag, draw } of SCREENS) {
+  const single =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PH.w} ${PH.h + CAP}" ` +
+    `width="${PH.w}" height="${PH.h + CAP}">` +
+    `<rect width="${PH.w}" height="${PH.h + CAP}" fill="#ded3b8"/>` +
+    text(16, 22, title, 14, ink, 0.85, 'start', '600') +
+    text(PH.w - 16, 22, tag, 10, hex(tag === 'HOJE' ? palette.ink : palette.cinnabar),
+      tag === 'HOJE' ? 0.4 : 0.9, 'end') +
+    `<g transform="translate(0,${CAP})">` +
+    `<rect width="${PH.w}" height="${PH.h}" fill="${paper}"/>` +
+    draw() +
+    `</g></svg>`
+  await writeFile(join(ONE, `${file}.svg`), single, 'utf8')
+}
+console.log(`single: docs/ui/ — ${SCREENS.length} screens at ${PH.w}×${PH.h}, 1:1`)
