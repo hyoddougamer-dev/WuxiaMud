@@ -30,7 +30,15 @@
  * not moved to yet. Sixteen milliseconds is not a thing anyone can feel, and
  * the alternative is a circular dependency between movement and the speed art.
  */
-import { ARTS, artScale, type Art, type Condition, type EffectKind } from '../data/arts'
+import {
+  ARTS,
+  EQUIPPED_ARTS,
+  MAX_ART_LEVEL,
+  artScale,
+  type Art,
+  type Condition,
+  type EffectKind,
+} from '../data/arts'
 import type { Conditions } from './conditions'
 import type { Stats } from './loadout'
 
@@ -195,4 +203,92 @@ export function applyArts(
     }
   }
   return out
+}
+
+// ---------------------------------------------------------------------------
+// 感悟 — how a run grows now
+// ---------------------------------------------------------------------------
+/**
+ * The in-run progression, which replaces the three technique cards.
+ *
+ * The cards were the motor of the genre — they are what made a run GROW while
+ * the enemies grew — and taking them away without a replacement would break the
+ * curve outright. The replacement, agreed in docs/ARTES.md, is that each 感悟
+ * advances the next art in the order you set, cycling.
+ *
+ * WHY THAT IS BETTER THAN A DRAW. Three cards offered at random are a sorting
+ * problem, not a decision: over a run you take most of what you are shown and
+ * two players with the same weapon end up in nearly the same place. Advancing a
+ * list you chose in the hub means the run deepens the build you brought, and
+ * the order you put them in is a real choice made with time to think rather
+ * than one made in a freeze-frame with things closing in.
+ *
+ * GRADES ARE PER RUN, like the cards were. What persists is which arts you
+ * know and which four you carry; what resets is how far they got. That keeps
+ * the survivors-like shape — every run starts at the bottom of its own curve.
+ */
+export interface ArtProgress {
+  /** The four carried, in the order they advance. Mutated in place. */
+  readonly carried: CarriedArt[]
+  /** Index of the next art to advance. */
+  next: number
+}
+
+/** The grade every carried art starts a run at. */
+export const START_LEVEL = 1
+
+/**
+ * Sets up a run's progression from an ordered list of art ids.
+ *
+ * Unknown ids are dropped rather than throwing: a save can name an art from a
+ * build that renamed one, and losing a slot beats losing the expedition.
+ */
+export function beginProgress(artIds: readonly string[]): ArtProgress {
+  const carried: CarriedArt[] = []
+  for (const id of artIds) {
+    const art = ARTS.find((a) => a.id === id)
+    if (art) carried.push({ art, level: START_LEVEL })
+  }
+  return { carried, next: 0 }
+}
+
+/**
+ * Advances one art by a grade and returns it, or null if every one is capped.
+ *
+ * Walks forward from `next` rather than simply taking it, so a maxed art does
+ * not swallow a 感悟 and leave the player with a level-up that did nothing.
+ */
+export function advanceArt(progress: ArtProgress): CarriedArt | null {
+  const n = progress.carried.length
+  if (n === 0) return null
+  for (let step = 0; step < n; step++) {
+    const i = (progress.next + step) % n
+    const entry = progress.carried[i]!
+    if (entry.level < MAX_ART_LEVEL) {
+      const raised: CarriedArt = { art: entry.art, level: entry.level + 1 }
+      progress.carried[i] = raised
+      progress.next = (i + 1) % n
+      return raised
+    }
+  }
+  return null
+}
+
+/**
+ * The four art ids a weapon carries, falling back to the head of its scroll.
+ *
+ * The fallback is not a placeholder to remove later — it is what makes the
+ * 法 tab optional. A player who never opens it still walks out with a real
+ * build, and a save written before equipping existed still means something.
+ * Choosing simply replaces a default that was already coherent.
+ */
+export function equippedIds(
+  arts: Record<string, string[]>,
+  weaponId: string,
+): string[] {
+  const chosen = arts[weaponId]
+  if (chosen && chosen.length > 0) return chosen.slice(0, EQUIPPED_ARTS)
+  return ARTS.filter((a) => a.weapon === weaponId)
+    .slice(0, EQUIPPED_ARTS)
+    .map((a) => a.id)
 }

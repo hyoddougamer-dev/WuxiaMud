@@ -34,7 +34,8 @@ import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
-import { applyArts, artActs, carriedFor } from '../src/sim/arts'
+import { offerTechniques, type Loadout } from '../src/data/techniques'
+import { advanceArt, applyArts, artActs, beginProgress, equippedIds } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 
@@ -61,7 +62,22 @@ interface Result {
   kills: number
 }
 
-function play(weaponId: string, withArts: boolean): Result {
+/**
+ * How a run is allowed to grow.
+ *
+ *   none   nothing at all — the floor, and the only honest zero to measure from
+ *   cards  the three technique cards this change REPLACED, taken greedily
+ *   arts   感悟 advancing the four equipped arts, which is what ships now
+ *
+ * The middle column is the one that matters and the reason this tool grew a
+ * third mode. Removing the cards without measuring what they were worth would
+ * be replacing the motor of the genre on a hunch: a survivors-like whose run
+ * stops growing while the enemies keep growing is not a harder game, it is a
+ * shorter one.
+ */
+type Growth = 'none' | 'cards' | 'arts'
+
+function play(weaponId: string, growth: Growth): Result {
   const weapon = WEAPONS.find((w) => w.id === weaponId)!
   let secs = 0
   let kills = 0
@@ -73,8 +89,11 @@ function play(weaponId: string, withArts: boolean): Result {
     const bolts = new Bolts()
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
-    const stats = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
-    const live = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
+    // The card mode needs a live loadout, so stats are recomputed when one is
+    // taken rather than derived once.
+    const loadout: Loadout = new Map()
+    let stats = deriveStats(loadout, { spent: SPENT, weapon, worn: [] })
+    const live = deriveStats(loadout, { spent: SPENT, weapon, worn: [] })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
 
@@ -82,7 +101,7 @@ function play(weaponId: string, withArts: boolean): Result {
     // An empty scroll is how "off" is expressed, rather than a branch: the same
     // code path runs in both rows, so the delta cannot be an artefact of one
     // row taking a different route through the simulation.
-    const carried = withArts ? carriedFor(weapon.id) : []
+    const progress = beginProgress(growth === 'arts' ? equippedIds({}, weapon.id) : [])
     const rule = REGION.rule
     const drift = rule.drift ?? 0
     let t = 0
@@ -92,7 +111,7 @@ function play(weaponId: string, withArts: boolean): Result {
       t += TICK_S
       const [ix, iy] = KITE(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
-      applyArts(stats, carried, sense.active, live)
+      applyArts(stats, progress.carried, sense.active, live)
       updatePlayer(
         player,
         ix,
@@ -121,7 +140,28 @@ function play(weaponId: string, withArts: boolean): Result {
         TICK_S,
       )
       swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
-      run.pendingLevelUps = 0
+      // 感悟 is now the run's growth, so it is CONSUMED rather than suppressed.
+      // Zeroing it — which is what this line used to do, back when growth came
+      // from three cards this harness deliberately refused — would now measure
+      // a run that cannot grow at all, and report the whole game as broken.
+      while (run.pendingLevelUps > 0) {
+        run.pendingLevelUps--
+        if (growth === 'arts') {
+          advanceArt(progress)
+        } else if (growth === 'cards') {
+          // Greedy: always the first on offer. A real player picks better than
+          // this, so the card column is a FLOOR for what the cards were worth,
+          // which is the conservative direction for the comparison to fail in.
+          const offer = offerTechniques(loadout, () => rng.next())
+          const pick = offer[0]
+          if (pick) {
+            const before = stats.maxHp
+            loadout.set(pick.id, (loadout.get(pick.id) ?? 0) + 1)
+            stats = deriveStats(loadout, { spent: SPENT, weapon, worn: [] })
+            run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
+          }
+        }
+      }
       updateCombat(
         { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: REGION.depth },
         TICK_S,
@@ -136,34 +176,38 @@ function play(weaponId: string, withArts: boolean): Result {
 console.log(`\nThe arts, weapon by weapon. ${REGION.name}, ${SEEDS.length} seeds, same pilot.`)
 console.log('The pilot kites: it holds 疾, turns every lap, never stands still.\n')
 console.log(
-  'weapon                live  off   on   Δ%   kills off    on    Δ%   conditions that fire',
+  'weapon                live  secs: none  cards  arts   kills: none  cards  arts   what fires',
 )
 
-let worst = { weapon: '', delta: -Infinity }
+let cardsTotal = 0
+let artsTotal = 0
 for (const weapon of WEAPONS) {
   const scroll = ARTS.filter((a) => a.weapon === weapon.id)
-  const liveCount = scroll.filter(artActs).length
-  const off = play(weapon.id, false)
-  const on = play(weapon.id, true)
-  const dSecs = ((on.secs - off.secs) / Math.max(1, off.secs)) * 100
-  const dKills = ((on.kills - off.kills) / Math.max(1, off.kills)) * 100
-  if (dSecs > worst.delta) worst = { weapon: weapon.name, delta: dSecs }
-  const firing = scroll
+  const carriedFour = scroll.slice(0, 4)
+  const liveCount = carriedFour.filter(artActs).length
+  const none = play(weapon.id, 'none')
+  const cards = play(weapon.id, 'cards')
+  const arts = play(weapon.id, 'arts')
+  cardsTotal += cards.secs
+  artsTotal += arts.secs
+  const firing = carriedFour
     .filter(artActs)
     .map((a) => `${a.condition[0]!.toUpperCase()}${a.effect}`)
     .join(' ')
   console.log(
     `${weapon.name.padEnd(20)} ${String(liveCount).padStart(4)} ` +
-      `${off.secs.toFixed(0).padStart(4)} ${on.secs.toFixed(0).padStart(4)} ` +
-      `${dSecs.toFixed(0).padStart(4)} ` +
-      `${off.kills.toFixed(0).padStart(9)} ${on.kills.toFixed(0).padStart(5)} ` +
-      `${dKills.toFixed(0).padStart(5)}   ${firing}`,
+      `${none.secs.toFixed(0).padStart(5)} ${cards.secs.toFixed(0).padStart(6)} ` +
+      `${arts.secs.toFixed(0).padStart(5)} ` +
+      `${none.kills.toFixed(0).padStart(7)} ${cards.kills.toFixed(0).padStart(6)} ` +
+      `${arts.kills.toFixed(0).padStart(5)}   ${firing}`,
   )
 }
 
+const swing = ((artsTotal - cardsTotal) / cardsTotal) * 100
 console.log(
-  `\nBiggest gain: ${worst.weapon} at ${worst.delta.toFixed(0)}% survival.\n` +
-    'A grade-1 art is meant to be felt, not decisive. Past roughly +40% here the\n' +
-    'scroll is carrying the run rather than shaping it, and a STEP in sim/arts.ts\n' +
-    'wants lowering.',
+  `\nAgainst the cards this replaced: ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival overall.\n` +
+    'The card column is a FLOOR — it always takes the first card offered, and a\n' +
+    'real player picks better — so the arts needing to beat it is the honest bar.\n' +
+    'Well below it means the run stopped growing while the enemies kept growing,\n' +
+    'which is not a harder game, only a shorter one.',
 )

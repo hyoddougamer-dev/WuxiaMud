@@ -22,6 +22,8 @@ import {
 } from './character'
 import { ITEMS, MAX_RANK } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
+import { ARTS, EQUIPPED_ARTS } from '../data/arts'
+import { WEAPONS } from '../data/weapons'
 import {
   acquire,
   emptyInventory,
@@ -130,6 +132,36 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
  * yields a usable character, because dropping a save over one bad field would
  * punish the player for a bug that is ours.
  */
+/**
+ * The equipped arts, per weapon, from whatever the save happens to hold.
+ *
+ * Everything is filtered against the real art table rather than trusted: a save
+ * is a text file on a device and an id that no longer exists would put an empty
+ * slot into a run. An unknown weapon key is dropped for the same reason, and a
+ * list longer than the limit is trimmed rather than rejected — losing a slot
+ * beats losing the swordsman.
+ */
+function parseArts(value: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  if (typeof value !== 'object' || value === null) return out
+  for (const [weaponId, ids] of Object.entries(value as Record<string, unknown>)) {
+    if (!WEAPONS.some((w) => w.id === weaponId)) continue
+    if (!Array.isArray(ids)) continue
+    const kept: string[] = []
+    for (const id of ids) {
+      if (typeof id !== 'string') continue
+      // Must belong to THIS weapon, so a save cannot smuggle a spear art into
+      // a sabre's scroll and have it silently never fire.
+      if (!ARTS.some((a) => a.id === id && a.weapon === weaponId)) continue
+      if (kept.includes(id)) continue
+      kept.push(id)
+      if (kept.length === EQUIPPED_ARTS) break
+    }
+    if (kept.length > 0) out[weaponId] = kept
+  }
+  return out
+}
+
 export function parseCharacter(raw: string): Character | null {
   let value: unknown
   try {
@@ -164,6 +196,7 @@ export function parseCharacter(raw: string): Character | null {
     xp: int(record.xp, 0),
     points: int(record.points, 0),
     spent: parseAttributes(record.spent),
+    arts: parseArts(record.arts),
     depth: int(record.depth, 1, 1, MAX_DEPTH),
     runs: int(record.runs, 0),
     bestSeconds: int(record.bestSeconds, 0),
@@ -212,7 +245,7 @@ export function parseRoster(raw: string): Roster | null {
 
 export function serialiseRoster(roster: Roster): string {
   return JSON.stringify({
-    v: 2,
+    v: 3,
     active: Math.max(0, Math.min(roster.swordsmen.length - 1, roster.active)),
     swordsmen: roster.swordsmen.slice(0, ROSTER_LIMIT),
   })

@@ -30,8 +30,8 @@ export const strings = {
 
   // --- in-run progression --------------------------------------------
   /** The temporary, per-expedition track. */
-  insight: 'Insight',
   chooseTechnique: 'Choose a technique',
+  insight: 'Insight',
   newTechnique: 'New',
 
   // --- the persistent character ---------------------------------------

@@ -40,8 +40,7 @@ import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
-import { applyArts, carriedFor, type CarriedArt } from './sim/arts'
-import { artsFor } from './data/arts'
+import { applyArts, beginProgress, equippedIds } from './sim/arts'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
@@ -53,12 +52,12 @@ import { gearFromIds } from './render/wardrobe'
 import type { Kit, Stats } from './sim/loadout'
 import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
+import { createLevelUp } from './ui/levelup'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
 import { createHud, type Found, type RunSummary } from './ui/hud'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
-import { createLevelUp } from './ui/levelup'
 import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
@@ -192,7 +191,15 @@ async function boot(): Promise<void> {
    * five is what keeps the strip and the simulation telling one story — the
    * tiles the player can see are exactly the arts that can fire.
    */
-  let carried: CarriedArt[] = carriedFor(kit.weapon.id)
+  /**
+   * The run's arts and how far they have come.
+   *
+   * `progress.carried` is the four equipped for the weapon in hand, each at the
+   * grade this expedition has raised it to. It is rebuilt at the start of every
+   * run and whenever the weapon changes, because grades are per-run: what
+   * persists is which four you carry, not how far they got. See sim/arts.ts.
+   */
+  let progress = beginProgress(equippedIds(character.arts, kit.weapon.id))
   const live: Stats = deriveStats(loadout, kit)
   /**
    * Recomputes the permanent stats AND the scroll, together.
@@ -205,7 +212,13 @@ async function boot(): Promise<void> {
    */
   const refreshKit = (): void => {
     stats = deriveStats(loadout, kit)
-    carried = carriedFor(kit.weapon.id)
+    // A weapon change is a different scroll, so the grades this run earned on
+    // the old one do not carry over. Anything else would let a player bank
+    // grades on one weapon and cash them on another.
+    const wanted = equippedIds(character.arts, kit.weapon.id).join(',')
+    if (progress.carried.map((c) => c.art.id).join(',') !== wanted) {
+      progress = beginProgress(equippedIds(character.arts, kit.weapon.id))
+    }
   }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
@@ -222,8 +235,8 @@ async function boot(): Promise<void> {
   fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
   const ui = createHud(uiRoot)
-  const levelUp = createLevelUp(uiRoot)
   const banners = createBanners(uiRoot)
+  const levelUp = createLevelUp(uiRoot)
   const codex = createCodex(uiRoot)
   const title = createTitle(uiRoot)
   const creator = createCreator(uiRoot)
@@ -520,6 +533,7 @@ async function boot(): Promise<void> {
     hazards.clear()
     floaters.clear()
     banners.clear()
+    levelUp.hide()
     loadout = new Map()
     foundThisRun = []
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
@@ -530,7 +544,6 @@ async function boot(): Promise<void> {
     rebuildFigure()
     pickRng = new Rng(runSeed ^ 0x5bf03635)
     dropRng = new Rng(runSeed ^ 0x1b873593)
-    levelUp.hide()
     run = createRun(kit.weapon.interval)
     run.hp = stats.maxHp
     resetCamera(camera, 0, 0)
@@ -632,6 +645,20 @@ async function boot(): Promise<void> {
 
     // A pending choice freezes the field. The player is reading three cards;
     // being surrounded while doing so would be indefensible.
+    //
+    // THE CARDS WERE ALMOST REMOVED HERE, and the measurement is why they are
+    // still standing. docs/ARTES.md's plan is that 感悟 advances the four
+    // equipped arts instead — and `advanceArt` in sim/arts.ts is written and
+    // tested for exactly that. But `tools/artsBalance.mts` compared the two
+    // motors head to head and the replacement lost: −9% survival overall, and
+    // far worse on kills. The reason is visible in that tool's `live` column.
+    // Only 17 of the 30 arts act, so of the four a weapon carries, one to three
+    // do anything at all, and every 感悟 that lands on one of the others is a
+    // level-up that does nothing.
+    //
+    // So the order in the doc is load-bearing rather than a preference: the six
+    // remaining effects have to exist BEFORE the cards can go. Removing them
+    // first would not make the game harder, only shorter.
     if (run.pendingLevelUps > 0) {
       if (!levelUp.visible) {
         levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
@@ -658,7 +685,7 @@ async function boot(): Promise<void> {
     // on a move that depends on the speed art. One frame of lag at 60Hz is
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
     // of the circle. See sim/arts.ts.
-    applyArts(stats, carried, sense.active, live)
+    applyArts(stats, progress.carried, sense.active, live)
 
     const { x: ix, y: iy } = joystick.state
     // The region bends the player, not the enemies, and that asymmetry is the
@@ -982,9 +1009,13 @@ async function boot(): Promise<void> {
 
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, live.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
-    // The scroll of the weapon in hand. Cheap: setScroll returns immediately
-    // unless the weapon actually changed.
-    ui.setScroll(artsFor(kit.weapon.id))
+    // The four arts actually carried, not the whole scroll of five.
+    //
+    // Showing five while the simulation ran four would put a tile on screen
+    // that can never fire — the exact class of lie this project keeps having to
+    // dig out. `progress.carried` IS what applyArts reads each frame, so the
+    // strip and the simulation cannot disagree about what is in hand.
+    ui.setScroll(progress.carried.map((c) => c.art))
     ui.setConditions(sense.active)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true

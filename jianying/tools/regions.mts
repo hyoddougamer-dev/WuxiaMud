@@ -34,7 +34,7 @@ import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats } from '../src/sim/loadout'
-import { applyArts, carriedFor } from '../src/sim/arts'
+import { advanceArt, applyArts, beginProgress, equippedIds } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
@@ -123,14 +123,22 @@ for (const region of REGIONS) {
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
 
-    // The arts, exactly as main.ts runs them.
+    // The arts, wired exactly as main.ts runs them — and almost never firing.
     //
-    // Without this the table would measure a game the player never plays: the
-    // arts fire on conditions the kiting pilot below genuinely provokes — it
-    // runs flat out and it turns — so leaving them out would report the curve
-    // of a different game and call it balanced.
+    // That is not a bug, it is this pilot. KITE flies at 0.3 deflection, which
+    // sits above the 0.1 that counts as 静 and below the 0.86 that counts as
+    // 疾, so NO POSTURE EVER HOLDS in this table. Measured: turning the arts
+    // off changes not one digit of any row.
+    //
+    // The wiring stays anyway, and deliberately. A gentle drifter is the right
+    // pilot for the question this tool asks — whether each PLACE plays
+    // differently — and changing it to chase the arts would silently turn this
+    // into a second, worse copy of tools/artsBalance.mts, which flies at full
+    // deflection and exists for exactly that. What the wiring buys is that the
+    // day a situation art (围, 危) or a passive lands, this table starts
+    // reflecting it instead of quietly measuring a game without arts.
     const sense = createSense()
-    const carried = carriedFor(weapon.id)
+    const progress = beginProgress(equippedIds({}, weapon.id))
     const live = deriveStats(new Map(), { spent, weapon, worn: [] })
 
     const rule = region.rule
@@ -143,7 +151,7 @@ for (const region of REGIONS) {
       const [ix, iy] = KITE(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
       // Applied from the previous tick's sense, the one-frame lag main.ts has.
-      applyArts(stats, carried, sense.active, live)
+      applyArts(stats, progress.carried, sense.active, live)
       updatePlayer(
         player,
         ix,
@@ -172,7 +180,14 @@ for (const region of REGIONS) {
         TICK_S,
       )
       swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
-      run.pendingLevelUps = 0
+      // 感悟 is now the run's growth, so it is CONSUMED rather than suppressed.
+      // Zeroing it — which is what this line used to do, back when growth came
+      // from three cards this harness deliberately refused — would now measure
+      // a run that cannot grow at all, and report the whole game as broken.
+      while (run.pendingLevelUps > 0) {
+        run.pendingLevelUps--
+        advanceArt(progress)
+      }
       updateCombat(
         { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: region.depth },
         TICK_S,

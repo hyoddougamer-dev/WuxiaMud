@@ -8,9 +8,18 @@
  * nothing fires while its condition is false.
  */
 import { describe, expect, it } from 'vitest'
-import { ARTS, artScale, type Art } from '../src/data/arts'
+import { ARTS, EQUIPPED_ARTS, MAX_ART_LEVEL, artScale, type Art } from '../src/data/arts'
 import { WEAPONS } from '../src/data/weapons'
-import { applyArts, artActs, carriedFor, LIVE_EFFECTS } from '../src/sim/arts'
+import {
+  advanceArt,
+  applyArts,
+  artActs,
+  beginProgress,
+  carriedFor,
+  equippedIds,
+  LIVE_EFFECTS,
+  START_LEVEL,
+} from '../src/sim/arts'
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
 import { createSense, type Conditions } from '../src/sim/conditions'
 
@@ -144,5 +153,65 @@ describe('the arts acting', () => {
     for (const art of ARTS) {
       expect(artActs(art)).toBe(LIVE_EFFECTS.includes(art.effect))
     }
+  })
+})
+
+describe('the run progression', () => {
+  it('starts every carried art at grade one', () => {
+    const p = beginProgress(equippedIds({}, 'jian'))
+    expect(p.carried.length).toBe(EQUIPPED_ARTS)
+    for (const c of p.carried) expect(c.level).toBe(START_LEVEL)
+  })
+
+  it('advances the list in order, cycling', () => {
+    const p = beginProgress(equippedIds({}, 'jian'))
+    const first = p.carried.map((c) => c.art.id)
+    for (let i = 0; i < EQUIPPED_ARTS; i++) {
+      const raised = advanceArt(p)
+      expect(raised?.art.id).toBe(first[i])
+      expect(raised?.level).toBe(START_LEVEL + 1)
+    }
+    // Round two lands back on the head of the list.
+    expect(advanceArt(p)?.art.id).toBe(first[0])
+  })
+
+  it('skips an art already at the cap rather than wasting the 感悟', () => {
+    // A level-up that appears to do nothing is worse than no level-up: the
+    // player has no way to tell it apart from a bug.
+    const p = beginProgress(equippedIds({}, 'jian'))
+    let raised = advanceArt(p)
+    let guard = 0
+    while (raised && guard++ < 200) raised = advanceArt(p)
+    for (const c of p.carried) expect(c.level).toBe(MAX_ART_LEVEL)
+    // Everything capped: it reports so rather than silently bumping past five.
+    expect(advanceArt(p)).toBeNull()
+  })
+
+  it('falls back to the head of the scroll when nothing is equipped', () => {
+    // The 法 tab is optional by design — a player who never opens it still
+    // walks out with a coherent build, and a save from before it existed still
+    // means something.
+    for (const weapon of WEAPONS) {
+      const ids = equippedIds({}, weapon.id)
+      expect(ids.length, weapon.id).toBe(EQUIPPED_ARTS)
+      for (const id of ids) {
+        expect(ARTS.find((a) => a.id === id)?.weapon).toBe(weapon.id)
+      }
+    }
+  })
+
+  it('honours an explicit order, and only that weapon’s arts', () => {
+    const spear = ARTS.filter((a) => a.weapon === 'spear').map((a) => a.id)
+    const chosen = [spear[3]!, spear[1]!]
+    const ids = equippedIds({ spear: chosen }, 'spear')
+    expect(ids).toEqual(chosen)
+  })
+
+  it('drops an art from a weapon you are not holding', () => {
+    const p = beginProgress(['jian-point', 'spear-thrust'])
+    // beginProgress does not filter by weapon — that is the save parser's job —
+    // but it must never invent an art for an id it does not know.
+    expect(p.carried.every((c) => ARTS.includes(c.art))).toBe(true)
+    expect(beginProgress(['no-such-art']).carried).toEqual([])
   })
 })

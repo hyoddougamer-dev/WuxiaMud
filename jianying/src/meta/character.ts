@@ -89,6 +89,20 @@ export interface Character {
   /** Earned but not yet assigned. */
   points: number
   spent: Attributes
+  /**
+   * The arts carried into an expedition, per weapon, in the order they advance.
+   *
+   * Keyed by weapon because an art belongs to a weapon: picking up a spear is
+   * picking up a different way to fight, and the four you chose for the sabre
+   * mean nothing while you are holding it. Up to EQUIPPED_ARTS ids each; a
+   * weapon with no entry falls back to the first four of its scroll, so a save
+   * written before this existed still walks out with a build.
+   *
+   * The ORDER is the decision. Each 感悟 during a run advances the next one in
+   * this list, so putting an art first means it reaches grade five and putting
+   * it fourth means it might not.
+   */
+  arts: Record<string, string[]>
   /** Deepest expedition unlocked. Starts at 1. */
   depth: number
   /** Lifetime totals, purely for the hub to have something to show. */
@@ -126,6 +140,7 @@ export function createCharacter(
     // screen full of zeroes.
     points: 1,
     spent: emptyAttributes(),
+    arts: {},
     depth: 1,
     runs: 0,
     bestSeconds: 0,

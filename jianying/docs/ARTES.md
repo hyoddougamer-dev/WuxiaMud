@@ -149,9 +149,9 @@ uma com o seu teste.
 | A | Modelo de dados: condições, artes, o rolo de cada arma | testes: 5 por arma, ids únicos, toda a condição usada | **feito** |
 | B | Deteção das condições na simulação, e o sinal no ecrã | harness: forçar cada condição e ver o selo acender | **feito** |
 | C | Efeitos aplicados, começando pelos que já existem | `tools/artsBalance.mts`: o ganho por arma | **feito, em parte** |
-| D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste | |
+| D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste | modelo feito, ecrã por fazer |
 | E | 秘笈 caem e ensinam | teste: um manual duplicado não ensina duas vezes | |
-| F | As 3 cartas saem; 感悟 avança a lista | `regions.mts` outra vez, e o APK | |
+| F | As 3 cartas saem; 感悟 avança a lista | `artsBalance.mts`: bater a coluna das cartas | **bloqueado pelo passo 3** |
 
 ### Passo B, como ficou
 
@@ -237,3 +237,53 @@ chega a 危 se estiver a perder. **Nunca está parado.** Uma arte em 静 não
 contribui nada nestas tabelas e parece grátis. São precisamente essas as que um
 jogador provoca de propósito — e nenhum piloto headless as vai medir por nós.
 Precisam de mãos.
+
+---
+
+## As cartas quase saíram, e a medição impediu-o
+
+O plano deste documento é claro: as 3 cartas saem e 感悟 passa a subir as
+quatro artes equipadas. Escrevi esse código — `beginProgress` e `advanceArt` em
+`src/sim/arts.ts`, com testes — liguei-o, e depois medi.
+
+`tools/artsBalance.mts` ganhou uma terceira coluna para isto: a mesma corrida
+sem crescimento nenhum, com as **cartas**, e com as **artes**. O resultado:
+
+| Arma | vivas de 4 | nada | cartas | artes |
+|---|---|---|---|---|
+| Straight Jian | 1 | 159 | 185 | **218** |
+| Curved Dao | 2 | 135 | **179** | 139 |
+| Heavy Zhanmadao | 2 | 117 | **161** | 118 |
+| Twin Blades | 3 | 166 | **195** | 193 |
+| Long Spear | 2 | 145 | **178** | 163 |
+| Iron Fan | 3 | 150 | **185** | 155 |
+
+**−9% de sobrevivência no total, e muito pior nos abates.** E a coluna das
+cartas é um *chão*: o piloto escolhe sempre a primeira carta oferecida, e um
+jogador escolhe melhor.
+
+A causa está na coluna `vivas`: das quatro artes que cada arma carrega, só uma
+a três fazem alguma coisa. Cada 感悟 que cai numa das outras é uma subida de
+nível que não faz nada.
+
+Por isso **a ordem deste documento não é uma preferência, é uma dependência**:
+os seis efeitos que faltam têm de existir antes de as cartas poderem sair.
+Tirá-las primeiro não tornava o jogo mais difícil — tornava-o mais curto.
+
+As cartas ficaram. O que ficou também, e é ganho real:
+
+- **`Character.arts`** — quais quatro artes carregas por arma, e por que ordem.
+  Guardado, validado contra a tabela real, e com recurso às primeiras quatro do
+  rolo para quem nunca abrir a aba.
+- **A barra mostra as quatro que a simulação carrega**, não as cinco do rolo.
+  Antes havia um tile no ecrã que nunca podia disparar.
+- **`advanceArt`** está escrito e testado, à espera do passo F.
+
+### E uma correção a mim próprio
+
+Escrevi no `regions.mts` que as artes ali disparam porque o piloto "corre a
+fundo e vira". É falso: esse piloto voa a 0.3 de deflexão, que fica acima dos
+0.1 de 静 e abaixo dos 0.86 de 疾 — **nenhuma postura se cumpre naquela
+tabela**. Medido: desligar as artes não muda um único dígito de nenhuma linha.
+A ligação lá fica na mesma, para que no dia em que uma arte de situação (围,
+危) conte, a tabela passe a refleti-la em vez de medir um jogo sem artes.
