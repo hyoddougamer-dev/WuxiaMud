@@ -26,6 +26,7 @@ import { clamp01, easing, lerp } from './core/tween'
 import { ENEMY_KINDS, KIND_BY_ID } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
+import { allRankMarks } from './render/rankMarks'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
 import { createFloaters } from './render/floaters'
 import { mixColor, palette } from './render/palette'
@@ -59,7 +60,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.8.0'
+const BUILD = '1.9.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -380,6 +381,13 @@ async function boot(): Promise<void> {
       bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
     }
     bodyGfx.clear()
+    // Rank marks last, over the body, in gold — see render/rankMarks.ts. The
+    // figure has to exist before they can hang off it, so they are collected
+    // here and drawn after the loop below.
+    const ranked = equippedItems(character.inventory).map((item) => ({
+      slot: item.slot,
+      rank: rankOf(character.inventory, item.id),
+    }))
     for (const strokes of [figure.bleed, figure.body]) {
       for (const stroke of strokes) {
         // Robe marks carry the dye; the rest stay ink, so the silhouette still
@@ -394,6 +402,9 @@ async function boot(): Promise<void> {
               : palette.ink
         bodyGfx.poly(stroke.poly).fill({ color: colour, alpha: stroke.alpha })
       }
+    }
+    for (const stroke of allRankMarks(ranked, figure, 1, character.look.seed)) {
+      bodyGfx.poly(stroke.poly).fill({ color: palette.gold, alpha: stroke.alpha })
     }
   }
   rebuildFigure()

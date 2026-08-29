@@ -39,6 +39,7 @@ import {
 } from '../src/meta/save'
 import { BUILDS, DEFAULT_LOOK, SASHES, buildOf } from '../src/meta/look'
 import { buildSwordsmanTopDown } from '../src/render/figure'
+import { rankMarks, socketsAt } from '../src/render/rankMarks'
 import { gearFromIds } from '../src/render/wardrobe'
 import { portraitSvg } from '../src/render/silhouette'
 import { createRun, updateCombat } from '../src/sim/combat'
@@ -57,6 +58,7 @@ import {
   ITEMS,
   ITEM_BY_ID,
   MAX_RANK,
+  SLOTS,
   dropChance,
   statAt,
   rollDrop,
@@ -800,6 +802,76 @@ describe('what a piece grants', () => {
     const robe = ITEM_BY_ID.get('r-lamellar')!
     expect(statLine(robe.stat, 0)).not.toBe(statLine(robe.stat, 4))
     expect(statLine(robe.stat, 4)).toContain(String(statAt(robe.stat!, 4)))
+  })
+})
+
+describe('rank, worn', () => {
+  const figureOf = () => buildSwordsmanTopDown(7, 1, gearFromIds({}), 1)
+
+  it('draws nothing at rank zero, which is most of what anybody wears', () => {
+    for (const slot of SLOTS) expect(rankMarks(slot, 0, figureOf())).toHaveLength(0)
+  })
+
+  it('gives every slot its own marks', () => {
+    // The hole found by drawing each item separately rather than only the robe:
+    // hems at the skirt and cords at the belt are ROBE marks. A hat cannot grow
+    // a hem, so reusing one mark everywhere would mean tempering a hat visibly
+    // changed the robe — worse than showing nothing.
+    const figure = figureOf()
+    const shapes = SLOTS.map((slot) =>
+      JSON.stringify(rankMarks(slot, 3, figure).map((m) => m.poly.map((n) => n.toFixed(1)))),
+    )
+    expect(new Set(shapes).size).toBe(SLOTS.length)
+  })
+
+  it('adds a mark for every rank, so no two ranks look alike', () => {
+    const figure = figureOf()
+    for (const slot of SLOTS) {
+      let previous = -1
+      for (let rank = 0; rank <= MAX_RANK; rank++) {
+        const count = rankMarks(slot, rank, figure).length
+        // The weapon is one lengthening cord rather than a stack, so its count
+        // holds; what changes there is the geometry, checked below.
+        expect(count).toBeGreaterThanOrEqual(previous === -1 ? 0 : slot === 'weapon' ? 0 : previous)
+        previous = count
+      }
+      expect(rankMarks(slot, MAX_RANK, figure).length).toBeGreaterThan(0)
+    }
+    // The weapon's cord must still lengthen, or its ranks are invisible.
+    const lowest = rankMarks('weapon', 1, figure)
+    const highest = rankMarks('weapon', MAX_RANK, figure)
+    const depth = (marks: ReturnType<typeof rankMarks>): number =>
+      Math.max(...marks.flatMap((m) => m.poly.filter((_, i) => i % 2 === 1)))
+    expect(depth(highest)).toBeGreaterThan(depth(lowest))
+  })
+
+  it('hangs marks off the figure it was given, not off constants', () => {
+    // Wide sleeves put the cuffs somewhere quite different from bound ones. The
+    // contact sheets hard-coded these positions for a while and drew tassels in
+    // mid-air on every wide-sleeved set.
+    const narrow = buildSwordsmanTopDown(7, 1, gearFromIds({ shoulders: 'bare' }), 1)
+    const wide = buildSwordsmanTopDown(7, 1, gearFromIds({ shoulders: 'wide' }), 1)
+    expect(narrow.anchors.cuffs[1]!.x).not.toBeCloseTo(wide.anchors.cuffs[1]!.x, 1)
+    const a = rankMarks('shoulders', 2, narrow)[0]!.poly[0]!
+    const b = rankMarks('shoulders', 2, wide)[0]!.poly[0]!
+    expect(a).not.toBeCloseTo(b, 1)
+  })
+
+  it('never stacks past the top of the scale', () => {
+    const figure = figureOf()
+    for (const slot of SLOTS) {
+      expect(rankMarks(slot, 99, figure)).toEqual(rankMarks(slot, MAX_RANK, figure))
+    }
+  })
+
+  it('opens sockets only as rank climbs', () => {
+    let previous = 0
+    for (let rank = 0; rank <= MAX_RANK; rank++) {
+      const open = socketsAt(rank)
+      expect(open).toBeGreaterThanOrEqual(previous)
+      previous = open
+    }
+    expect(socketsAt(MAX_RANK)).toBe(3)
   })
 })
 

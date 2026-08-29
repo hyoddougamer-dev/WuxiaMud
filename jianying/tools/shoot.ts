@@ -141,6 +141,90 @@ async function migrationCheck(parent: BrowserContext, url: string): Promise<void
   }
 }
 
+/**
+ * A v2 save whose worn pieces are RANKED, for checking that rank is worn.
+ *
+ * Ranks cannot be reached by playing inside a harness run — they come off deep
+ * drops — so the only way to see a raised swordsman is to write one.
+ */
+const RANKED_SAVE = JSON.stringify({
+  v: 2,
+  active: 0,
+  swordsmen: [
+    {
+      name: 'Shen Baoyu',
+      origin: 'mountain',
+      level: 12,
+      runs: 9,
+      depth: 3,
+      taught: true,
+      inventory: {
+        owned: [
+          { id: 'r-lamellar', rank: 5, rites: [] },
+          { id: 's-pauldron', rank: 4, rites: [] },
+          { id: 'h-hat', rank: 3, rites: [] },
+          { id: 'w-dao', rank: 2, rites: [] },
+        ],
+        equipped: { robe: 'r-lamellar', shoulders: 's-pauldron', head: 'h-hat', weapon: 'w-dao' },
+      },
+    },
+  ],
+})
+
+/**
+ * Boots with a ranked swordsman and asserts the rank is VISIBLE.
+ *
+ * The whole argument for putting rank on the figure is that a number on a card
+ * is not progression in a game whose art direction is "the equipment is the
+ * silhouette". If the marks are not drawn, that argument is a comment.
+ */
+async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
+  const context = await parent.browser()!.newContext({ viewport: VIEWPORT })
+  try {
+    const page = await context.newPage()
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key!, value!)
+        } catch {
+          /* private mode; the assertion below will report it */
+        }
+      },
+      ['jianying.save.v2', RANKED_SAVE],
+    )
+    await page.goto(url, { waitUntil: 'load' })
+    await waitForFirstFrame(page)
+    await page.waitForFunction(() => document.body.dataset.screen === 'title', { timeout: 15_000 })
+    await page.locator('.title-go').click()
+    await page.waitForFunction(() => document.body.dataset.screen === 'hub', { timeout: 10_000 })
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(OUT, 'hub-ranked.png') })
+
+    // Gold, and only on the figure. palette.gold is d4af37.
+    const gold = await page
+      .locator('.pane .stage .portrait-svg polygon[fill="#d4af37"]')
+      .count()
+      .catch(() => 0)
+    // And the pips on the cards, which is the other half of the same claim.
+    await page.locator('.hub-tabs .tab').nth(1).click()
+    await page.waitForTimeout(250)
+    const pips = await page.locator('.item-rank').count().catch(() => 0)
+    await page.screenshot({ path: join(OUT, 'gear-ranked.png') })
+
+    if (gold < 4) {
+      console.error(`rank:   NOT WORN — only ${gold} gold marks on a swordsman ranked 5/4/3/2`)
+      process.exitCode = 1
+    } else if (pips === 0) {
+      console.error('rank:   marks drawn, but no rank pips on the equipment cards')
+      process.exitCode = 1
+    } else {
+      console.log(`rank:   ${gold} marks on the figure, ${pips} pips on the cards`)
+    }
+  } finally {
+    await context.close()
+  }
+}
+
 /** Waits for main.ts to flag that a real frame has been presented. */
 async function waitForFirstFrame(page: Page): Promise<void> {
   await page.waitForFunction(() => document.body.dataset.ready === '1', undefined, {
@@ -224,6 +308,7 @@ async function main(): Promise<void> {
     // swordsman gone. This is the only place that gap gets closed, and losing a
     // save is the worst thing this project can do to somebody.
     await migrationCheck(context, url)
+    await rankCheck(context, url)
 
     await page.goto(url, { waitUntil: 'load' })
     await waitForFirstFrame(page)

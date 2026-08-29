@@ -78,10 +78,24 @@ migração nenhuma.
 | 1b | Roster de espadachins | 1 | Sim, a aba 剑 | **feito** |
 | 2 | Stats: 10 tipos → 4 com escala | — | Sim, as linhas dos itens | **feito** |
 | 3 | Sets: agrupar os 22 em 5 + inicial | 2 | Sim, nomes e agrupamento | |
-| 4 | Marcas de grau na figura | 1 | Sim, o grau vê-se | |
+| 4 | Marcas de grau na figura | 1 | Sim, o grau vê-se | **feito** |
 | 5 | Aba 炉 Forja: temperar com repetidas | 1, 2, 4 | Sim, o ciclo novo | |
 | 6 | *APK e jogar* | 5 | — | |
 | 7 | Encaixes e ritos (auras) | 1, 6 | Sim, muito | |
+
+### Passo 4, como ficou
+
+`src/render/rankMarks.ts`. Cada encaixe tem o **seu próprio vocabulário** —
+faixas empilhadas na coroa, borlas nos punhos, cordões no cinto, um cordão no
+punho da arma — porque a primeira versão usava a mesma bainha para tudo e um
+chapéu temperado ganhava bainha. Assim a figura diz *qual* peça subiu, não
+apenas que alguma subiu.
+
+As marcas penduram-se em **âncoras da figura construída** (`Swordsman.anchors`),
+não em constantes: um punho move-se com o item de ombros, com o bearing e com a
+compleição. As folhas de contacto tinham isto escrito à mão e desenhavam borlas
+no ar em qualquer conjunto de mangas largas — agora `tools/sheet.ts` delega na
+mesma geometria do jogo.
 
 ### Passo 2, como ficou
 

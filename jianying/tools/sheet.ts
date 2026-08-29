@@ -10,10 +10,11 @@
  * each sheet stay in the sheet that owns them.
  */
 import { Rng } from '../src/core/rng'
-import { buildBlade, buildSwordsmanTopDown } from '../src/render/figure'
+import { buildBlade, buildSwordsmanTopDown, type Swordsman } from '../src/render/figure'
+import { rankMarks } from '../src/render/rankMarks'
 import { strokeToPolygon } from '../src/render/silhouette'
 import { palette } from '../src/render/palette'
-import { gearFromIds, type Gear } from '../src/render/wardrobe'
+import { DEFAULT_GEAR, gearFromIds, type Gear } from '../src/render/wardrobe'
 import { ITEM_BY_ID, type Item, type Slot } from '../src/data/items'
 
 export const W = 1180
@@ -384,9 +385,14 @@ export function columns(count: number, reach: number): (i: number) => number {
  * belt — both read at a glance and both are things real robes of the period
  * actually carried.
  */
-export function rankMarks(rank: number, scale: number, build: number, colour: number): string {
+export function robeRankMarks(
+  rank: number,
+  scale: number,
+  build: number,
+  colour: number,
+): string {
   // Kept as the robe's marks. See rankMarksFor for why every slot needs its own.
-  return robeMarks(rank, scale, build, colour)
+  return rankMarksFor('robe', rank, scale, build, colour)
 }
 
 /**
@@ -408,116 +414,20 @@ export function rankMarksFor(
   scale: number,
   build: number,
   colour: number,
+  figure?: Swordsman,
 ): string {
   if (rank <= 0) return ''
-  switch (slot) {
-    case 'robe':
-      return robeMarks(rank, scale, build, colour)
-    case 'shoulders':
-      return shoulderMarks(rank, scale, build, colour)
-    case 'head':
-      return headMarks(rank, scale, build, colour)
-    case 'weapon':
-      return hiltMarks(rank, scale, build, colour)
-  }
+  // Delegates to the game's own geometry. This file used to carry its own SVG
+  // version of every mark, tuned against an older figure, and it drew tassels
+  // in mid-air the moment the sleeves moved — a contact sheet that disagrees
+  // with the game is worse than no sheet, because it reads as authority.
+  const on = figure ?? buildSwordsmanTopDown(1, scale, DEFAULT_GEAR, build)
+  return rankMarks(slot, rank, on, scale)
+    .map((m) => strokeToPolygon(m, colour))
+    .join('')
 }
 
-/** Shoulders: tassels off the sleeve ends, alternating side. */
-function shoulderMarks(rank: number, scale: number, build: number, colour: number): string {
-  const c = hex(colour)
-  const parts: string[] = []
-  for (let i = 0; i < Math.min(5, rank); i++) {
-    const side = i % 2 === 0 ? -1 : 1
-    const tier = Math.floor(i / 2)
-    const x = side * (13 + tier * 3) * scale * build
-    const y0 = (-31 + tier * 2) * scale
-    parts.push(
-      `<path d="M ${x.toFixed(1)} ${y0.toFixed(1)} l ${(side * 1.2 * scale).toFixed(1)} ${(8 * scale).toFixed(1)}" ` +
-        `stroke="${c}" stroke-width="${(2 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.95"/>`,
-      `<circle cx="${(x + side * 1.2 * scale).toFixed(1)}" cy="${(y0 + 8 * scale).toFixed(1)}" ` +
-        `r="${(1.6 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.95"/>`,
-    )
-  }
-  return parts.join('')
-}
-
-/** Head: bands stacked above the crown, like rings on a monk's staff. */
-function headMarks(rank: number, scale: number, build: number, colour: number): string {
-  const c = hex(colour)
-  const parts: string[] = []
-  for (let i = 0; i < Math.min(5, rank); i++) {
-    const y = (-45 - i * 3.6) * scale
-    const w = (7 - i * 0.7) * scale * build
-    parts.push(
-      `<path d="M ${(-w).toFixed(1)} ${y.toFixed(1)} L ${w.toFixed(1)} ${y.toFixed(1)}" ` +
-        `stroke="${c}" stroke-width="${((i === 0 ? 2.4 : 1.8) * scale).toFixed(1)}" ` +
-        `stroke-linecap="round" stroke-opacity="0.95"/>`,
-    )
-  }
-  return parts.join('')
-}
-
-/** Weapon: a knotted cord at the hilt that lengthens with every temper. */
-function hiltMarks(rank: number, scale: number, build: number, colour: number): string {
-  const c = hex(colour)
-  const n = Math.min(5, rank)
-  const x = 8 * scale * build
-  const y = -26 * scale
-  const drop = (5 + n * 3.4) * scale
-  return (
-    `<path d="M ${x.toFixed(1)} ${y.toFixed(1)} q ${(-3 * scale).toFixed(1)} ${(drop * 0.6).toFixed(1)} ` +
-      `${(-1.5 * scale).toFixed(1)} ${drop.toFixed(1)}" fill="none" stroke="${c}" ` +
-      `stroke-width="${(2.2 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.95"/>` +
-    `<circle cx="${(x - 1.5 * scale).toFixed(1)}" cy="${(y + drop).toFixed(1)}" ` +
-      `r="${(1.9 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.95"/>`
-  )
-}
-
-function robeMarks(rank: number, scale: number, build: number, colour: number): string {
-  if (rank <= 0) return ''
-  const c = hex(colour)
-  const parts: string[] = []
-  const w = 13 * build * scale
-
-  // Hems: one per rank for the first three. Drawn as shallow arcs so they read
-  // as cloth lying over a body rather than as rings drawn on a cylinder.
-  for (let i = 0; i < Math.min(3, rank); i++) {
-    const yy = (-3.5 - i * 3.4) * scale
-    // The FIRST hem is the heaviest. At an even weight, rank 0 and rank 1 were
-    // nearly indistinguishable on the sheet — and "you can see every rank" is
-    // the entire claim this makes, so the step that proves it cannot be the
-    // faint one. Later hems taper, which also reads as layers settling.
-    const weight = (i === 0 ? 2.0 : 1.5 - i * 0.15) * scale
-    parts.push(
-      `<path d="M ${(-w).toFixed(1)} ${yy.toFixed(1)} Q 0 ${(yy + 3.2 * scale).toFixed(1)} ${w.toFixed(1)} ${yy.toFixed(1)}" ` +
-        `fill="none" stroke="${c}" stroke-width="${weight.toFixed(1)}" stroke-opacity="0.95"/>`,
-    )
-  }
-  // Cords from the belt, from rank four. Knotted cord is what a tempered blade
-  // and a ranked robe both carry, and it is the clearest small mark available
-  // at this size that is not simply another line.
-  for (let i = 0; i < Math.max(0, rank - 3); i++) {
-    const x = (-5.5 + i * 5.5) * scale * build
-    parts.push(
-      `<path d="M ${x.toFixed(1)} ${(-19 * scale).toFixed(1)} l ${(1.4 * scale).toFixed(1)} ${(7 * scale).toFixed(1)}" ` +
-        `stroke="${c}" stroke-width="${(1.7 * scale).toFixed(1)}" stroke-linecap="round" stroke-opacity="0.92"/>`,
-      `<circle cx="${(x + 1.4 * scale).toFixed(1)}" cy="${(-11.6 * scale).toFixed(1)}" ` +
-        `r="${(1.5 * scale).toFixed(1)}" fill="${c}" fill-opacity="0.92"/>`,
-    )
-  }
-  return parts.join('')
-}
-
-/**
- * How many inscription sockets a rank has opened.
- *
- * This is the modular half. A socket is empty until a rite is cut into it, so
- * two pieces at the same rank in the same set are still not the same item —
- * which is the whole point of the request that produced this.
- */
-export function socketsAt(rank: number): number {
-  return rank >= 5 ? 3 : rank >= 4 ? 2 : rank >= 2 ? 1 : 0
-}
+export { socketsAt } from '../src/render/rankMarks'
 
 /** The socket row as filled and empty pips, for a caption. */
 export function socketPips(x: number, y: number, open: number, filled: number, colour: number): string {

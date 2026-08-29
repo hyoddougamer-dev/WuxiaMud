@@ -48,6 +48,25 @@ export interface Swordsman {
   sashAnchor: Point
   /** The sword hand, in local space. A portrait hangs the blade off it. */
   hand: Point
+  /**
+   * Where rank marks attach, in local space.
+   *
+   * Exposed rather than re-derived, because a mark that is meant to hang off a
+   * cuff has to hang off the cuff this figure actually has — the sleeve moves
+   * with the shoulder item, the bearing and the build. The contact sheets got
+   * this wrong for a while by hard-coding the numbers, and drew tassels in
+   * mid-air on any wide-sleeved set.
+   */
+  anchors: {
+    /** Top of the skull, above anything worn on the head. */
+    crown: Point
+    /** Sleeve ends, left then right. */
+    cuffs: readonly [Point, Point]
+    /** The waist knot. */
+    waist: Point
+    /** Where the hem lands, and how wide it is there. */
+    hem: { y: number; halfWidth: number }
+  }
   /** Where the blade's tip sits at rest, for trail effects. */
   bladeTip: Point
   height: number
@@ -269,7 +288,9 @@ export function buildSwordsmanTopDown(
   )
 
   /** The sword hand, filled in by the loop below and used for the portrait. */
-  let hand: Point = { x: (span * 0.6) * s, y: shoulderY + 19 * s }
+  let hand: Point = { x: span * 0.6 * s, y: shoulderY + 19 * s }
+  /** Sleeve ends, filled in below and used to hang rank marks off the cuffs. */
+  const cuffs: Point[] = []
 
   for (const side of [-1, 1]) {
     // The cuff is where the sleeve ends, and everything else about the arm is
@@ -324,6 +345,7 @@ export function buildSwordsmanTopDown(
       { alpha: 0.95, segments: 8, jitter: 0.2 * s, bleedBy: 0.3 * s },
     )
     if (side === 1) hand = { x: wrist.x, y: wrist.y + 1.2 * s }
+    cuffs[side === -1 ? 0 : 1] = cuff
 
     if (shoulders.pauldron) {
       mark(
@@ -484,6 +506,15 @@ export function buildSwordsmanTopDown(
     }
   }
 
+  // Measured, not predicted. `crest` is a budget for how much room the figure
+  // needs and runs a little generous, so anchoring the head's rank marks to it
+  // floated them a hand's width above the hat. The real top of the drawn
+  // silhouette is the only honest place to stack anything.
+  let topY = 0
+  for (const stroke of body) {
+    for (let i = 1; i < stroke.poly.length; i += 2) topY = Math.min(topY, stroke.poly[i]!)
+  }
+
   return {
     bleed,
     body,
@@ -495,6 +526,17 @@ export function buildSwordsmanTopDown(
     // Scaled with the build like every polygon above, so a broader swordsman
     // holds their sword further out rather than through their own ribs.
     hand: { x: hand.x * build, y: hand.y },
+    anchors: {
+      // Above whatever is worn: a hat lifts the top of the figure, and a mark
+      // stacked from the skull would end up under the brim.
+      crown: { x: 0, y: topY - 2 * s },
+      cuffs: [
+        { x: (cuffs[0]?.x ?? -span * s) * build, y: cuffs[0]?.y ?? shoulderY },
+        { x: (cuffs[1]?.x ?? span * s) * build, y: cuffs[1]?.y ?? shoulderY },
+      ],
+      waist: { x: 0, y: waistY * s },
+      hem: { y: robe.bottom * s, halfWidth: (hemWidth / 2) * s * build },
+    },
     bladeTip: { x: 0, y: 0 },
     height: crest * s,
   }

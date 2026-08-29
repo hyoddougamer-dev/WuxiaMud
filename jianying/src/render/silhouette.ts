@@ -20,6 +20,8 @@
  * this, so the sheet and the game cannot drift apart.
  */
 import { buildBlade, buildSwordsmanTopDown, type FigureStroke } from './figure'
+import { allRankMarks } from './rankMarks'
+import type { Slot } from '../data/items'
 import { palette } from './palette'
 import type { Gear } from './wardrobe'
 import { bearingOf, buildOf, pigmentOf, sashOf, type Look } from '../meta/look'
@@ -36,6 +38,13 @@ export function strokeToPolygon(stroke: FigureStroke, colour: number): string {
 }
 
 export interface PortraitOptions {
+  /**
+   * Worn pieces and the rank each is held at, so the figure can wear its rank.
+   *
+   * Optional because most callers — a school card on the creation screen, a
+   * roster thumbnail — are drawing a swordsman who owns nothing yet.
+   */
+  readonly ranked?: ReadonlyArray<{ slot: Slot; rank: number }>
   /** Height of the viewBox in figure units. Width is derived. */
   readonly box?: number
   /** Draw the blade beside the figure. */
@@ -59,7 +68,7 @@ export interface PortraitOptions {
  * sizes it purely with CSS and never has to know the geometry's scale.
  */
 export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {}): string {
-  const { box = 78, blade = true, ink = palette.ink, ground = palette.paper } = options
+  const { box = 78, blade = true, ink = palette.ink, ground = palette.paper, ranked } = options
   const build = buildOf(look).width
   const sash = sashOf(look)
   const bearing = bearingOf(look)
@@ -110,6 +119,16 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     stroke.part === 'cut' ? ground : stroke.part === 'robe' && dye !== null ? dye : ink
   for (const stroke of figure.bleed) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
   for (const stroke of figure.body) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
+
+  // Rank, worn where it can be seen — over the body, because a hem lies on top
+  // of the cloth it belongs to. Gold rather than ink: it is the one thing on
+  // the figure that is not a garment, and it has to survive being drawn on a
+  // robe that may itself be dyed.
+  if (ranked && ranked.length > 0) {
+    for (const stroke of allRankMarks(ranked, figure, 1, look.seed)) {
+      parts.push(strokeToPolygon(stroke, palette.gold))
+    }
+  }
 
   if (blade) {
     // Held at the side, tip toward the ground — the way a sword is carried when

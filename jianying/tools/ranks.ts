@@ -1,5 +1,5 @@
 /**
- * PROPOSAL sheet: 淬炼 — gear that is tempered, not merely swapped.
+ * 淬炼 — gear that is tempered, not merely swapped.
  *
  *   npx tsx tools/ranks.ts
  *
@@ -26,7 +26,7 @@
  *   item, and the player composes rather than collects.
  *
  * Everything drawn here is the game's own figure geometry. The rank marks, the
- * sockets and the rites are the proposal.
+ * sockets and the rites are still the proposal; the marks below now ship.
  */
 import { writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -85,9 +85,9 @@ function washDef(id: number, colour: number): void {
 
 rows.push(
   `<text x="40" y="40" font-family="system-ui, sans-serif" font-size="15" letter-spacing="3" ` +
-    `fill="${hex(palette.ink)}" fill-opacity="0.5">剑影 JIÀNYǏNG · 淬炼 TEMPERING — MODULAR RANKS — PROPOSAL</text>`,
+    `fill="${hex(palette.ink)}" fill-opacity="0.5">剑影 JIÀNYǏNG · 淬炼 TEMPERING — MODULAR RANKS</text>`,
   `<text x="40" y="62" font-family="system-ui, sans-serif" font-size="12.5" fill="${hex(palette.cinnabar)}">` +
-    `The figures are the game's own geometry. The rank marks, the sockets and the rites are the proposal.</text>`,
+    `Figures AND rank marks are the game's own geometry — both shipped. Sockets and rites are still proposal.</text>`,
 )
 y = 62
 

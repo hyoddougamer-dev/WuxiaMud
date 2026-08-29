@@ -21,7 +21,14 @@ const look: Look = { seed: 7, build: 1, sash: 0, bearing: +b, pigment: +p }
 const gear = gearFromIds({ robe, shoulders, head, blade })
 const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`
 
-const inner = portraitSvg(gear, look, { box: 82 }).replace(
+// Every slot at full rank, so the marks can be judged rather than assumed.
+const ranked = [
+  { slot: 'robe' as const, rank: 5 },
+  { slot: 'shoulders' as const, rank: 4 },
+  { slot: 'head' as const, rank: 3 },
+  { slot: 'weapon' as const, rank: 2 },
+]
+const inner = portraitSvg(gear, look, process.env.RANKED ? { box: 82, ranked } : { box: 82 }).replace(
   '<svg class="portrait-svg" ',
   '<svg width="600" height="640" x="0" y="0" ',
 )

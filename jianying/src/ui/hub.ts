@@ -46,6 +46,7 @@ import {
   equippedIn,
   equippedItems,
   ownedInSlot,
+  rankOf,
   type OwnedItem,
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
@@ -182,11 +183,15 @@ export function createHub(
   // long before anyone works out why.
   let tab: TabId = 'self'
 
-  /** The swordsman as they currently stand, gear and all. */
+  /** The swordsman as they currently stand, gear and rank and all. */
   const portrait = (c: Character, box: number): string => {
     const worn = equippedItems(c.inventory)
     const styleFor = (slot: Slot): string | undefined =>
       worn.find((item) => item.slot === slot)?.styleId
+    // Rank is worn, not merely listed. Without this the whole vertical axis
+    // lives in a number on a card, which is the one place a player is not
+    // looking while deciding what to put on.
+    const ranked = worn.map((item) => ({ slot: item.slot, rank: rankOf(c.inventory, item.id) }))
     return portraitSvg(
       gearFromIds({
         robe: styleFor('robe'),
@@ -195,7 +200,7 @@ export function createHub(
         blade: styleFor('weapon') ?? schoolById(c.origin).weaponId,
       }),
       c.look,
-      { box },
+      { box, ranked },
     )
   }
 
