@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
 import { glyphSvg } from '../src/render/artGlyph'
 import { type EffectKind } from '../src/data/arts'
+import { PACK_ICON, PACK_SLOT_ICON, PACK_CREDIT } from '../src/render/packIcons'
 import { W, hex } from './sheet'
 import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
 
@@ -79,31 +80,35 @@ function packIcon(name: string, x: number, y: number, size: number, colour: stri
 }
 
 /**
- * The pack's best candidate for each effect, chosen by hand from 4134.
- *
- * Hand-picked because the automatic answer is wrong in an instructive way:
- * searching "rate" returns `speedometer`, which is a picture of the WORD and
- * says nothing about striking more often. Every row below was checked against
- * what the effect actually does in play.
+ * What each effect means, in the player's terms — the caption under the icon.
+ * The icon NAMES live in `src/render/packIcons.ts`, so this sheet and the game
+ * cannot disagree about which icon an effect gets.
  */
-const PICKS: Array<[EffectKind, string, string]> = [
-  ['damage', 'saber-slash', 'hits harder'],
-  ['rate', 'triple-claws', 'hits more often'],
-  ['range', 'path-distance', 'reaches further'],
-  ['arc', 'radar-sweep', 'sweeps wider'],
-  ['speed', 'sprint', 'you move faster'],
-  ['magnet', 'magnet', 'qi comes to you'],
-  ['orbit', 'orbit', 'blades circle you'],
-  ['bolt', 'dart', 'throws qi outward'],
-  ['nova', 'blast', 'a ring, all around'],
-  ['maxHp', 'health-increase', 'you hold more'],
-  ['pierce', 'piercing-sword', 'runs through'],
-  ['crit', 'barbed-star', 'lands doubled'],
-  ['echo', 'echo-ripples', 'strikes twice'],
-  ['push', 'push', 'shoves them off'],
-  ['guard', 'attached-shield', 'takes less'],
-  ['heal', 'healing', 'a kill mends you'],
+const MEANS: Record<EffectKind, string> = {
+  damage: 'hits harder',
+  rate: 'hits more often',
+  range: 'reaches further',
+  arc: 'sweeps wider',
+  speed: 'you move faster',
+  magnet: 'qi comes to you',
+  orbit: 'blades circle you',
+  bolt: 'throws qi outward',
+  nova: 'a ring, all around',
+  maxHp: 'you hold more',
+  pierce: 'runs through',
+  crit: 'lands doubled',
+  echo: 'strikes twice',
+  push: 'shoves them off',
+  guard: 'takes less',
+  heal: 'a kill mends you',
+}
+
+const EFFECTS: EffectKind[] = [
+  'damage', 'rate', 'range', 'arc', 'speed', 'magnet', 'orbit', 'bolt', 'nova', 'maxHp',
+  'pierce', 'crit', 'echo', 'push', 'guard', 'heal',
 ]
+
+const PICKS: Array<[EffectKind, string, string]> = EFFECTS.map((e) => [e, PACK_ICON[e], MEANS[e]])
 
 const parts: string[] = []
 const text = (
@@ -135,7 +140,7 @@ parts.push(
   text(W / 2, y, 'O pack gratuito, ao lado dos meus', 26, ink, 0.9, 'middle', '600'),
   text(
     W / 2, y + 26,
-    'game-icons.net · 4134 ícones · CC BY 3.0 · instalado por npm, sem descarregar nada — funciona offline e no CI.',
+    `game-icons.net · 4134 ícones · instalado por npm, sem descarregar nada — funciona offline e no CI. · ${PACK_CREDIT}`,
     12.5, ink, 0.5,
   ),
   text(
@@ -202,14 +207,14 @@ parts.push(
 )
 y += 20
 const SLOTS: Array<[string, string]> = [
-  ['带 Cinto', 'belt'],
-  ['腕 Braçadeiras', 'bracers'],
-  ['靴 Botas', 'leather-boot'],
-  ['佩 Pendente', 'gem-pendant'],
-  ['首 Cabeça', 'asian-lantern'],
-  ['肩 Ombros', 'shoulder-armor'],
-  ['袍 Túnica', 'robe'],
-  ['器 Arma', 'katana'],
+  ['带 Cinto', PACK_SLOT_ICON.belt!],
+  ['腕 Braçadeiras', PACK_SLOT_ICON.bracers!],
+  ['靴 Botas', PACK_SLOT_ICON.boots!],
+  ['佩 Pendente', PACK_SLOT_ICON.charm!],
+  ['首 Cabeça', PACK_SLOT_ICON.head!],
+  ['肩 Ombros', PACK_SLOT_ICON.shoulders!],
+  ['袍 Túnica', PACK_SLOT_ICON.robe!],
+  ['器 Arma', PACK_SLOT_ICON.weapon!],
 ]
 SLOTS.forEach(([label, name], i) => {
   const x = 60 + i * ((W - 120) / SLOTS.length)
@@ -235,8 +240,10 @@ const NOTES: Array<[string, string]> = [
   ],
   [
     'O que o pack perde',
-    'Desenha a COISA, não o efeito. "saber-slash" é uma espada bonita que não diz se atravessa, se repete ou se empurra — ' +
-      'e as trinta artes distinguem-se precisamente por isso. O traço é de xilogravura, mais duro que a tinta molhada das figuras.',
+    'Desenha a COISA, não o efeito. "broadsword" é uma espada bonita que não diz se atravessa, se repete ou se ' +
+      'empurra — e as trinta artes distinguem-se precisamente por isso. Há um efeito que o pack não serve: "range" ' +
+      'é extensão, e tudo o que ali significa longe significa uma ARMA de longe. "bow-arrow" é o mais fraco dos ' +
+      'dezasseis, e é honesto dizê-lo. O traço é de xilogravura, mais duro que a tinta molhada das figuras.',
   ],
   [
     'O que os meus ganham',
