@@ -25,7 +25,8 @@ import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
 import { portraitSvg } from '../src/render/silhouette'
 import { gearFromIds } from '../src/render/wardrobe'
-import { CONDITION_BY_ID, artsFor, type Art } from '../src/data/arts'
+import { CONDITION_BY_ID, artsFor, type Art, type EffectKind } from '../src/data/arts'
+import { glyphSvg } from '../src/render/artGlyph'
 import { ITEM_BY_ID, statLine } from '../src/data/items'
 import { W, hex, label } from './sheet'
 
@@ -137,6 +138,24 @@ const KIT = { robe: 'lamellar', shoulders: 'pauldron', head: 'hat', blade: 'jian
 const SCROLL = artsFor('jian')
 
 /**
+ * An art's icon at a given size, centred on (x, y).
+ *
+ * The seal was the tile's mark until this sheet was read at full size: four
+ * seals of similar stroke count, glanced at with a thumb busy, are four
+ * identical grey squares. The glyph draws the EFFECT — see render/artGlyph.ts —
+ * and the seal moves to where there is time to read it, beside the name.
+ */
+const artIcon = (effect: EffectKind, x: number, y: number, size: number, lit: boolean): string =>
+  glyphSvg(effect, {
+    ink: palette.ink,
+    self: lit ? palette.cinnabar : palette.ink,
+    opacity: lit ? 1 : 0.34,
+  }).replace(
+    '<svg class="art-glyph" ',
+    `<svg width="${size}" height="${size}" x="${x - size / 2}" y="${y - size / 2}" `,
+  )
+
+/**
  * The art strip — what was asked for as a hotbar.
  *
  * It is a READOUT, not buttons, and that follows from the decision that the
@@ -163,7 +182,7 @@ function artStrip(x: number, y: number, arts: readonly Art[], litIndex: number):
         strokeOp: lit ? 0.9 : 0.14,
         r: 5,
       }),
-      seal(tx + tile / 2, y + 32, art.seal, art.seal.length > 1 ? 17 : 24, ink, lit ? 0.95 : 0.32),
+      artIcon(art.effect, tx + tile / 2, y + 24, 40, lit),
       // The condition seal, small and beneath: this is the thing the player has
       // to DO, so it is on the tile rather than in a menu.
       seal(
@@ -291,9 +310,9 @@ function screenArts(): string {
     o.push(
       box(M, y, PH.w - M * 2, 54),
       text(M + 14, y + 33, String(i + 1), 15, ink, 0.28, 'start', '600'),
-      seal(M + 46, y + 34, art.seal, art.seal.length > 1 ? 15 : 21, ink, 0.9),
-      text(M + 68, y + 26, art.name, 13, ink, 0.9),
-      text(M + 68, y + 42, `${CONDITION_BY_ID.get(art.condition)!.name} · ${art.effect}`, 9.5, ink, 0.42),
+      artIcon(art.effect, M + 50, y + 27, 34, false),
+      text(M + 72, y + 26, `${art.name}  ${art.seal}`, 13, ink, 0.9),
+      text(M + 72, y + 42, `${CONDITION_BY_ID.get(art.condition)!.name} · ${art.effect}`, 9.5, ink, 0.42),
       seal(PH.w - M - 92, y + 34, CONDITION_BY_ID.get(art.condition)!.seal, 17, cinnabar, 0.85),
     )
     for (let p = 0; p < 5; p++) {
@@ -633,6 +652,257 @@ function screenStates(): string {
 }
 
 // ===========================================================================
+// SCREEN 8 — the paperdoll (新)
+// ===========================================================================
+/**
+ * Equipment as a body, not as a list.
+ *
+ * The tab today is four stacked shelves of horizontally-scrolling chips, and it
+ * has three problems that every good loot screen solves the same way:
+ *
+ *   1. NOTHING SHOWS WHAT YOU ARE NOT WEARING. An empty slot is simply absent,
+ *      so "what am I missing?" — the question that sends a player back out — is
+ *      unanswerable from the screen that should be asking it.
+ *   2. THE FIGURE AND THE ITEMS ARE IN DIFFERENT PLACES. The whole visible half
+ *      of the game is a silhouette, and the screen where you change that
+ *      silhouette shows it at thumbnail size off to one side.
+ *   3. THERE IS NO COMPARISON. You can read what a piece gives, but not what
+ *      swapping would cost, which is the only number the decision needs.
+ *
+ * The fix is the paperdoll every ARPG converged on for a reason: the body in the
+ * middle at real size, the slots arranged around it where the pieces sit, and
+ * each slot legible whether it is full or empty. Diablo, Path of Exile, Monster
+ * Hunter and Last Epoch all differ wildly in depth and agree exactly here.
+ *
+ * EIGHT SLOTS, and the count is not arbitrary. This wardrobe has a standing law
+ * — an item must change the OUTLINE or it changes nothing, because these
+ * figures have no interior detail. Rings, amulets and gloves are invisible
+ * here, so they are not slots. What is left is everything that moves a line:
+ * head, shoulders, robe, belt, bracers, boots, the hanging charm, and the
+ * weapon.
+ */
+function screenDoll(): string {
+  const o: string[] = []
+  const M = 14
+  o.push(header('Shen Baoyu', '筑基 Foundation Building', 12))
+
+  // The body first, and at a size worth looking at.
+  //
+  // The first draft flanked the figure with two columns of chips, the way a
+  // desktop paperdoll does, and the arithmetic killed it: two 128px columns on
+  // a 390px screen leave 106px of middle, which is a SMALLER swordsman than the
+  // hub already shows. On a phone in portrait the slots go underneath — which
+  // is what Diablo Immortal, the one mainstream ARPG that had to solve this
+  // exact shape, also settled on.
+  // The 86-unit viewBox is taller than the swordsman drawn inside it, so the
+  // height passed here is the BOX, not the figure — asking for 232 gave a
+  // swordsman with a hand's width of dead paper above his hat.
+  o.push(figure(PH.w / 2, 362, 320, KIT))
+  o.push(
+    text(PH.w / 2, 358, 'toca numa peça para trocar', 9, ink, 0.3, 'middle'),
+  )
+
+  // --- the eight slots ---
+  // Every one of these moves a line of the silhouette. That is not a style
+  // preference, it is the wardrobe's standing law: these figures have no
+  // interior detail, so a ring or a glove would be an item you own and cannot
+  // see. Head, shoulders, robe, belt, bracers, boots, charm, weapon — and
+  // nothing else qualifies.
+  type SlotRow = [string, string, string, string, number]
+  const slots: SlotRow[] = [
+    ['首', 'Head', 'Bamboo Hat', '+4 Body', 2],
+    ['肩', 'Shoulders', 'Iron Pauldrons', '+6 Edge', 4],
+    ['袍', 'Robe', 'Lamellar Coat', '+9 Body', 3],
+    ['器', 'Weapon', 'Straight Jian', 'sweep', 1],
+    ['带', 'Belt', '', '', 0],
+    ['腕', 'Bracers', 'Hide Bracers', '+3 Swift', 0],
+    ['靴', 'Boots', '', '', 0],
+    ['佩', 'Charm', 'Jade Pendant', '+5% art', 2],
+  ]
+
+  const TW = 84
+  const TG = 10
+  const top = 372
+  slots.forEach(([sl, slotName, name, line, rank], i) => {
+    const x = M + (i % 4) * (TW + TG)
+    const y = top + Math.floor(i / 4) * 96
+    const has = name !== ''
+    o.push(
+      box(x, y, TW, 84, {
+        fill: palette.ink,
+        fillOp: has ? 0.045 : 0,
+        stroke: has ? palette.ink : palette.cinnabar,
+        strokeOp: has ? 0.2 : 0.35,
+        r: 5,
+      }),
+      // The slot's seal stays on the tile even when it is full. It is how you
+      // find "where are my boots" without reading eight item names.
+      seal(x + TW / 2, y + 26, sl, 19, ink, has ? 0.3 : 0.55),
+    )
+    if (has) {
+      o.push(
+        // Shrink rather than truncate. "Iron Pauldrons" cut to "Iron" is a
+        // different item as far as the reader is concerned.
+        text(x + TW / 2, y + 46, name, name.length > 12 ? 7.4 : 8.5, ink, 0.88, 'middle', '600'),
+        text(x + TW / 2, y + 60, line, 8, goldDeep, 0.85, 'middle'),
+      )
+      for (let p = 0; p < 5; p++) {
+        o.push(
+          `<circle cx="${x + 22 + p * 10}" cy="${y + 72}" r="2" fill="${goldDeep}" ` +
+            `fill-opacity="${p < rank ? 0.85 : 0.13}"/>`,
+        )
+      }
+    } else {
+      o.push(
+        text(x + TW / 2, y + 48, slotName, 9, ink, 0.4, 'middle', '600'),
+        text(x + TW / 2, y + 64, 'vazio', 8.5, cinnabar, 0.7, 'middle'),
+      )
+    }
+  })
+
+  // --- what the whole loadout actually buys ---
+  // Derived numbers, not the four raw attributes. "23 Body" is a currency the
+  // player cannot spend; "Golpe 41" is the thing they are choosing between, and
+  // the gold line underneath says how much of it the gear is paying for.
+  let y = top + 96 * 2 + 8
+  o.push(rule(M, y, PH.w - M * 2, 0.16))
+  y += 22
+  o.push(
+    text(M, y, 'O QUE ISTO DÁ', 10, ink, 0.45, 'start', '600'),
+    text(PH.w - M, y, 'total · do equipamento', 9, ink, 0.35, 'end'),
+  )
+  y += 16
+
+  const stats: Array<[string, string, string]> = [
+    ['Golpe', '41', '+14'],
+    ['Vida', '160', '+38'],
+    ['Ritmo', '1.9/s', '+0.3'],
+    ['Alcance', '118', '+6'],
+  ]
+  const SW = (PH.w - M * 2) / 4
+  stats.forEach(([name, value, from], i) => {
+    const x = M + i * SW
+    o.push(
+      text(x + SW / 2, y + 20, value, 16, ink, 0.9, 'middle', '600'),
+      text(x + SW / 2, y + 35, from, 9.5, goldDeep, 0.9, 'middle'),
+      text(x + SW / 2, y + 49, name, 9, ink, 0.42, 'middle'),
+    )
+  })
+  y += 64
+
+  // An empty slot should send you somewhere, not just sit there being empty.
+  o.push(
+    box(M, y, PH.w - M * 2, 42, {
+      fill: palette.cinnabar,
+      fillOp: 0.06,
+      stroke: palette.cinnabar,
+      strokeOp: 0.3,
+    }),
+    seal(M + 22, y + 27, '带', 15, cinnabar, 0.8),
+    text(M + 42, y + 21, 'Duas peças em falta', 10, cinnabar, 0.9, 'start', '600'),
+    text(M + 42, y + 34, 'Cinto e botas nunca caíram. Tenta o 断崖.', 9, ink, 0.5),
+  )
+
+  o.push(tabs(1))
+  return o.join('')
+}
+
+// ===========================================================================
+// SCREEN 9 — choosing inside a slot (新)
+// ===========================================================================
+/**
+ * Tapping a slot: what you own for it, each one shown as the DIFFERENCE.
+ *
+ * This is the half the current screen has none of. A chip that says "+9 Body"
+ * is only useful next to what you are already wearing, and doing that
+ * subtraction in your head is the tax that makes people stop engaging with
+ * loot. Every game that handles gear well shows the delta and colours its sign,
+ * and it costs one line per row.
+ *
+ * A sheet over the paperdoll rather than a new screen, so the figure stays
+ * visible behind: what you are choosing is a silhouette, and this game's
+ * silhouettes genuinely differ.
+ */
+function screenCompare(): string {
+  const o: string[] = []
+  const M = 14
+  o.push(header('Shen Baoyu', '筑基 Foundation Building', 12))
+  o.push(figure(PH.w / 2, 360, 236, KIT))
+  o.push(`<rect y="88" width="${PH.w}" height="${PH.h - 88}" fill="${ink}" fill-opacity="0.35"/>`)
+
+  const top = 300
+  o.push(
+    `<rect y="${top}" width="${PH.w}" height="${PH.h - top}" rx="14" fill="${paper}"/>`,
+    `<rect x="${PH.w / 2 - 18}" y="${top + 8}" width="36" height="3" rx="1.5" fill="${ink}" fill-opacity="0.2"/>`,
+    seal(M + 16, top + 42, '袍', 18, ink, 0.75),
+    text(M + 38, top + 38, 'Robe', 14, ink, 0.9, 'start', '600'),
+    text(PH.w - M, top + 38, '4 na bagagem', 10, ink, 0.4, 'end'),
+    rule(M, top + 54, PH.w - M * 2, 0.14),
+  )
+
+  // [name, line, rank, deltas, state]
+  type Row = [string, string, number, Array<[string, number]>, 'worn' | 'better' | 'worse']
+  const rows: Row[] = [
+    ['Lamellar Coat', '+9 Body', 3, [], 'worn'],
+    ['Court Silks', '+11 Body', 4, [['Vida', 8], ['Golpe', -2]], 'better'],
+    ['Hemp Robe', '+4 Body', 1, [['Vida', -21]], 'worse'],
+    ['Travelling Coat', '+6 Swiftness', 2, [['Passo', 12], ['Vida', -21]], 'worse'],
+  ]
+
+  let y = top + 66
+  for (const [name, line, rank, deltas, state] of rows) {
+    const on = state === 'worn'
+    o.push(
+      box(M, y, PH.w - M * 2, 62, {
+        fill: on ? palette.ink : palette.ink,
+        fillOp: on ? 0.07 : 0.02,
+        stroke: on ? palette.ink : palette.ink,
+        strokeOp: on ? 0.35 : 0.12,
+        r: 5,
+      }),
+      text(M + 14, y + 22, name, 12, ink, 0.9, 'start', '600'),
+      text(M + 14, y + 38, line, 9.5, ink, 0.45),
+    )
+    for (let p = 0; p < 5; p++) {
+      o.push(
+        `<circle cx="${M + 16 + p * 9}" cy="${y + 50}" r="2" fill="${goldDeep}" ` +
+          `fill-opacity="${p < rank ? 0.85 : 0.13}"/>`,
+      )
+    }
+    if (on) {
+      o.push(text(PH.w - M - 14, y + 34, 'EQUIPADA', 9.5, ink, 0.45, 'end', '600'))
+    } else {
+      // The deltas, right-aligned and signed. Cinnabar for a loss and gold for
+      // a gain — the same two colours this game uses for harm and progress
+      // everywhere else, so the meaning is already learned.
+      deltas.forEach(([what, n], i) => {
+        const dy = y + 24 + i * 16
+        o.push(
+          text(PH.w - M - 52, dy, what, 9.5, ink, 0.42, 'end'),
+          text(
+            PH.w - M - 14,
+            dy,
+            `${n > 0 ? '+' : ''}${n}`,
+            12,
+            n > 0 ? goldDeep : cinnabar,
+            0.95,
+            'end',
+            '600',
+          ),
+        )
+      })
+    }
+    y += 70
+  }
+
+  o.push(
+    text(M, PH.h - 96, 'Toca para vestir. A silhueta muda por trás.', 9.5, ink, 0.4),
+    tabs(1),
+  )
+  return o.join('')
+}
+
+// ===========================================================================
 // the screens
 // ===========================================================================
 /**
@@ -643,6 +913,8 @@ const SCREENS: Array<{ file: string; title: string; tag: string; draw: () => str
   { file: '01-play', title: 'Em jogo', tag: 'PROPOSTA', draw: screenPlay },
   { file: '02-arts', title: 'Hub · 法 Artes', tag: 'PROPOSTA', draw: screenArts },
   { file: '03-gear', title: 'Hub · 装 Equipamento', tag: 'HOJE', draw: screenGear },
+  { file: '08-doll', title: 'Hub · 装 Paperdoll', tag: 'PROPOSTA', draw: screenDoll },
+  { file: '09-compare', title: 'Escolher num slot', tag: 'PROPOSTA', draw: screenCompare },
   { file: '04-reward', title: 'Fim de corrida', tag: 'PROPOSTA', draw: screenReward },
   { file: '05-self', title: 'Hub · 剑 Espadachim', tag: 'HOJE', draw: screenSelf },
   { file: '06-world', title: 'Hub · 界 Mundo', tag: 'HOJE', draw: screenWorld },
@@ -660,23 +932,18 @@ parts.push(
     `o que e proposta esta marcado como tal em cada ecra.</text>`,
 )
 
+const PER_ROW = 4
+const ROWS = Math.ceil(SCREENS.length / PER_ROW)
 {
-  const top = 132
-  const gap = (W - 80 - FW * 4) / 3
-  SCREENS.slice(0, 4).forEach(({ title, tag, draw }, i) => {
-    parts.push(frame(40 + i * (FW + gap), top, title, tag, draw()))
+  const gap = (W - 80 - FW * PER_ROW) / (PER_ROW - 1)
+  SCREENS.forEach(({ title, tag, draw }, i) => {
+    const row = Math.floor(i / PER_ROW)
+    const col = i % PER_ROW
+    parts.push(frame(40 + col * (FW + gap), 132 + row * (FH + 78), title, tag, draw()))
   })
 }
 
-{
-  const top = 132 + FH + 78
-  const gap = (W - 80 - FW * 4) / 3
-  SCREENS.slice(4).forEach(({ title, tag, draw }, i) => {
-    parts.push(frame(40 + i * (FW + gap), top, title, tag, draw()))
-  })
-}
-
-const H = 132 + FH * 2 + 78 + 60
+const H = 132 + FH * ROWS + 78 * (ROWS - 1) + 60
 const svg =
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
   `<rect width="${W}" height="${H}" fill="#ded3b8"/>` +
