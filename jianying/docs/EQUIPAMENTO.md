@@ -8,13 +8,14 @@ responde às duas e diz o que fica por construir.*
 
 ## 1. Os ícones das artes
 
-### Porquê não um pack
+### As três opções
 
-| Opção | Porque perde |
+| Opção | Onde está |
 |---|---|
-| **Pack de ícones** (game-icons.net, CC0 packs) | Chega desenhado noutro estilo de linha e tinha de ser redesenhado peça a peça para casar com a tinta. Não se tinge por estado sem uma segunda cópia de cada. E este contentor não alcança nenhum desses hosts — eu não os conseguiria sequer buscar. |
-| **Gerados por IA** | Trinta imagens que têm de concordar umas com as outras, num jogo que não tem um único asset rasterizado. Cada uma precisaria de um passe de filtro, e a inconsistência entre elas só aparece quando estão lado a lado. |
-| **Manter os caracteres** | No hub, ao lado do nome, 点 está certo. Na barra durante uma corrida é um teste de leitura: meio segundo, um polegar ocupado, quatro selos com contagem de traços parecida. E 点 não diz nada sobre atravessar inimigos. |
+| **Desenhados por geometria** | **Feito.** `src/render/artGlyph.ts`. O ícone é o efeito. |
+| **Pack game-icons.net** | **Disponível, e bom** — ver mais abaixo. A minha primeira avaliação estava errada e está corrigida lá. |
+| **Gerados por IA** | **Errado para ícones**, certo para key art — ver mais abaixo. |
+| **Manter os caracteres** | Rejeitado. No hub, ao lado do nome, 点 está certo. Na barra durante uma corrida é um teste de leitura: meio segundo, um polegar ocupado, quatro selos com contagem de traços parecida. E 点 não diz nada sobre atravessar inimigos. |
 
 ### O que foi feito
 
