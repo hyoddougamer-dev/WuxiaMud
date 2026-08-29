@@ -24,6 +24,7 @@
  * with a busy thumb would read in half a second.
  */
 import type { EffectKind } from '../data/arts'
+import { PACK_ICON_DATA, PACK_VIEWBOX } from './packIconData'
 
 /** The credit line. Show it wherever these icons are shipped. */
 export const PACK_CREDIT = 'Icons by game-icons.net, CC BY 3.0'
@@ -95,3 +96,38 @@ export const PACK_SLOT_ICON: Record<string, string> = {
   boots: 'leather-boot',
   charm: 'gem-pendant',
 }
+
+/**
+ * One pack icon as a complete `<svg>` string, sized by the CSS around it.
+ *
+ * The bodies use `currentColor`, so a single `color` on the wrapper tints the
+ * whole thing — which is what lets one copy of the geometry serve a lit tile, a
+ * dim tile, a hub card and a printed sheet. `glyphSvg` in artGlyph.ts has the
+ * same shape on purpose: a caller can swap which icon set it draws from without
+ * knowing anything else about either.
+ */
+export function packIconSvg(
+  name: string,
+  colour: number,
+  opacity = 1,
+  className = 'pack-icon',
+): string {
+  const icon = PACK_ICON_DATA[name]
+  // An unknown name means someone edited a name without re-running the
+  // extractor. Returning empty keeps the UI alive; the test is what catches it.
+  if (!icon) return ''
+  const [left, top, width, height] = icon.box ?? PACK_VIEWBOX
+  return (
+    `<svg class="${className}" viewBox="${left} ${top} ${width} ${height}" ` +
+    `xmlns="http://www.w3.org/2000/svg" aria-hidden="true" ` +
+    `color="#${colour.toString(16).padStart(6, '0')}" opacity="${opacity}">${icon.body}</svg>`
+  )
+}
+
+/** The icon for an effect, ready to drop into the DOM. */
+export const effectIconSvg = (
+  effect: EffectKind,
+  colour: number,
+  opacity = 1,
+  className = 'pack-icon',
+): string => packIconSvg(PACK_ICON[effect], colour, opacity, className)

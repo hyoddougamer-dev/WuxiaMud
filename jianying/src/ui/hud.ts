@@ -15,6 +15,8 @@
 import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
 import { ART_BY_ID, CONDITION_BY_ID, type Art } from '../data/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
+import { effectIconSvg } from '../render/packIcons'
+import { palette } from '../render/palette'
 import { statLine, type Item } from '../data/items'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
@@ -218,11 +220,20 @@ export function createHud(root: HTMLElement): Hud {
         const tile = document.createElement('div')
         tile.className = 'art'
         tile.dataset.art = art.id
-        // The art's seal above, the CONDITION's seal below. The condition is
-        // what the player has to do, so it belongs on the tile rather than in a
-        // menu they cannot open mid-fight.
+        // The EFFECT's icon above, the CONDITION's seal below.
+        //
+        // The art's own seal used to be the mark up here, and it was wrong for
+        // this particular place: half a second, a thumb already busy, and four
+        // seals of similar stroke count read as four identical grey squares.
+        // Nothing about 点 says it makes the sweep run through what it hits.
+        // The icon says exactly that, and the seal keeps its place in the hub
+        // where there is time to read a name.
+        //
+        // The condition seal stays because it is the half the player must DO —
+        // five shapes, not sixteen — and it belongs on the tile rather than in
+        // a menu nobody can open mid-fight.
         tile.innerHTML =
-          `<span class="art-seal">${art.seal}</span>` +
+          effectIconSvg(art.effect, palette.ink, 1, 'art-icon') +
           `<span class="art-cond">${CONDITION_BY_ID.get(art.condition)!.seal}</span>`
         artsEl.appendChild(tile)
         return tile

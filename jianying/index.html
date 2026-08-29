@@ -665,6 +665,19 @@
       .title-new:active {
         transform: scale(0.98);
       }
+      /* CC BY 3.0 is only free if the credit ships. It sits at the foot of
+         the one screen every player sees, small enough not to compete with the
+         title and permanent enough to satisfy the licence. */
+      .title-credit {
+        position: absolute;
+        bottom: 14px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 9.5px;
+        letter-spacing: 0.04em;
+        color: rgba(232, 220, 192, 0.35);
+      }
       .title-who {
         font-size: 12px;
         letter-spacing: 0.1em;
@@ -788,10 +801,28 @@
         margin-bottom: 12px;
       }
       .slot-name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         font-size: 11px;
         letter-spacing: 0.1em;
         color: rgba(13, 13, 13, 0.4);
         margin-bottom: 5px;
+      }
+      .slot-icon {
+        /* 15px at 0.45 was almost invisible beside the label — an icon nobody
+           can see is worse than no icon, because it still costs the row. */
+        width: 18px;
+        height: 18px;
+        flex: none;
+        opacity: 0.6;
+      }
+      /* An empty slot is the most useful line on this screen: it is the only
+         place that says what to go and look for. */
+      .slot-empty {
+        font-size: 11px;
+        color: rgba(193, 39, 45, 0.6);
+        padding: 7px 0 2px;
       }
       /* Horizontal and scrollable, so a slot with eight options costs one row
          of height instead of eight. */
@@ -897,8 +928,8 @@
         pointer-events: none;
       }
       .art {
-        width: 44px;
-        height: 44px;
+        width: 46px;
+        height: 48px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -911,12 +942,14 @@
           border-color 90ms ease-out,
           background 90ms ease-out;
       }
-      .art-seal {
-        font-family: serif;
-        font-size: 17px;
-        line-height: 1;
-        color: var(--ink);
-        opacity: 0.3;
+      /* The icon carries the EFFECT — see src/render/packIcons.ts. Four seals
+         of similar stroke count were four identical grey squares at this size,
+         glanced at with a thumb busy. */
+      .art-icon {
+        width: 26px;
+        height: 26px;
+        display: block;
+        opacity: 0.34;
         transition: opacity 90ms ease-out;
       }
       .art-cond {
@@ -934,8 +967,8 @@
         border-color: var(--cinnabar);
         background: rgba(193, 39, 45, 0.09);
       }
-      .art-on .art-seal {
-        opacity: 0.95;
+      .art-on .art-icon {
+        opacity: 1;
       }
       .art-on .art-cond {
         color: var(--cinnabar);

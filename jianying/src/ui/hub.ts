@@ -56,6 +56,8 @@ import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } fr
 import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
+import { packIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
+import { palette } from '../render/palette'
 import { strings } from './strings'
 
 export interface HubScreen {
@@ -416,24 +418,38 @@ export function createHub(
 
     for (const slot of SLOTS) {
       const owned = ownedInSlot(c.inventory, slot)
-      if (owned.length === 0) continue
       const wornId = c.inventory.equipped[slot]
 
       const group = document.createElement('div')
       group.className = 'slot'
       const label = document.createElement('div')
       label.className = 'slot-name'
-      label.textContent = SLOT_NAMES[slot]
+      // The slot's own icon, so the eye finds "where are my shoulders" without
+      // reading four headings. See src/render/packIcons.ts.
+      label.innerHTML =
+        packIconSvg(PACK_SLOT_ICON[slot] ?? '', palette.ink, 1, 'slot-icon') +
+        `<span>${SLOT_NAMES[slot]}</span>`
       group.appendChild(label)
 
-      const row = document.createElement('div')
-      // Scrolls sideways rather than stacking. A slot with six finds used to
-      // add six full-width cards to a page that was already too long.
-      row.className = 'slot-items'
-      for (const { item, entry } of owned) {
-        row.appendChild(itemCard(item, entry, item.id === wornId, slot))
+      if (owned.length === 0) {
+        // An empty slot used to be skipped entirely, and that hid the single
+        // most useful thing this screen can say. "What am I missing?" is the
+        // question that sends a player back out, and it was unanswerable from
+        // the screen that should be asking it.
+        const empty = document.createElement('div')
+        empty.className = 'slot-empty'
+        empty.textContent = strings.slotEmpty
+        group.appendChild(empty)
+      } else {
+        const row = document.createElement('div')
+        // Scrolls sideways rather than stacking. A slot with six finds used to
+        // add six full-width cards to a page that was already too long.
+        row.className = 'slot-items'
+        for (const { item, entry } of owned) {
+          row.appendChild(itemCard(item, entry, item.id === wornId, slot))
+        }
+        group.appendChild(row)
       }
-      group.appendChild(row)
       pane.appendChild(group)
     }
     return pane

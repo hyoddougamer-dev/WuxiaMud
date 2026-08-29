@@ -12,10 +12,34 @@ responde às duas e diz o que fica por construir.*
 
 | Opção | Onde está |
 |---|---|
-| **Desenhados por geometria** | **Feito.** `src/render/artGlyph.ts`. O ícone é o efeito. |
-| **Pack game-icons.net** | **Disponível, e bom** — ver mais abaixo. A minha primeira avaliação estava errada e está corrigida lá. |
-| **Gerados por IA** | **Errado para ícones**, certo para key art — ver mais abaixo. |
+| **Pack game-icons.net** | **É o que está no jogo.** `src/render/packIcons.ts`. A minha primeira avaliação do pack estava errada e está corrigida abaixo. |
+| **Desenhados por geometria** | Construídos e testados, não usados. `src/render/artGlyph.ts` fica como alternativa viva — `docs/glyphs.png` mostra-os. |
+| **Gerados por IA** | Errado para ícones, certo para key art — ver abaixo. |
 | **Manter os caracteres** | Rejeitado. No hub, ao lado do nome, 点 está certo. Na barra durante uma corrida é um teste de leitura: meio segundo, um polegar ocupado, quatro selos com contagem de traços parecida. E 点 não diz nada sobre atravessar inimigos. |
+
+### Como está no jogo
+
+- **A barra do HUD** mostra o ícone do efeito e, por baixo, o selo da condição. O
+  selo da arte fica no hub, onde há tempo para ler um nome.
+- **A aba 装** ganhou o ícone de cada slot ao lado do nome, e — mais importante —
+  **slots vazios deixaram de ser escondidos**. Antes, um slot sem nada era
+  simplesmente saltado, o que apagava a única coisa útil que aquele ecrã pode
+  dizer: o que te falta ir procurar.
+- **O ecrã de título** carrega *Icons by game-icons.net, CC BY 3.0*. Sem essa
+  linha o projeto está fora de licença, e há um teste que falha se ela
+  desaparecer num refactor.
+
+### O JSON tem 6.2 MB, e isso decidiu a arquitetura
+
+O pacote inteiro são 4134 ícones — mais do que todo o resto do APK junto. E um
+bundler não salva ninguém aqui: o tree-shaking trabalha sobre bindings de
+módulo, não sobre chaves de um objeto JSON gigante, por isso `icons['shield']`
+arrasta os 6.2 MB.
+
+`tools/extractIcons.ts` copia só os que o jogo nomeia para
+`src/render/packIconData.ts` — **24 ícones, 26.5 kB**, ficheiro commitado. Gerar
+isto durante o build poria uma dependência de 6 MB no caminho crítico do APK
+sem ganho nenhum. Verificado no bundle: só os 24 lá estão.
 
 ### O que foi feito
 

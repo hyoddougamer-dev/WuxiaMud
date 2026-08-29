@@ -39,6 +39,8 @@ export const strings = {
   level: 'Level',
   realm: 'Realm',
   attributes: 'Attributes',
+  /** Shown where a slot has nothing in it — the question that sends you out. */
+  slotEmpty: 'Nothing found for this yet.',
   pointsToSpend: 'points to spend',
   onePointToSpend: 'point to spend',
   spend: '+',

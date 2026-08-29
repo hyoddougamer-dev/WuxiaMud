@@ -12,6 +12,7 @@
  * character creation already knowing what they are creating.
  */
 import { strings } from './strings'
+import { PACK_CREDIT } from '../render/packIcons'
 
 export interface TitleScreen {
   /**
@@ -62,6 +63,7 @@ export function createTitle(root: HTMLElement): TitleScreen {
             ? `<button class="title-new" type="button">${strings.newSwordsman}</button>`
             : ''
         }
+        <div class="title-credit">${PACK_CREDIT}</div>
       `
       panel.querySelector<HTMLButtonElement>('.title-go')!.addEventListener('click', () => {
         const handler = onBeginHandler

@@ -11,7 +11,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
-import { PACK_ICON, PACK_SLOT_ICON, PACK_CREDIT } from '../src/render/packIcons'
+import {
+  PACK_ICON,
+  PACK_SLOT_ICON,
+  PACK_CREDIT,
+  packIconSvg,
+  effectIconSvg,
+} from '../src/render/packIcons'
+import { PACK_ICON_DATA } from '../src/render/packIconData'
 import { ARTS } from '../src/data/arts'
 
 const icons = (iconSet as unknown as { icons: Record<string, unknown> }).icons
@@ -41,6 +48,34 @@ describe('pack icons', () => {
       expect(first, `${effect} and ${first} both use "${name}"`).toBeUndefined()
       seen.set(name, effect)
     }
+  })
+
+  it('has extracted geometry for every name the game uses', () => {
+    // The game does NOT import the 6.2 MB set — `tools/extractIcons.ts` copies
+    // the two dozen icons it names into src/render/packIconData.ts, and that
+    // file is committed. Renaming an icon without re-running the extractor
+    // leaves a tile that renders EMPTY rather than throwing, which is exactly
+    // the kind of failure that survives a casual look at the game.
+    for (const [effect, name] of Object.entries(PACK_ICON)) {
+      expect(PACK_ICON_DATA[name], `${effect} ("${name}") is not extracted — run tools/extractIcons.ts`)
+        .toBeDefined()
+    }
+    for (const [slot, name] of Object.entries(PACK_SLOT_ICON)) {
+      expect(PACK_ICON_DATA[name], `slot ${slot} ("${name}") is not extracted — run tools/extractIcons.ts`)
+        .toBeDefined()
+    }
+  })
+
+  it('renders an svg that carries the tint and the geometry', () => {
+    const svg = effectIconSvg('guard', 0x0d0d0d, 0.5, 'art-icon')
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('class="art-icon"')
+    expect(svg).toContain('color="#0d0d0d"')
+    expect(svg).toContain('opacity="0.5"')
+    expect(svg).toContain('viewBox=')
+    // An unknown name must not throw — the tile goes empty and the checks
+    // above are what report it.
+    expect(packIconSvg('no-such-icon', 0x000000)).toBe('')
   })
 
   it('carries the attribution the licence requires', () => {

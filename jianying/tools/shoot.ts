@@ -572,6 +572,21 @@ async function main(): Promise<void> {
      * `provoke` runs on every poll, so the gesture is repeated rather than made
      * once and hoped for.
      */
+    /**
+     * Holds a posture until the game reports it, or the budget runs out.
+     *
+     * THE BUDGETS ARE GENEROUS AND THAT IS THE POINT. Two postures have to be
+     * HELD before they count (静 for 0.55s, 疾 for 0.9s — see sim/conditions.ts)
+     * and this bound is wall clock, so the two are only equivalent on a machine
+     * keeping up. This harness has run at 9-14 fps on a loaded container where
+     * the game's own budget is 55, and every observed flake of this check has
+     * happened on one of those slow runs. The mechanism is not proven — a fixed
+     * timestep should still accumulate real seconds — so the fix here is the
+     * one that does not depend on being right about the cause: give a slow
+     * machine several times the window it needs, and report the frame rate when
+     * it still fails, so the next failure explains itself instead of being
+     * dismissed as "flaky" a fourth time.
+     */
     const waitForCondition = async (
       name: string,
       provoke: () => Promise<void>,
@@ -580,6 +595,9 @@ async function main(): Promise<void> {
       const until = Date.now() + ms
       let last = '—'
       while (Date.now() < until) {
+        // A pending level-up freezes the simulation, so a posture that must be
+        // held can never accumulate while a card is on screen. Draining once
+        // before the loop was not enough: another can arrive mid-hold.
         const card = page.locator('.levelup .card').first()
         if (await card.isVisible().catch(() => false)) await card.click().catch(() => {})
         await provoke()
@@ -601,7 +619,7 @@ async function main(): Promise<void> {
     const sawStill = await waitForCondition(
       'still',
       () => page.waitForTimeout(120),
-      3000,
+      9000,
     )
     if (sawStill.includes('still')) held.push('静')
 
@@ -612,7 +630,7 @@ async function main(): Promise<void> {
     const sawRunning = await waitForCondition(
       'running',
       () => page.waitForTimeout(120),
-      3500,
+      12_000,
     )
     if (sawRunning.includes('running')) held.push('疾')
     await page.screenshot({ path: join(OUT, 'arts-running.png') })
@@ -627,7 +645,7 @@ async function main(): Promise<void> {
         await page.mouse.move(cx + side * 130, cy, { steps: 3 })
         await page.waitForTimeout(90)
       },
-      4000,
+      12_000,
     )
     if (sawTurn.includes('turn')) held.push('转')
     const lit = await page.locator('.art-on').count()
@@ -638,9 +656,14 @@ async function main(): Promise<void> {
     // harness run. They are covered by the unit tests instead, and the honest
     // thing is to name the three checked here rather than claim five.
     if (held.length < 3) {
+      // The frame rate is part of the report, not a footnote: a failure at 9
+      // fps and a failure at 60 are different failures, and without the number
+      // the next person cannot tell which one they are looking at.
+      const slowFps = await readFps(page)
       console.error(
         `arts:   NOT WIRED — only ${held.join(' ') || 'none'} of 静 疾 转 held ` +
-          `(saw still="${sawStill}" running="${sawRunning}" turn="${sawTurn}")`,
+          `(saw still="${sawStill}" running="${sawRunning}" turn="${sawTurn}") ` +
+          `at ${slowFps} fps`,
       )
       process.exitCode = 1
     } else if (lit === 0) {
