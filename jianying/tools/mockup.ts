@@ -228,17 +228,17 @@ rows.push(
     y,
     '五',
     'O que ainda nao existe',
-    'Escrito aqui porque uma folha que so mostra o que esta feito e propaganda. Estes quatro sao os proximos, pela ordem de docs/ORDEM.md, e nenhum deles esta desenhado neste documento.',
+    'Escrito aqui porque uma folha que so mostra o que esta feito e propaganda. Os passos 1, 1b e 2 da ORDEM ja estao no jogo — instancia de item com grau, roster de espadachins, e quatro stats em vez de dez. Estes quatro sao os que faltam, e nenhum deles esta desenhado neste documento.',
   ),
 )
 y += 100
 
 {
   const todo: Array<[string, string, string]> = [
-    ['1 · Instancia', 'Item no save', 'Hoje o inventario guarda ids. Sem { id, rank, ritos } por peca nada em baixo pode existir, e adiciona-lo depois obriga a uma segunda migracao de saves.'],
-    ['2 · Stats', 'Quatro, nao dez', 'Dez tipos de stat por 16 pecas sao dezasseis excecoes. 体 锋 疾 远 chegam, e sao legiveis num telemovel.'],
     ['3 · Sets', 'Posturas, nao bonus', 'Um set completo muda COMO se luta — o varrimento transforma-se com o movimento — em vez de somar +8% a alguma coisa.'],
-    ['4 · Marcas', 'Rank visivel na peca', 'Ja existe codigo (rankMarksFor), com vocabulario por encaixe: uma bainha cresce, um chapeu nao.'],
+    ['4 · Marcas', 'Rank visivel na peca', 'Ja existe codigo (rankMarksFor), com vocabulario por encaixe: uma bainha cresce, um chapeu nao. Hoje o grau le-se nos pontos do cartao, nao na figura.'],
+    ['5 · Forja', 'Temperar com repetidas', 'A aba 炉. Precisa das marcas primeiro: sem elas o botao principal do ecra nao tem consequencia visivel.'],
+    ['7 · Ritos', 'Encaixes e auras', 'O campo rites ja existe em cada peca e esta vazio de proposito, para nao custar uma segunda migracao de saves.'],
   ]
   const base = y
   const x = columns(todo.length, 130)

@@ -42,12 +42,12 @@ import { type Character, createCharacter, grantXp, recordRun, rewardFor } from '
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
-import { acquire, equip, equippedIn, equippedItems } from './meta/inventory'
+import { acquire, equip, equippedIn, equippedItems, rankOf } from './meta/inventory'
 import { ITEMS, ITEM_BY_ID, rollRank } from './data/items'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
 import type { Kit } from './sim/loadout'
-import { loadCharacter, saveCharacter } from './meta/save'
+import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
@@ -59,7 +59,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.7.0'
+const BUILD = '1.8.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -150,7 +150,11 @@ async function boot(): Promise<void> {
     return {
       spent: character.spent,
       weapon: weaponById(weaponItem?.styleId ?? school.weaponId),
-      worn: equippedItems(character.inventory).filter((item) => item.slot !== 'weapon'),
+      // Carried with its rank, because a piece found deep grants more than the
+      // same piece found on the post road — see data/items.ts statAt.
+      worn: equippedItems(character.inventory)
+        .filter((item) => item.slot !== 'weapon')
+        .map((item) => ({ item, rank: rankOf(character.inventory, item.id) })),
     }
   }
 
@@ -208,8 +212,42 @@ async function boot(): Promise<void> {
         openHub()
       })
     },
-    () => confirmNewCharacter(),
+    {
+      all: () => roster.swordsmen,
+      activeIndex: () => roster.active,
+      select: (index) => switchTo(index),
+      // Additive, and therefore no warning: nothing is lost by making another.
+      // The active swordsman is written back first — creation can take a while
+      // and the app may be closed in the middle of it.
+      add: () => {
+        persist()
+        hub.hide()
+        startCreation()
+      },
+      discard: () => confirmNewCharacter(),
+      limit: ROSTER_LIMIT,
+    },
   )
+
+  /**
+   * Puts down one swordsman and picks up another.
+   *
+   * The active one is written back BEFORE switching. Without that, points spent
+   * or gear equipped since the last save would be silently thrown away by the
+   * act of looking at somebody else — a data loss with no error and no undo.
+   */
+  const switchTo = (index: number): void => {
+    if (index < 0 || index >= roster.swordsmen.length || index === roster.active) return
+    roster.swordsmen[roster.active] = character
+    roster.active = index
+    character = roster.swordsmen[index]!
+    kit = currentKit()
+    stats = deriveStats(loadout, kit)
+    region = regionAt(clampDepth(character.depth, character.depth))
+    rebuildFigure()
+    void saveCharacter(roster)
+    openHub()
+  }
 
   /**
    * Asks before discarding a swordsman, and means it.
@@ -247,6 +285,22 @@ async function boot(): Promise<void> {
       // up would be one more thing to get wrong.
       hub.hide()
       title.hide()
+
+      // With a roster, giving one up no longer has to mean starting over. Drop
+      // the active swordsman; if others remain, one of them is picked up and
+      // the player stays in the hub they were already standing in.
+      roster.swordsmen.splice(roster.active, 1)
+      if (roster.swordsmen.length > 0) {
+        roster.active = Math.min(roster.active, roster.swordsmen.length - 1)
+        character = roster.swordsmen[roster.active]!
+        kit = currentKit()
+        stats = deriveStats(loadout, kit)
+        region = regionAt(clampDepth(character.depth, character.depth))
+        rebuildFigure()
+        void saveCharacter(roster)
+        openHub()
+        return
+      }
       startCreation()
     })
   }
@@ -961,6 +1015,21 @@ async function boot(): Promise<void> {
       () => nameRng.next(),
       (name, school, look) => {
         character = createCharacter(name, school.id, look)
+        // Added to the roster rather than overwriting whoever was active. The
+        // one case that replaces is an empty roster, which is a first launch or
+        // the last swordsman having just been given up.
+        if (roster.swordsmen.length === 0) {
+          roster.swordsmen.push(character)
+          roster.active = 0
+        } else if (fromHub && roster.swordsmen.length < ROSTER_LIMIT) {
+          roster.swordsmen.push(character)
+          roster.active = roster.swordsmen.length - 1
+        } else {
+          // Full, or a first launch that somehow found a roster. Replacing the
+          // active one is the only remaining honest outcome, and the hub does
+          // not offer `+` at all once the roster is full.
+          roster.swordsmen[roster.active] = character
+        }
         character.spent = applySchool(school, character.spent)
         // The school's kit and weapon are handed over and worn, so the very
         // first expedition is fought with the weapon that was chosen rather

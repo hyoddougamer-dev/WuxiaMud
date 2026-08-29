@@ -259,7 +259,7 @@ export function createHud(root: HTMLElement): Hud {
         const rank = (n: number): string => (n > 0 ? ` <i class="loot-rank">${'·'.repeat(n)}</i>` : '')
         for (const { item, rank: r } of summary.kept) {
           const line =
-            item.slot === 'weapon' ? weaponById(item.styleId).name : statLine(item.stat)
+            item.slot === 'weapon' ? weaponById(item.styleId).name : statLine(item.stat, r)
           html += `<div class="loot"><span>${item.name}${rank(r)}</span><b>${line}</b></div>`
         }
         for (const { item, rank: r } of summary.raised) {

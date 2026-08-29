@@ -35,7 +35,7 @@ import { writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
-import { ITEMS } from '../src/data/items'
+import { ITEMS, MAX_RANK, statAt } from '../src/data/items'
 import { SETS, SLOT_ORDER, SLOT_SEAL, STATS, gearWith, nameOf, valueAt } from './setdata'
 import { W, columns, figure, heading, hex, label } from './sheet'
 
@@ -117,7 +117,7 @@ y += 114
       `<text x="${x0 + 48}" y="${y + 34}" font-family="system-ui, sans-serif" font-size="14" fill="${hex(palette.ink)}">${k.name}</text>`,
       `<text x="${x0 + 16}" y="${y + 62}" font-family="system-ui, sans-serif" font-size="11" fill="${hex(palette.goldDeep)}">阶 0 → ${valueAt(k, 0)}</text>`,
       `<text x="${x0 + 16}" y="${y + 80}" font-family="system-ui, sans-serif" font-size="11" fill="${hex(palette.goldDeep)}">阶 5 → ${valueAt(k, 5)}</text>`,
-      `<text x="${x0 + 16}" y="${y + 100}" font-family="system-ui, sans-serif" font-size="10" fill="${hex(palette.ink)}" fill-opacity="0.45">a fully tempered piece is worth ${(((k.base + k.perRank * 5) / k.base) * 100 - 100).toFixed(0)}% more</text>`,
+      `<text x="${x0 + 16}" y="${y + 100}" font-family="system-ui, sans-serif" font-size="10" fill="${hex(palette.ink)}" fill-opacity="0.45">a fully tempered piece is worth ${((statAt({ kind: 'body', amount: 10 }, MAX_RANK) / 10) * 100 - 100).toFixed(0)}% more</text>`,
     )
   })
   y += 142

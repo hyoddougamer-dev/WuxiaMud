@@ -52,12 +52,13 @@ import {
 import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
-import { deriveStats, type Kit } from '../src/sim/loadout'
+import { deriveStats, wornAttributes, type Kit, type Worn } from '../src/sim/loadout'
 import {
   ITEMS,
   ITEM_BY_ID,
   MAX_RANK,
   dropChance,
+  statAt,
   rollDrop,
   rollRank,
   statLine,
@@ -78,11 +79,16 @@ import { createPlayer, updatePlayer } from '../src/sim/player'
 
 const attrs = (partial: Partial<Attributes>): Attributes => ({ ...emptyAttributes(), ...partial })
 
-/** A Kit carrying only bought attributes — the default weapon, nothing worn. */
-const kit = (spent: Attributes = emptyAttributes(), worn: Item[] = []): Kit => ({
+/**
+ * A Kit carrying only bought attributes — the default weapon, nothing worn.
+ *
+ * `worn` takes plain Items and holds them at rank 0, which is what a piece
+ * found on the post road is; tests that care about rank pass Worn directly.
+ */
+const kit = (spent: Attributes = emptyAttributes(), worn: Array<Item | Worn> = []): Kit => ({
   spent,
   weapon: DEFAULT_WEAPON,
-  worn,
+  worn: worn.map((w) => ('item' in w ? w : { item: w, rank: 0 })),
 })
 
 describe('realms', () => {
@@ -536,19 +542,30 @@ describe('items', () => {
   })
 
   it('feeds worn stats into the same maths as bought ones', () => {
+    // The reason there are only four kinds. A worn "+N Body" must land on the
+    // same curve, at the same diminishing return, as N points spent in the hub;
+    // the raw channels this replaced bypassed the curve entirely, so a robe and
+    // a spend screen disagreed about what the same words were worth.
     const robe = ITEM_BY_ID.get('r-layered')!
+    const points = robe.stat!.amount
     const bare = deriveStats(new Map(), kit())
     const worn = deriveStats(new Map(), kit(emptyAttributes(), [robe]))
-    // "+3 Body" on a robe must mean exactly what "+3 Body" means in the hub.
-    expect(worn.maxHp).toBeCloseTo(deriveStats(new Map(), kit(attrs({ body: 3 }))).maxHp, 9)
+    expect(worn.maxHp).toBeCloseTo(deriveStats(new Map(), kit(attrs({ body: points }))).maxHp, 9)
     expect(worn.maxHp).toBeGreaterThan(bare.maxHp)
   })
 
-  it('caps the rate bonus so the sweep cannot reach zero', () => {
-    const absurd = Array.from({ length: 40 }, () => ITEM_BY_ID.get('s-plain')!)
+  it('stays finite and positive under an absurd pile of gear', () => {
+    // Not reachable in play — four slots — but the attribute curve is the only
+    // thing standing between a swift stack and an interval of zero, which would
+    // be an infinite sweep rate rather than a fast one.
+    const absurd: Worn[] = Array.from({ length: 40 }, () => ({
+      item: ITEM_BY_ID.get('r-tattered')!,
+      rank: MAX_RANK,
+    }))
     const stats = deriveStats(new Map(), kit(emptyAttributes(), absurd))
     expect(stats.slashInterval).toBeGreaterThan(0)
     expect(Number.isFinite(stats.slashInterval)).toBe(true)
+    expect(Number.isFinite(stats.maxHp)).toBe(true)
   })
 })
 
@@ -722,6 +739,67 @@ describe('the v1 -> v2 migration', () => {
     for (const raw of ['{"v":2,"swordsmen":[null,3,"x"]}', '{"v":2,"swordsmen":{}}']) {
       expect(() => parseRoster(raw)).not.toThrow()
     }
+  })
+})
+
+describe('what a piece grants', () => {
+  it('speaks only in the four attributes the hub already explains', () => {
+    // Ten kinds across sixteen pieces was sixteen exceptions, and half of them
+    // said the same thing twice — `body` grants max health and `maxHp` granted
+    // max health, so two robes could not be compared without reading source.
+    const kinds = new Set(ITEMS.map((i) => i.stat?.kind).filter(Boolean))
+    expect([...kinds].sort()).toEqual(['body', 'edge', 'spirit', 'swift'])
+  })
+
+  it('gives every armour piece a line, and no weapon one', () => {
+    for (const item of ITEMS) {
+      // A weapon IS its line: what changes is how the blade sweeps.
+      if (item.slot === 'weapon') expect(item.stat).toBeUndefined()
+      else expect(item.stat).toBeDefined()
+    }
+  })
+
+  it('is worth more at a higher rank, and never less', () => {
+    for (const item of ITEMS) {
+      if (!item.stat) continue
+      let previous = 0
+      for (let rank = 0; rank <= MAX_RANK; rank++) {
+        const value = statAt(item.stat, rank)
+        expect(value).toBeGreaterThanOrEqual(previous)
+        expect(Number.isFinite(value)).toBe(true)
+        previous = value
+      }
+      // The top of the scale has to be worth walking for.
+      expect(statAt(item.stat, MAX_RANK)).toBeGreaterThan(statAt(item.stat, 0))
+    }
+  })
+
+  it('carries the rank all the way into the stats the run uses', () => {
+    // The whole point of step 1 followed by step 2. If this passes at rank 0
+    // and rank 5 alike, rank is a decoration on a card.
+    const robe = ITEM_BY_ID.get('r-lamellar')!
+    const low = deriveStats(new Map(), kit(emptyAttributes(), [{ item: robe, rank: 0 }]))
+    const high = deriveStats(new Map(), kit(emptyAttributes(), [{ item: robe, rank: MAX_RANK }]))
+    expect(high.maxHp).toBeGreaterThan(low.maxHp)
+  })
+
+  it('sums worn attributes at their own ranks', () => {
+    const worn: Worn[] = [
+      { item: ITEM_BY_ID.get('r-lamellar')!, rank: 2 },
+      { item: ITEM_BY_ID.get('h-veiled')!, rank: 0 },
+    ]
+    const total = wornAttributes(worn)
+    expect(total.body).toBe(statAt(ITEM_BY_ID.get('r-lamellar')!.stat!, 2))
+    expect(total.edge).toBe(statAt(ITEM_BY_ID.get('h-veiled')!.stat!, 0))
+    expect(total.swift).toBe(0)
+  })
+
+  it('says on the card what the piece is actually worth', () => {
+    // A rank 4 robe still advertising its rank 0 line would hide the whole axis
+    // exactly where the player compares two pieces.
+    const robe = ITEM_BY_ID.get('r-lamellar')!
+    expect(statLine(robe.stat, 0)).not.toBe(statLine(robe.stat, 4))
+    expect(statLine(robe.stat, 4)).toContain(String(statAt(robe.stat!, 4)))
   })
 })
 

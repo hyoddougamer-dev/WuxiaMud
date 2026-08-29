@@ -22,19 +22,43 @@ import type { AttributeId } from '../meta/character'
 
 export type Slot = 'weapon' | 'robe' | 'shoulders' | 'head'
 
-/** What an item's single line can say. */
-export type StatKind =
-  | AttributeId
-  | 'maxHp'
-  | 'damage'
-  | 'rate'
-  | 'range'
-  | 'pickup'
-  | 'artPower'
+/**
+ * What an item's single line can say: one of the four attributes, and nothing
+ * else.
+ *
+ * There used to be ten kinds — the four attributes plus maxHp, damage, rate,
+ * range, pickup and artPower — and that was ten currencies across sixteen
+ * pieces, which is sixteen exceptions. Worse, half of them said the same thing
+ * twice: `body` already grants max health and `maxHp` granted max health, so a
+ * player comparing a robe that gave "+3 Body" against one that gave "+28 max
+ * health" had no way to know which was bigger without reading the source.
+ *
+ * Four kinds, and every one of them is a row the hub ALREADY shows with its
+ * effect spelled out in the player's own units. "Is this better?" becomes a
+ * comparison of two numbers in the same currency, which is the only kind of
+ * comparison that survives being read one-handed with things chasing you.
+ */
+export type StatKind = AttributeId
 
 export interface ItemStat {
   readonly kind: StatKind
   readonly amount: number
+}
+
+/**
+ * What a piece's line is worth at `rank`.
+ *
+ * This is where rank stops being a decoration. A piece found deep is the same
+ * piece with a bigger number, and 30% per step means a rank 5 is worth two and
+ * a half of a rank 0 — enough that walking harder ground is the way to improve
+ * what you already wear, and not so much that a lucky rank makes the piece
+ * itself irrelevant.
+ *
+ * One rule for all four kinds, deliberately. A per-kind curve would be four
+ * rules nobody can hold in their head while deciding whether to swap a hat.
+ */
+export function statAt(stat: ItemStat, rank: number): number {
+  return Math.max(1, Math.round(stat.amount * (1 + rank * 0.3)))
 }
 
 export interface Item {
@@ -54,10 +78,10 @@ export interface Item {
   readonly rarity: 0 | 1 | 2
 }
 
-/** Renders a stat as the sentence shown on the card. */
-export function statLine(stat: ItemStat | undefined): string {
+/** Renders a stat as the sentence shown on the card, at the rank held. */
+export function statLine(stat: ItemStat | undefined, rank = 0): string {
   if (!stat) return ''
-  const n = stat.amount
+  const n = statAt(stat, rank)
   switch (stat.kind) {
     case 'body':
       return `+${n} Body`
@@ -66,18 +90,6 @@ export function statLine(stat: ItemStat | undefined): string {
     case 'swift':
       return `+${n} Swiftness`
     case 'spirit':
-      return `+${n} Spirit`
-    case 'maxHp':
-      return `+${n} max health`
-    case 'damage':
-      return `+${n} sweep damage`
-    case 'rate':
-      return `Sweep ${n}% faster`
-    case 'range':
-      return `+${n} sweep range`
-    case 'pickup':
-      return `Draw qi ${n}% further`
-    case 'artPower':
       return `+${n}% art power`
     default:
       return ''
@@ -108,7 +120,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Hemp Robe',
     slot: 'robe',
     styleId: 'plain',
-    stat: { kind: 'maxHp', amount: 10 },
+    stat: { kind: 'body', amount: 2 },
     depth: 1,
     rarity: 0,
   },
@@ -126,7 +138,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Lamellar Skirt',
     slot: 'robe',
     styleId: 'lamellar',
-    stat: { kind: 'maxHp', amount: 28 },
+    stat: { kind: 'body', amount: 4 },
     depth: 2,
     rarity: 1,
   },
@@ -135,7 +147,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Layered Vestment',
     slot: 'robe',
     styleId: 'layered',
-    stat: { kind: 'body', amount: 3 },
+    stat: { kind: 'body', amount: 5 },
     depth: 3,
     rarity: 1,
   },
@@ -144,7 +156,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Tattered Shroud',
     slot: 'robe',
     styleId: 'tattered',
-    stat: { kind: 'pickup', amount: 45 },
+    stat: { kind: 'swift', amount: 5 },
     depth: 4,
     rarity: 1,
   },
@@ -153,7 +165,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Court Silks',
     slot: 'robe',
     styleId: 'court',
-    stat: { kind: 'artPower', amount: 22 },
+    stat: { kind: 'spirit', amount: 6 },
     depth: 5,
     rarity: 2,
   },
@@ -164,7 +176,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Bound Sleeves',
     slot: 'shoulders',
     styleId: 'plain',
-    stat: { kind: 'rate', amount: 4 },
+    stat: { kind: 'swift', amount: 2 },
     depth: 1,
     rarity: 0,
   },
@@ -173,7 +185,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Bare Arms',
     slot: 'shoulders',
     styleId: 'bare',
-    stat: { kind: 'swift', amount: 3 },
+    stat: { kind: 'edge', amount: 2 },
     depth: 1,
     rarity: 0,
   },
@@ -182,7 +194,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Iron Pauldrons',
     slot: 'shoulders',
     styleId: 'pauldron',
-    stat: { kind: 'maxHp', amount: 22 },
+    stat: { kind: 'body', amount: 3 },
     depth: 2,
     rarity: 1,
   },
@@ -191,7 +203,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Wide Sleeves',
     slot: 'shoulders',
     styleId: 'wide',
-    stat: { kind: 'range', amount: 18 },
+    stat: { kind: 'spirit', amount: 4 },
     depth: 3,
     rarity: 1,
   },
@@ -200,7 +212,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Feather Mantle',
     slot: 'shoulders',
     styleId: 'mantle',
-    stat: { kind: 'spirit', amount: 4 },
+    stat: { kind: 'spirit', amount: 5 },
     depth: 5,
     rarity: 2,
   },
@@ -220,7 +232,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Loose Hair',
     slot: 'head',
     styleId: 'bare',
-    stat: { kind: 'pickup', amount: 20 },
+    stat: { kind: 'swift', amount: 1 },
     depth: 1,
     rarity: 0,
   },
@@ -229,7 +241,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Bamboo Hat',
     slot: 'head',
     styleId: 'hat',
-    stat: { kind: 'damage', amount: 5 },
+    stat: { kind: 'edge', amount: 3 },
     depth: 2,
     rarity: 1,
   },
@@ -238,7 +250,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Jade Crown',
     slot: 'head',
     styleId: 'crown',
-    stat: { kind: 'artPower', amount: 15 },
+    stat: { kind: 'spirit', amount: 4 },
     depth: 4,
     rarity: 1,
   },
@@ -247,7 +259,7 @@ export const ITEMS: readonly Item[] = [
     name: 'Veiled Hat',
     slot: 'head',
     styleId: 'veiled',
-    stat: { kind: 'edge', amount: 4 },
+    stat: { kind: 'edge', amount: 5 },
     depth: 6,
     rarity: 2,
   },

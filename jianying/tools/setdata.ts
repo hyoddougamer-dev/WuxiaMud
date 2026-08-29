@@ -7,7 +7,7 @@
  * IS, which is the exact failure these documents exist to prevent.
  */
 import { DEFAULT_GEAR, gearFromIds } from '../src/render/wardrobe'
-import { ITEMS, type Slot } from '../src/data/items'
+import { ITEMS, statAt, type Slot } from '../src/data/items'
 
 // --- the four stats -------------------------------------------------------
 
@@ -20,24 +20,34 @@ import { ITEMS, type Slot } from '../src/data/items'
 export interface StatKind {
   readonly seal: string
   readonly name: string
-  /** What one point of it buys, quoted in the units the HUD uses. */
+  /** What the card says it grants, in the words the card uses. */
   readonly unit: string
-  /** Value at rank 0. Rank multiplies it — see valueAt. */
-  readonly base: number
-  readonly perRank: number
 }
 
+/**
+ * The four the GAME has, not four this sheet invented.
+ *
+ * This used to read 体 锋 疾 远 — Vigour, Edge, Swift, Reach — which was a
+ * proposal written before the game had a stat model, and it stayed here after
+ * the game settled on 体 锋 疾 神. A contact sheet advertising a stat that does
+ * not exist is worse than no sheet: it is a document that reads as authority
+ * and is wrong. Kept in step with meta/character.ts ATTRIBUTES.
+ */
 export const STATS: Record<string, StatKind> = {
-  vigour: { seal: '体', name: 'Vigour', unit: 'max health', base: 14, perRank: 7 },
-  edge: { seal: '锋', name: 'Edge', unit: 'sweep damage', base: 2, perRank: 1.2 },
-  swift: { seal: '疾', name: 'Swift', unit: '% faster sweep', base: 3, perRank: 1.6 },
-  reach: { seal: '远', name: 'Reach', unit: 'sweep range', base: 8, perRank: 4 },
+  vigour: { seal: '体', name: 'Body', unit: 'Body' },
+  edge: { seal: '锋', name: 'Edge', unit: 'Edge' },
+  swift: { seal: '疾', name: 'Swiftness', unit: 'Swiftness' },
+  reach: { seal: '神', name: 'Spirit', unit: 'Spirit' },
 }
 
-export const valueAt = (kind: StatKind, rank: number): string => {
-  const v = kind.base + kind.perRank * rank
-  return `+${v % 1 === 0 ? v : v.toFixed(1)} ${kind.unit}`
-}
+/**
+ * What a piece's line is worth at `rank`, phrased as the card phrases it.
+ *
+ * Delegates to the game's own `statAt` rather than carrying a second curve —
+ * two curves would drift, and this sheet exists to be checked against.
+ */
+export const valueAt = (kind: StatKind, rank: number, amount = 3): string =>
+  `+${statAt({ kind: 'body', amount }, rank)} ${kind.unit}`
 
 // --- the sets -------------------------------------------------------------
 

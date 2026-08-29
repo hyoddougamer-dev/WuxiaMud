@@ -29,7 +29,7 @@ import { REGIONS, type Region } from '../src/data/regions'
 import { DEFAULT_WEAPON } from '../src/data/weapons'
 import { LEVELS_PER_REALM } from '../src/meta/realms'
 import { emptyAttributes, pointsForLevel, type Attributes } from '../src/meta/character'
-import { ITEM_BY_ID, type Item, type Slot } from '../src/data/items'
+import { ITEM_BY_ID, rollRank, type Item, type Slot } from '../src/data/items'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
@@ -109,7 +109,15 @@ for (const region of REGIONS) {
     const bolts = new Bolts()
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
-    const stats = deriveStats(new Map(), { spent, weapon, worn })
+    const stats = deriveStats(new Map(), {
+      spent,
+      weapon,
+      // At the rank the PREVIOUS region would have handed out. A pilot who
+      // just unlocked The Pass is not wearing post-road copies of their gear,
+      // and measuring them as if they were would report every deep region as
+      // harder than it actually plays.
+      worn: worn.map((item) => ({ item, rank: rollRank(Math.max(1, region.depth - 1), 0.99) })),
+    })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
 

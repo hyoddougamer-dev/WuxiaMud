@@ -64,6 +64,28 @@ export interface HubScreen {
   readonly visible: boolean
 }
 
+/**
+ * What the hub needs in order to draw the roster strip.
+ *
+ * Passed as a getter rather than a value because the roster changes underneath
+ * the hub — a swordsman is added, or the active one switches — and a snapshot
+ * taken when the hub was constructed would draw a stale strip forever.
+ */
+export interface RosterView {
+  /** Every swordsman, in the order they were made. */
+  all(): readonly Character[]
+  /** Index of the one currently being played. */
+  activeIndex(): number
+  /** Switch to another swordsman. */
+  select(index: number): void
+  /** Make a new one. Only offered while there is room. */
+  add(): void
+  /** Give up the active swordsman. Asks first — see main.ts. */
+  discard(): void
+  /** How many the save will hold. */
+  readonly limit: number
+}
+
 type TabId = 'self' | 'gear' | 'world'
 
 interface Tab {
@@ -144,7 +166,7 @@ export function createHub(
   root: HTMLElement,
   onSave: () => void,
   onOpenCodex: () => void,
-  onNewCharacter: () => void,
+  roster: RosterView,
 ): HubScreen {
   const panel = document.createElement('div')
   panel.className = 'hub'
@@ -194,7 +216,10 @@ export function createHub(
     card.type = 'button'
     card.className =
       'item' + (worn ? ' item-worn' : '') + (item.rarity > 0 ? ` item-r${item.rarity}` : '')
-    const line = slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat)
+    // At the rank held, not the base: a rank 4 robe that still advertises its
+    // rank 0 line would make the whole axis invisible where it is compared.
+    const line =
+      slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat, entry.rank)
     // Rank as pips rather than a number: the card is 158px wide on a phone and
     // already carries a name and a line of effect, and "rank 3" would need a
     // word of explanation that four dots does not.
@@ -301,17 +326,77 @@ export function createHub(
       pane.appendChild(totals)
     }
 
-    // Creation used to be reachable only on a save-less first launch, which
-    // meant the school picker — the game's opening question — was unreachable
-    // forever after. This is the way back to it.
-    const again = document.createElement('button')
-    again.type = 'button'
-    again.className = 'hub-again'
-    again.textContent = strings.newSwordsman
-    again.addEventListener('click', onNewCharacter)
-    pane.appendChild(again)
-
+    pane.appendChild(rosterStrip())
     return pane
+  }
+
+  /**
+   * The roster: every swordsman kept, and the way to make another.
+   *
+   * This replaced a single `New swordsman` button that DESTROYED the character
+   * you were playing. That was merely blunt while the game was classless; with
+   * the weapon in hand deciding how you fight, trying the spear would have
+   * meant deleting the swordsman who carries a sabre, and no loot game asks
+   * that. Switching is now free and discarding is a separate, stated act.
+   */
+  const rosterStrip = (): HTMLElement => {
+    const block = document.createElement('div')
+    block.className = 'block roster'
+
+    const head = document.createElement('div')
+    head.className = 'block-head'
+    head.innerHTML =
+      `<span>${strings.roster}</span>` +
+      `<span class="block-note">${roster.all().length} / ${roster.limit}</span>`
+    block.appendChild(head)
+
+    const row = document.createElement('div')
+    // Scrolls sideways rather than wrapping, for the same reason the equipment
+    // slots do: this pane is already taller than a phone.
+    row.className = 'roster-row'
+    roster.all().forEach((entry, index) => {
+      const active = index === roster.activeIndex()
+      const card = document.createElement('button')
+      card.type = 'button'
+      card.className = 'roster-card' + (active ? ' roster-on' : '')
+      card.innerHTML =
+        `<div class="roster-figure">${portrait(entry, 62)}</div>` +
+        `<div class="roster-name">${entry.name}</div>` +
+        `<div class="roster-sub">${realmOf(entry.level).seal} ${entry.level}</div>`
+      // Tapping the one already active is a no-op rather than a reload: a
+      // rebuild that throws the player back to the first tab reads as a bug.
+      if (!active) card.addEventListener('click', () => roster.select(index))
+      row.appendChild(card)
+    })
+
+    if (roster.all().length < roster.limit) {
+      const add = document.createElement('button')
+      add.type = 'button'
+      add.className = 'roster-card roster-add'
+      add.innerHTML = `<div class="roster-plus">+</div><div class="roster-name">${strings.newSwordsman}</div>`
+      add.addEventListener('click', () => roster.add())
+      row.appendChild(add)
+    }
+    block.appendChild(row)
+
+    if (roster.all().length >= roster.limit) {
+      const note = document.createElement('div')
+      note.className = 'roster-full'
+      note.textContent = strings.rosterFull
+      block.appendChild(note)
+    }
+
+    // Deliberately plain text rather than a button, and last. Giving up a
+    // swordsman is now a rare, deliberate act instead of the only way to reach
+    // character creation, so it should not look like the thing to tap.
+    const give = document.createElement('button')
+    give.type = 'button'
+    give.className = 'roster-give'
+    give.textContent = strings.giveUp
+    give.addEventListener('click', () => roster.discard())
+    block.appendChild(give)
+
+    return block
   }
 
   /** 装 — what you carry. The figure stays, because this is where it changes. */

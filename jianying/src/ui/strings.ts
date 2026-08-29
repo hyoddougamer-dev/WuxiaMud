@@ -102,7 +102,10 @@ export const strings = {
 
   // --- starting over ------------------------------------------------------
   newSwordsman: 'New swordsman',
-  discardTitle: 'Take up a new sword?',
+  roster: 'YOUR SWORDSMEN',
+  rosterFull: 'No room for another. Give one up to make a new one.',
+  giveUp: 'Give up this swordsman',
+  discardTitle: 'Give up this swordsman?',
   discardBody: 'This swordsman is lost for good — level, attributes and everything found.',
   discardConfirm: 'Begin anew',
   keep: 'Keep',

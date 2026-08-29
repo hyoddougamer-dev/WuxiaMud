@@ -72,15 +72,31 @@ migração nenhuma.
 
 ## A sequência
 
-| # | Passo | Depende de | Muda algo visível? |
-|---|---|---|---|
-| **1** | **Instância de item no save** | — | **Não.** É o passo invisível. |
-| 2 | Stats: 10 tipos → 4 com escala | — | Sim, as linhas dos itens |
-| 3 | Sets: agrupar os 22 em 5 + inicial | 2 | Sim, nomes e agrupamento |
-| 4 | Marcas de grau na figura | 1 | Sim, o grau vê-se |
-| 5 | Aba 炉 Forja: temperar com repetidas | 1, 2, 4 | Sim, o ciclo novo |
-| 6 | *APK e jogar* | 5 | — |
-| 7 | Encaixes e ritos (auras) | 1, 6 | Sim, muito |
+| # | Passo | Depende de | Muda algo visível? | Estado |
+|---|---|---|---|---|
+| **1** | **Instância de item no save** | — | **Não.** É o passo invisível. | **feito** |
+| 1b | Roster de espadachins | 1 | Sim, a aba 剑 | **feito** |
+| 2 | Stats: 10 tipos → 4 com escala | — | Sim, as linhas dos itens | **feito** |
+| 3 | Sets: agrupar os 22 em 5 + inicial | 2 | Sim, nomes e agrupamento | |
+| 4 | Marcas de grau na figura | 1 | Sim, o grau vê-se | |
+| 5 | Aba 炉 Forja: temperar com repetidas | 1, 2, 4 | Sim, o ciclo novo | |
+| 6 | *APK e jogar* | 5 | — | |
+| 7 | Encaixes e ritos (auras) | 1, 6 | Sim, muito | |
+
+### Passo 2, como ficou
+
+Dez tipos passaram a **quatro**, e os quatro são os que o hub já explica com o
+efeito escrito nas unidades do jogador: 体 锋 疾 神. Os seis canais crus que
+foram apagados — `maxHp`, `damage`, `rate`, `range`, `pickup`, `artPower` —
+tinham dois problemas. Metade dizia a mesma coisa duas vezes (`body` já dá vida
+e `maxHp` dava vida), e **nenhum deles passava pela curva de retorno
+decrescente**, por isso uma túnica e o ecrã de atributos discordavam sobre
+quanto valiam as mesmas palavras.
+
+É também aqui que o **rank deixa de ser decoração**: `statAt` multiplica a
+linha da peça em 30% por grau, e o cartão mostra o valor ao grau que tens.
+Medido com `tools/regions.mts`: os segundos de sobrevivência em todas as cinco
+regiões ficaram dentro do ruído, portanto isto foi legibilidade, não um buff.
 
 ### Porquê esta ordem e não outra
 

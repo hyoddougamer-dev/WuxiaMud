@@ -338,18 +338,56 @@ async function main(): Promise<void> {
     // caught the whole reason for this redesign: a hub that describes your
     // equipment in words and never shows it.
     const portraitPolys = await page
-      .locator('.pane .portrait-svg polygon')
+      .locator('.pane .stage .portrait-svg polygon')
       .count()
       .catch(() => 0)
     console.log(`figure: ${portraitPolys} ink strokes`)
     if (portraitPolys < 8) console.warn('warn:   the hub is not drawing the swordsman')
 
-    // Character creation used to be reachable ONLY when no save existed, which
-    // meant that from the second launch onward the school picker could not be
-    // opened by any route. It was reported as "there is no character creation"
-    // and that was exactly right. This walks the way back to it, and checks the
-    // dialogue defaults to keeping rather than discarding.
-    await page.locator('.hub-again').click()
+    // --- the roster -------------------------------------------------------
+    // Making a SECOND swordsman and switching back to the first. This is the
+    // whole of the change: `New swordsman` used to destroy the character you
+    // were playing, and the two things that can go wrong here — the second one
+    // overwriting the first, or switching losing whatever the first had — are
+    // both invisible from a screenshot and both unrecoverable for a player.
+    const firstName = (await page.locator('.roster-card:not(.roster-add) .roster-name').first().textContent()) ?? ''
+    await page.locator('.roster-add').click()
+    await page.waitForFunction(() => document.body.dataset.screen === 'create', undefined, {
+      timeout: 8000,
+    })
+    await page.locator('.create-go').click()
+    await page.waitForFunction(() => document.body.dataset.screen === 'hub', undefined, {
+      timeout: 8000,
+    })
+    await page.waitForTimeout(300)
+    const names = await page.locator('.roster-card:not(.roster-add) .roster-name').allTextContents()
+    // Scrolled to the bottom, because the roster is the last block on a pane
+    // taller than the phone and the default shot cuts it in half.
+    await page.locator('.hub-body').evaluate((el) => (el.scrollTop = el.scrollHeight))
+    await page.waitForTimeout(250)
+    await page.screenshot({ path: join(OUT, 'hub-roster.png') })
+    if (names.length !== 2) {
+      console.error(`roster: expected 2 swordsmen, found ${names.length}: ${names.join(", ")}`)
+      process.exitCode = 1
+    } else if (!names.includes(firstName)) {
+      console.error(`roster: the first swordsman (${firstName}) is gone after adding a second`)
+      process.exitCode = 1
+    } else {
+      // And back again. A switch that does not actually change who is drawn
+      // would photograph as a working screen.
+      const before = await page.locator('.pane .stage .portrait-svg').first().innerHTML()
+      await page.locator('.roster-card:not(.roster-on):not(.roster-add)').first().click()
+      await page.waitForTimeout(400)
+      const active = await page.locator('.roster-on .roster-name').textContent()
+      const after = await page.locator('.pane .stage .portrait-svg').first().innerHTML()
+      const switched = active === firstName && before !== after
+      console.log(`roster: ${names.length} swordsmen, switch ${switched ? 'ok' : 'BROKEN'}`)
+      if (!switched) process.exitCode = 1
+    }
+
+    // Giving one up is now a separate, stated act rather than the only route to
+    // character creation. The dialogue must still default to keeping.
+    await page.locator('.roster-give').click()
     await page.waitForSelector('.confirm', { timeout: 4000 })
     await page.screenshot({ path: join(OUT, 'hub-discard.png') })
     await page.locator('.confirm-keep').click()
