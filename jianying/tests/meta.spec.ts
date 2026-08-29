@@ -51,6 +51,15 @@ import {
   sweptAreaPerSecond,
 } from '../src/data/weapons'
 import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
+import {
+  ARTS,
+  CONDITIONS,
+  EQUIPPED_ARTS,
+  MAX_ART_LEVEL,
+  NEW_EFFECTS,
+  artScale,
+  artsFor,
+} from '../src/data/arts'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats, wornAttributes, type Kit, type Worn } from '../src/sim/loadout'
@@ -802,6 +811,78 @@ describe('what a piece grants', () => {
     const robe = ITEM_BY_ID.get('r-lamellar')!
     expect(statLine(robe.stat, 0)).not.toBe(statLine(robe.stat, 4))
     expect(statLine(robe.stat, 4)).toContain(String(statAt(robe.stat!, 4)))
+  })
+})
+
+describe('arts', () => {
+  // The data layer only — nothing here acts on the simulation yet, and these
+  // tests exist so that stays true by construction rather than by memory.
+
+  it('gives every weapon its own scroll of five', () => {
+    // "Your class is the weapon in hand" is only true if the weapon changes
+    // what you can DO. A weapon with no scroll is a weapon with no class.
+    for (const weapon of WEAPONS) {
+      expect(artsFor(weapon.id)).toHaveLength(5)
+    }
+    expect(ARTS).toHaveLength(WEAPONS.length * 5)
+  })
+
+  it('covers every condition exactly once per weapon', () => {
+    // No weapon may have a dead condition. A player who changes weapon keeps
+    // the same five things to do while everything they produce changes, and
+    // that is the whole reason six classes cost one control scheme.
+    for (const weapon of WEAPONS) {
+      const used = artsFor(weapon.id).map((a) => a.condition).sort()
+      expect(used).toEqual(CONDITIONS.map((c) => c.id).sort())
+    }
+  })
+
+  it('has unique ids and seals within a scroll', () => {
+    expect(new Set(ARTS.map((a) => a.id)).size).toBe(ARTS.length)
+    for (const weapon of WEAPONS) {
+      const seals = artsFor(weapon.id).map((a) => a.seal)
+      expect(new Set(seals).size).toBe(seals.length)
+    }
+  })
+
+  it('names a weapon that exists', () => {
+    // A scroll pointing at a weapon style the wardrobe does not have would be
+    // five arts nobody can ever equip.
+    const styles = new Set(WEAPONS.map((w) => w.id))
+    for (const art of ARTS) expect(styles.has(art.weapon)).toBe(true)
+  })
+
+  it('says something in the player’s own terms', () => {
+    for (const art of ARTS) {
+      expect(art.blurb.length).toBeGreaterThan(20)
+      // The card is one line on a phone. Anything longer wraps to three.
+      expect(art.blurb.length).toBeLessThan(75)
+    }
+  })
+
+  it('keeps the new simulation work small and visible', () => {
+    // Six new features is the honest cost of this scroll; the guard is here so
+    // that adding a seventh is a decision rather than an accident.
+    expect(NEW_EFFECTS).toHaveLength(6)
+    const newOnes = ARTS.filter((a) => NEW_EFFECTS.includes(a.effect))
+    expect(newOnes.length).toBeLessThanOrEqual(ARTS.length / 2)
+  })
+
+  it('is worth something at grade zero, and more at five', () => {
+    // An art that reads as nothing until levelled is an art nobody equips.
+    expect(artScale(0)).toBe(1)
+    expect(artScale(MAX_ART_LEVEL)).toBeGreaterThan(artScale(0))
+    let previous = 0
+    for (let level = 0; level <= MAX_ART_LEVEL; level++) {
+      const value = artScale(level)
+      expect(value).toBeGreaterThan(previous)
+      previous = value
+    }
+    expect(artScale(99)).toBe(artScale(MAX_ART_LEVEL))
+  })
+
+  it('cannot carry more arts than a scroll holds', () => {
+    expect(EQUIPPED_ARTS).toBeLessThan(5)
   })
 })
 

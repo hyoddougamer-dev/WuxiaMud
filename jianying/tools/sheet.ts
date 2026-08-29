@@ -317,9 +317,17 @@ export function gearOf(ids: readonly string[]): Gear {
   })
 }
 
-export function label(x: number, y: number, text: string, size: number, fill: string, op = 1): string {
+export function label(
+  x: number,
+  y: number,
+  text: string,
+  size: number,
+  fill: string,
+  op = 1,
+  anchor: 'middle' | 'start' | 'end' = 'middle',
+): string {
   return (
-    `<text x="${x}" y="${y}" text-anchor="middle" font-family="system-ui, sans-serif" ` +
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="system-ui, sans-serif" ` +
     `font-size="${size}" fill="${fill}" fill-opacity="${op}">${text}</text>`
   )
 }
