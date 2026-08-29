@@ -47,6 +47,63 @@ pode usar** — uma barra, uma pilha de traços, um anel, um espiral, um escudo,
 uma estrela, uma linha de cota, uma urna. O detalhe lá dentro é decoração. A
 34px um traço interior é um pixel e não existe.
 
+### O pack gratuito — existe, e é bom
+
+Medi outra vez em vez de repetir o que tinha assumido. **Todos** os hosts de
+ícones estão bloqueados deste contentor — `game-icons.net`, `kenney.nl`,
+`opengameart.org` respondem 000, e todas as APIs de geração de imagem também
+(`api.openai.com`, `fal.run`, `api.replicate.com`, `huggingface.co`). O **npm
+passa**.
+
+E é por aí que há uma via: o game-icons.net inteiro publica-se como
+`@iconify-json/game-icons` — **4134 ícones, CC BY 3.0**, paths SVG. Isso é
+melhor do que descarregar ficheiros: fica uma dependência com versão fixa, que
+funciona offline e no CI, para sempre.
+
+Encaixa muito melhor do que eu disse à primeira. São silhuetas monocromáticas
+numa grelha de 512 — o mesmo modelo de render que tudo o resto neste jogo, por
+isso tingem-se por estado e escalam. A minha objeção anterior era sobre um pack
+rasterizado, e este não é.
+
+`tools/pack.ts` põe os dois lado a lado nos dezasseis efeitos, na paleta do jogo
+e ao tamanho do tile → `docs/pack.png`. A diferença é uma decisão, não um
+defeito:
+
+- **o pack desenha a COISA** (uma espada, um escudo, um coração)
+- **os meus desenham o EFEITO** (uma linha a espetar dois anéis, uma parede e o
+  que foge dela)
+
+**A recomendação: os dois.** O pack veste a grelha do equipamento — tem `belt`,
+`bracers`, `leather-boot`, `gem-pendant`, `shoulder-armor`, `robe`, e ali
+"desenha a coisa" é exatamente o que se quer, onde hoje há apenas um selo. As
+artes ficam com os diagramas, onde o que importa é o efeito e não o objeto.
+
+Se ficar o pack, falta uma linha de créditos no ecrã de título: *Icons by
+game-icons.net, CC BY 3.0*.
+
+### E gerar com IA?
+
+`tools/generate.mts` + `.github/workflows/jianying-art.yml` — carregas num botão
+no telemóvel, a chave vem de um secret do repositório, as imagens voltam como
+artifact. Nada é commitado sozinho.
+
+**Mas não para os ícones das artes.** Dezasseis marcas de 34px que têm de se
+distinguir umas das outras são o pior uso possível de um modelo generativo: não
+se lhe pode dizer "faz esta diferente daquela", as dezasseis teriam de concordar
+entre si, e cada regeneração dá um conjunto novo. O manifesto
+(`tools/art/manifest.ts`) gera o caso oposto — uma imagem grande, vista uma vez,
+onde o detalhe é o ponto: key art, as cinco regiões, dois chefes.
+
+`tools/inkify.mts` é a metade que decide se funciona, e a que as pessoas saltam:
+luminância → curva de contraste → duotone papel/tinta → grão. Sem esse passo,
+oito imagens geradas parecem oito jogos diferentes.
+
+**O que verifiquei e o que não:** o encanamento (manifesto, montagem do prompt,
+`--dry-run`, os caminhos de erro) e o passe de tinta, testado numa imagem a
+cores a sério. **Não verifiquei uma única chamada nem um único pixel gerado** —
+não consigo, está bloqueado daqui. A primeira corrida a sério é tua e pode
+precisar de um ajuste.
+
 ### O que o teste apanha, e o que não apanha
 
 `tests/glyphs.spec.ts` verifica: todo o efeito usado por uma arte tem glifo,

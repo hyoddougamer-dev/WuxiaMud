@@ -1,0 +1,103 @@
+name: Jianying · Key art
+
+# Generates the key art from tools/art/manifest.ts and inks it into the game's
+# palette. This is a workflow rather than a local script for one reason: the
+# person who runs it develops from a phone, and this is how you push a button
+# on a phone and get files back.
+#
+# It never runs on its own. Generation costs money per call and the first result
+# is never the right one, so this is dispatch-only and takes the piece to make
+# as an input — the loop is meant to be "change one prompt, remake that one
+# piece, look at it", not "regenerate everything and hope".
+#
+# THE KEY LIVES IN A SECRET AND NEVER IN THE REPOSITORY. Add it once under
+# Settings → Secrets and variables → Actions:
+#   OPENAI_API_KEY     (or)     STABILITY_API_KEY
+# The repository is public. A key committed here is a key spent by strangers.
+#
+# Nothing is committed back. The images arrive as a downloadable artifact, you
+# look at them on the phone, and only the ones worth keeping get added.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pieces:
+        description: 'Which pieces (space separated ids), or blank for all'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Print the prompts and stop — costs nothing, needs no key'
+        type: boolean
+        required: false
+        default: false
+
+defaults:
+  run:
+    working-directory: jianying
+
+jobs:
+  art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jianying/package-lock.json
+
+      - run: npm ci
+
+      - name: The prompts, without calling anything
+        if: ${{ inputs.dry_run }}
+        run: npx tsx tools/generate.mts --dry-run ${{ inputs.pieces }}
+
+      - name: Check a key is present
+        if: ${{ !inputs.dry_run }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+        # Failing here with a sentence beats failing four steps later with a
+        # 401 that reads like the script is broken.
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] && [ -z "$STABILITY_API_KEY" ]; then
+            echo "::error::No API key. Add OPENAI_API_KEY or STABILITY_API_KEY under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Generate
+        if: ${{ !inputs.dry_run }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+        run: npx tsx tools/generate.mts ${{ inputs.pieces }}
+
+      # Chromium is what inks the images, and it is what the screenshot harness
+      # already uses — so this installs the browser the repo is pinned to rather
+      # than a second one.
+      - name: Browser for the ink pass
+        if: ${{ !inputs.dry_run }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Ink them into the palette
+        if: ${{ !inputs.dry_run }}
+        # The generated files carry their own colour and lighting; without this
+        # pass eight pieces look like eight different games. See tools/inkify.mts.
+        run: |
+          shopt -s nullglob
+          for f in docs/generated/*.png; do
+            case "$f" in *.ink.png) continue;; esac
+            npx tsx tools/inkify.mts "$f"
+          done
+          ls -la docs/generated/
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.dry_run }}
+        with:
+          name: jianying-key-art
+          path: jianying/docs/generated/
+          if-no-files-found: error
+          retention-days: 30
