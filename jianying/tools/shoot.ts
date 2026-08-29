@@ -551,6 +551,105 @@ async function main(): Promise<void> {
     }
     console.log(`input:  ok (moved ${moved.toFixed(0)} world units)`)
 
+    // --- the five conditions, provoked on purpose -------------------------
+    // The unit tests exercise the detector. They cannot prove the wiring from a
+    // thumb on a joystick, through the simulation, to a lit tile on screen —
+    // and that wiring IS the feature, because a conditional system the player
+    // cannot see is a set of invisible rules.
+    const conditions = async (): Promise<string> =>
+      (await page.evaluate(() => document.body.dataset.conditions ?? '')) || '—'
+    const held: string[] = []
+
+    /**
+     * Waits for a condition to hold, dismissing level-ups and re-provoking.
+     *
+     * Sampling once after a fixed delay was the first version and it was flaky:
+     * a pending level-up freezes the simulation behind a choice, so a posture
+     * that must be HELD can be interrupted at any moment, and the turn flash
+     * lasts under a second. A flaky verifier is worse than none, because it
+     * teaches you to ignore it.
+     *
+     * `provoke` runs on every poll, so the gesture is repeated rather than made
+     * once and hoped for.
+     */
+    const waitForCondition = async (
+      name: string,
+      provoke: () => Promise<void>,
+      ms: number,
+    ): Promise<string> => {
+      const until = Date.now() + ms
+      let last = '—'
+      while (Date.now() < until) {
+        const card = page.locator('.levelup .card').first()
+        if (await card.isVisible().catch(() => false)) await card.click().catch(() => {})
+        await provoke()
+        last = await conditions()
+        if (last.includes(name)) return last
+      }
+      return last
+    }
+
+    const screen = await page.evaluate(() => document.body.dataset.screen)
+    if (screen !== 'run' && screen !== 'over') {
+      console.error(`arts:   cannot provoke a condition — the game is on "${screen}", not running`)
+      process.exitCode = 1
+    }
+
+    // 静 — let go and wait. The posture has to be HELD, so releasing for a
+    // single frame is not enough, and that is the point.
+    await page.mouse.up().catch(() => {})
+    const sawStill = await waitForCondition(
+      'still',
+      () => page.waitForTimeout(120),
+      3000,
+    )
+    if (sawStill.includes('still')) held.push('静')
+
+    // 疾 — hold the stick at full deflection in one direction.
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 130, cy, { steps: 6 })
+    const sawRunning = await waitForCondition(
+      'running',
+      () => page.waitForTimeout(120),
+      3500,
+    )
+    if (sawRunning.includes('running')) held.push('疾')
+    await page.screenshot({ path: join(OUT, 'arts-running.png') })
+
+    // 转 — reverse hard, over and over, without letting go. The flash lasts
+    // under a second, so one reversal and one sample is a coin toss.
+    let side = -1
+    const sawTurn = await waitForCondition(
+      'turn',
+      async () => {
+        side = -side
+        await page.mouse.move(cx + side * 130, cy, { steps: 3 })
+        await page.waitForTimeout(90)
+      },
+      4000,
+    )
+    if (sawTurn.includes('turn')) held.push('转')
+    const lit = await page.locator('.art-on').count()
+    await page.mouse.up()
+
+    // 围 and 危 are situations rather than postures — being surrounded, and
+    // being nearly dead — and neither can be provoked reliably inside a short
+    // harness run. They are covered by the unit tests instead, and the honest
+    // thing is to name the three checked here rather than claim five.
+    if (held.length < 3) {
+      console.error(
+        `arts:   NOT WIRED — only ${held.join(' ') || 'none'} of 静 疾 转 held ` +
+          `(saw still="${sawStill}" running="${sawRunning}" turn="${sawTurn}")`,
+      )
+      process.exitCode = 1
+    } else if (lit === 0) {
+      console.error('arts:   conditions hold but no tile lit — the strip is not reading them')
+      process.exitCode = 1
+    } else {
+      console.log(`arts:   ${held.join(' ')} provoked, ${lit} tile(s) lit`)
+    }
+
     await page.waitForTimeout(1500)
     const fps = await readFps(page)
     const hud = await page.locator('#hud').textContent()

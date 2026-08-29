@@ -52,6 +52,12 @@ import {
 } from '../src/data/weapons'
 import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
 import {
+  activeSeals,
+  createSense,
+  noConditions,
+  senseConditions,
+} from '../src/sim/conditions'
+import {
   ARTS,
   CONDITIONS,
   EQUIPPED_ARTS,
@@ -811,6 +817,147 @@ describe('what a piece grants', () => {
     const robe = ITEM_BY_ID.get('r-lamellar')!
     expect(statLine(robe.stat, 0)).not.toBe(statLine(robe.stat, 4))
     expect(statLine(robe.stat, 4)).toContain(String(statAt(robe.stat!, 4)))
+  })
+})
+
+describe('the five conditions', () => {
+  const step = (
+    sense: ReturnType<typeof createSense>,
+    over: Partial<Parameters<typeof senseConditions>[1]>,
+    seconds: number,
+    dt = TICK_S,
+  ) => {
+    const input = {
+      speed: 0,
+      maxSpeed: 200,
+      moveX: 0,
+      moveY: 0,
+      nearby: 0,
+      hp: 100,
+      maxHp: 100,
+      ...over,
+    }
+    for (let t = 0; t < seconds; t += dt) senseConditions(sense, input, dt)
+    return sense.active
+  }
+
+  it('holds nothing at the first frame', () => {
+    // A condition that fires instantly would trip while dodging, and the player
+    // would never learn what caused it.
+    const sense = createSense()
+    expect(step(sense, {}, TICK_S)).toEqual(noConditions())
+  })
+
+  it('wants the posture held before it counts', () => {
+    const a = createSense()
+    expect(step(a, { speed: 0 }, 0.3).still).toBe(false)
+    expect(step(a, { speed: 0 }, 0.5).still).toBe(true)
+
+    const b = createSense()
+    expect(step(b, { speed: 200, moveX: 1 }, 0.5).running).toBe(false)
+    expect(step(b, { speed: 200, moveX: 1 }, 0.7).running).toBe(true)
+  })
+
+  it('never holds two postures at once', () => {
+    // The guard against the whole system rotting into "everything fires always",
+    // which is passive with extra steps.
+    const sense = createSense()
+    const rng = new Rng(9)
+    for (let i = 0; i < 4000; i++) {
+      const speed = rng.next() * 220
+      const angle = rng.next() * Math.PI * 2
+      const moving = speed > 4
+      senseConditions(
+        sense,
+        {
+          speed,
+          maxSpeed: 200,
+          moveX: moving ? Math.cos(angle) : 0,
+          moveY: moving ? Math.sin(angle) : 0,
+          nearby: Math.floor(rng.next() * 9),
+          hp: rng.next() * 100,
+          maxHp: 100,
+        },
+        TICK_S,
+      )
+      const postures = [sense.active.still, sense.active.running, sense.active.turn]
+      expect(postures.filter(Boolean).length).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('reads a reversal of TRAVEL, not of facing', () => {
+    // Facing persists while standing still, so a player who stops and starts
+    // would otherwise read as having turned without having moved.
+    const sense = createSense()
+    step(sense, { speed: 200, moveX: 1, moveY: 0 }, 0.4)
+    expect(sense.active.turn).toBe(false)
+    senseConditions(
+      sense,
+      { speed: 200, maxSpeed: 200, moveX: -1, moveY: 0, nearby: 0, hp: 100, maxHp: 100 },
+      TICK_S,
+    )
+    expect(sense.active.turn).toBe(true)
+  })
+
+  it('ignores a gentle change of course', () => {
+    // Only a reversal past 120° counts. Steering around a rock is not a turn.
+    const sense = createSense()
+    step(sense, { speed: 200, moveX: 1, moveY: 0 }, 0.4)
+    const a = Math.PI / 4
+    senseConditions(
+      sense,
+      {
+        speed: 200,
+        maxSpeed: 200,
+        moveX: Math.cos(a),
+        moveY: Math.sin(a),
+        nearby: 0,
+        hp: 100,
+        maxHp: 100,
+      },
+      TICK_S,
+    )
+    expect(sense.active.turn).toBe(false)
+  })
+
+  it('lets a turn fade rather than latch', () => {
+    const sense = createSense()
+    step(sense, { speed: 200, moveX: 1 }, 0.4)
+    step(sense, { speed: 200, moveX: -1 }, TICK_S)
+    expect(sense.active.turn).toBe(true)
+    step(sense, { speed: 200, moveX: -1 }, 1.2)
+    expect(sense.active.turn).toBe(false)
+  })
+
+  it('treats being surrounded and being in peril as situations, not postures', () => {
+    // These two are things that happen TO you, so they may overlap a posture.
+    // An art on one of them is a safety net rather than a plan.
+    const sense = createSense()
+    const active = step(sense, { speed: 0, nearby: 6, hp: 20, maxHp: 100 }, 0.8)
+    expect(active.still).toBe(true)
+    expect(active.surrounded).toBe(true)
+    expect(active.peril).toBe(true)
+  })
+
+  it('does not call a crowd of four surrounded, nor a third of health safe', () => {
+    const sense = createSense()
+    expect(step(sense, { nearby: 4, hp: 31, maxHp: 100 }, 0.1).surrounded).toBe(false)
+    expect(sense.active.peril).toBe(false)
+    expect(step(createSense(), { nearby: 5, hp: 30, maxHp: 100 }, 0.1)).toMatchObject({
+      surrounded: true,
+      peril: true,
+    })
+  })
+
+  it('survives a maxHp of zero rather than reporting NaN peril', () => {
+    const active = step(createSense(), { hp: 0, maxHp: 0 }, 0.1)
+    expect(active.peril).toBe(false)
+  })
+
+  it('names what holds, in a stable order', () => {
+    const sense = createSense()
+    step(sense, { speed: 0, nearby: 7, hp: 10, maxHp: 100 }, 0.8)
+    expect(activeSeals(sense.active)).toEqual(['still', 'surrounded', 'peril'])
   })
 })
 

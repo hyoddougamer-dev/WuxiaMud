@@ -38,7 +38,9 @@ import { Hazards } from './sim/hazards'
 import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
-import { createPlayer, playerSpeedRatio, updatePlayer } from './sim/player'
+import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
+import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
+import { artsFor } from './data/arts'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
@@ -60,7 +62,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.9.1'
+const BUILD = '1.10.0'
 
 async function hideSplash(): Promise<void> {
   try {
@@ -138,6 +140,8 @@ async function boot(): Promise<void> {
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
   /** Drop quality, on its own stream for the same reason `pickRng` has one. */
   let dropRng = new Rng(runSeed ^ 0x1b873593)
+  /** Which of the five conditions hold right now. See sim/conditions.ts. */
+  const sense = createSense()
   let loadout: Loadout = new Map()
 
   /**
@@ -633,6 +637,35 @@ async function boot(): Promise<void> {
       Math.cos(windAngle) * drift,
       Math.sin(windAngle) * drift,
     )
+    // The five conditions, read before combat resolves so that what the HUD
+    // lights this frame is the same state an art would have fired on.
+    const stickLen = Math.hypot(ix, iy)
+    let nearby = 0
+    swarm.grid.query(player.x, player.y, SURROUND_RADIUS, () => {
+      nearby++
+    })
+    senseConditions(
+      sense,
+      {
+        speed: playerSpeed(player),
+        maxSpeed: stats.moveSpeed * (rule.playerSpeed ?? 1),
+        // The direction of TRAVEL, taken from the thumb rather than from the
+        // figure's facing — facing persists while standing still, so a player
+        // who stops and starts would read as having turned.
+        //
+        // Normalised, because the turn test is a dot product against a
+        // threshold: at half deflection two opposite pushes only reach −0.25,
+        // so a reversal made without shoving the stick to the rim would not
+        // have counted as a reversal.
+        moveX: stickLen > 0 ? ix / stickLen : 0,
+        moveY: stickLen > 0 ? iy / stickLen : 0,
+        nearby,
+        hp: run.hp,
+        maxHp: stats.maxHp,
+      },
+      dt,
+    )
+
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
     updateCombat(
       {
@@ -910,6 +943,10 @@ async function boot(): Promise<void> {
 
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, stats.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
+    // The scroll of the weapon in hand. Cheap: setScroll returns immediately
+    // unless the weapon actually changed.
+    ui.setScroll(artsFor(kit.weapon.id))
+    ui.setConditions(sense.active)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
       // Cleared before the end screen goes up, or the last banner of the run
@@ -985,6 +1022,11 @@ async function boot(): Promise<void> {
       // character looks identical to a screenshot of a moving one.
       document.body.dataset.px = String(Math.round(player.x))
       document.body.dataset.py = String(Math.round(player.y))
+      // Which conditions hold, for the harness. The seals lighting on screen is
+      // the feature; this is how a machine can assert that it happened, and the
+      // unit tests cannot — they exercise the detector, not the wiring from a
+      // thumb on a joystick through to a class on a tile.
+      document.body.dataset.conditions = activeSeals(sense.active).join(',')
       // Published so a performance report can be turned into a measurement.
       // "It stutters on my phone" is unactionable; "render costs 9ms with 240
       // enemies" points at one loop.

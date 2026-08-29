@@ -144,14 +144,39 @@ uma com o seu teste.
 
 ## A ordem de construção
 
-| # | Passo | Verificável por |
-|---|---|---|
-| A | Modelo de dados: condições, artes, o rolo de cada arma | testes: 5 por arma, ids únicos, toda a condição usada |
-| B | Deteção das condições na simulação, e o sinal no ecrã | harness: forçar cada condição e ver o selo acender |
-| C | Efeitos aplicados, começando pelos que já existem | `tools/regions.mts`: a curva não parte |
-| D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste |
-| E | 秘笈 caem e ensinam | teste: um manual duplicado não ensina duas vezes |
-| F | As 3 cartas saem; 感悟 avança a lista | `regions.mts` outra vez, e o APK |
+| # | Passo | Verificável por | Estado |
+|---|---|---|---|
+| A | Modelo de dados: condições, artes, o rolo de cada arma | testes: 5 por arma, ids únicos, toda a condição usada | **feito** |
+| B | Deteção das condições na simulação, e o sinal no ecrã | harness: forçar cada condição e ver o selo acender | **feito** |
+| C | Efeitos aplicados, começando pelos que já existem | `tools/regions.mts`: a curva não parte | |
+| D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste | |
+| E | 秘笈 caem e ensinam | teste: um manual duplicado não ensina duas vezes | |
+| F | As 3 cartas saem; 感悟 avança a lista | `regions.mts` outra vez, e o APK | |
+
+### Passo B, como ficou
+
+`src/sim/conditions.ts`. Três regras decidiram os números:
+
+**Segurar, não piscar.** As duas posturas têm de ser mantidas antes de contarem
+(静 0.55s, 疾 0.9s). Uma condição que dispare num só fotograma de velocidade
+baixa acionava-se constantemente ao desviar, e o jogador nunca aprenderia o que
+a causou. Esse atraso é também o jogo a pedir um compromisso — é isso que a
+torna uma decisão.
+
+**As posturas excluem-se.** 静, 疾 e 转 nunca são verdade ao mesmo tempo, por
+construção: uma viragem suprime as outras duas enquanto dura, porque inverter a
+direção passa por um instante de velocidade baixa que de outra forma leria como
+estar parado. Há um teste que atira 4000 estados aleatórios ao detetor e exige
+no máximo uma postura ativa.
+
+**Situação não é postura.** 围 e 危 não são coisas que se seguram, são coisas
+que te acontecem, e podem sobrepor-se a uma postura. Uma arte numa delas é uma
+rede de segurança, não um plano.
+
+A viragem lê a direção de **viagem**, não a de olhar: a figura continua a olhar
+para onde apontou enquanto está parada, por isso quem pára e arranca leria como
+tendo virado sem se ter mexido. E o vetor é normalizado, senão uma inversão
+feita a meia deflexão só chega a −0.25 e não passava o limiar.
 
 **A condição antes do efeito.** Se o jogador não conseguir ver *quando* uma
 arte dispara, nenhum efeito a torna legível — e um sistema que o jogador não

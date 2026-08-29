@@ -13,6 +13,8 @@
  * read, without asking anyone, exactly what those four minutes bought.
  */
 import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
+import { ART_BY_ID, CONDITION_BY_ID, type Art } from '../data/arts'
+import { activeSeals, type Conditions } from '../sim/conditions'
 import { statLine, type Item } from '../data/items'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
@@ -55,6 +57,10 @@ export interface Hud {
     xpNeeded: number,
     insight: number,
   ): void
+  /** Sets the arts shown in the strip — the scroll of the weapon in hand. */
+  setScroll(arts: readonly Art[]): void
+  /** Lights the tiles whose condition holds right now. Called every frame. */
+  setConditions(active: Conditions): void
   /** Redraws the owned-technique strip. Cheap when nothing has changed. */
   updateLoadout(loadout: Loadout): void
   /** Names the road in the corner, so depth is visible during play. */
@@ -86,6 +92,7 @@ export function createHud(root: HTMLElement): Hud {
         <span class="hud-kills">0</span>
       </div>
       <div class="hud-road"></div>
+      <div class="hud-arts"></div>
       <div class="hud-loadout"></div>
     </div>
     <div class="over" hidden>
@@ -117,6 +124,7 @@ export function createHud(root: HTMLElement): Hud {
   const overReward = root.querySelector<HTMLElement>('.over-reward')!
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
   const loadoutEl = root.querySelector<HTMLElement>('.hud-loadout')!
+  const artsEl = root.querySelector<HTMLElement>('.hud-arts')!
 
   // Only touch the DOM when a displayed value actually changes. Writing the
   // same string 60 times a second is layout work for nothing.
@@ -128,6 +136,11 @@ export function createHud(root: HTMLElement): Hud {
 
   /** Serialised loadout, so the strip is only rebuilt when it really changes. */
   let lastLoadout = ''
+
+  /** The art tiles, in scroll order, so lighting one is a class toggle. */
+  let artTiles: HTMLElement[] = []
+  let lastScroll = ''
+  let lastLit = ''
 
   let returnHandler: (() => void) | null = null
   again.addEventListener('click', () => {
@@ -188,6 +201,45 @@ export function createHud(root: HTMLElement): Hud {
 
     setPlaying(playing) {
       bar.style.display = playing ? '' : 'none'
+    },
+
+    setScroll(arts) {
+      // The whole scroll for the weapon in hand. Equipping four of them is a
+      // later step; until it exists, showing all five is the honest thing —
+      // inventing an equipped set the save does not hold would put a lie on the
+      // screen for the sake of matching a mockup.
+      const key = arts.map((a) => a.id).join(',')
+      if (key === lastScroll) return
+      lastScroll = key
+      lastLit = ''
+
+      artsEl.innerHTML = ''
+      artTiles = arts.map((art) => {
+        const tile = document.createElement('div')
+        tile.className = 'art'
+        tile.dataset.art = art.id
+        // The art's seal above, the CONDITION's seal below. The condition is
+        // what the player has to do, so it belongs on the tile rather than in a
+        // menu they cannot open mid-fight.
+        tile.innerHTML =
+          `<span class="art-seal">${art.seal}</span>` +
+          `<span class="art-cond">${CONDITION_BY_ID.get(art.condition)!.seal}</span>`
+        artsEl.appendChild(tile)
+        return tile
+      })
+    },
+
+    setConditions(active) {
+      // This is the tell, and without it the arts are invisible rules. A
+      // conditional system is only learnable if the player can see which
+      // condition is true at the moment it becomes true.
+      const key = activeSeals(active).join(',')
+      if (key === lastLit) return
+      lastLit = key
+      for (const tile of artTiles) {
+        const art = ART_BY_ID.get(tile.dataset.art ?? '')
+        tile.classList.toggle('art-on', art !== undefined && active[art.condition])
+      }
     },
 
     updateLoadout(loadout) {
