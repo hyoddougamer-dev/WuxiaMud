@@ -123,20 +123,23 @@ for (const region of REGIONS) {
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
 
-    // The arts, wired exactly as main.ts runs them — and almost never firing.
+    // The arts, wired exactly as main.ts runs them.
     //
-    // That is not a bug, it is this pilot. KITE flies at 0.3 deflection, which
-    // sits above the 0.1 that counts as 静 and below the 0.86 that counts as
-    // 疾, so NO POSTURE EVER HOLDS in this table. Measured: turning the arts
-    // off changes not one digit of any row.
+    // NO POSTURE ever holds in this table, and that is the pilot rather than a
+    // bug: KITE flies at 0.3 deflection, above the 0.1 that counts as 静 and
+    // below the 0.86 that counts as 疾. So 静, 疾 and 转 contribute nothing
+    // here and always will.
     //
-    // The wiring stays anyway, and deliberately. A gentle drifter is the right
-    // pilot for the question this tool asks — whether each PLACE plays
-    // differently — and changing it to chase the arts would silently turn this
-    // into a second, worse copy of tools/artsBalance.mts, which flies at full
-    // deflection and exists for exactly that. What the wiring buys is that the
-    // day a situation art (围, 危) or a passive lands, this table starts
-    // reflecting it instead of quietly measuring a game without arts.
+    // The SITUATIONS do fire — being surrounded and being in peril happen to a
+    // drifter like anyone else — and since the six new effects landed, that is
+    // no longer a rounding error. Measured, arts off against arts on:
+    // 117 → 131, 77 → 82, 73 → 76, 48 → 47, 62 → 61 seconds. Before those
+    // effects existed the same comparison moved not one digit.
+    //
+    // The gentle pilot stays. It is the right one for the question this tool
+    // asks — whether each PLACE plays differently — and chasing the postures
+    // would turn this into a second, worse copy of tools/artsBalance.mts, which
+    // flies properly and exists for exactly that.
     const sense = createSense()
     const progress = beginProgress(equippedIds({}, weapon.id))
     const live = deriveStats(new Map(), { spent, weapon, worn: [] })

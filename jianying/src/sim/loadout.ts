@@ -45,6 +45,30 @@ export interface Stats {
   novaInterval: number
   novaRadius: number
   novaDamage: number
+
+  // --- channels only the arts move, so far ------------------------------
+  // Each one is zero (or one, for a multiplier) at rest, which is what lets
+  // combat read them unconditionally instead of asking whether an art is on.
+  /**
+   * Every Nth sweep lands doubled. 0 means never.
+   *
+   * A COUNTER RATHER THAN A CHANCE, and that is not a style choice. Rolling for
+   * a crit would have to draw from the run's rng, and every draw shifts every
+   * later drop roll — which would make loot depend on how often you happened to
+   * provoke an art, and break the seed + inputs = same run property that
+   * replays and the balance harnesses rest on.
+   */
+  critEvery: number
+  /** Seconds until a sweep repeats itself. 0 means it does not. */
+  echoDelay: number
+  /** Fraction of the sweep's damage the echo carries. */
+  echoDamage: number
+  /** Distance a struck enemy is shoved outward. 0 means none. */
+  pushForce: number
+  /** Multiplier on damage taken. 1 is normal; lower is tougher. */
+  damageScale: number
+  /** Health returned per enemy felled. 0 means none. */
+  healPerKill: number
 }
 
 // --- what one attribute point is worth ----------------------------------
@@ -164,5 +188,15 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     novaInterval: nova === 0 ? 0 : 4.2 * Math.pow(0.87, nova - 1),
     novaRadius: (95 + nova * 22) * art,
     novaDamage: (12 + nova * 7) * art,
+
+    // At rest. Only the arts move these, and only while a condition holds —
+    // see sim/arts.ts. There is deliberately no technique that grants them:
+    // a card that made you tougher always would be a different game.
+    critEvery: 0,
+    echoDelay: 0,
+    echoDamage: 0,
+    pushForce: 0,
+    damageScale: 1,
+    healPerKill: 0,
   }
 }

@@ -77,7 +77,34 @@ const STEP = {
    * rather than winning a fight.
    */
   magnet: 0.6,
+  /**
+   * The thrust, per grade: the arc closes to this fraction while the reach
+   * grows by the same step the range art uses.
+   *
+   * A TRADE, not a bonus, and it had to become one. The sweep already strikes
+   * every enemy inside its arc, so "runs through what it hits" was ALREADY
+   * true and `pierce` would have been a word with no effect behind it. Narrow
+   * and long is a genuinely different shape from wide and short — it is the
+   * thrust the art is named for — and it costs something, which a conditional
+   * art can afford to.
+   */
+  pierceArc: 0.5,
+  pierceRange: 0.35,
+  /** Damage the echo carries, per grade. Never the full blow. */
+  echo: 0.3,
+  /** Distance a struck enemy is shoved, per grade. */
+  push: 26,
+  /** Damage taken is multiplied by this, per grade, compounding. */
+  guard: 0.86,
+  /** Health per kill, per grade. */
+  heal: 1.2,
 } as const
+
+/** Sweeps between doubled blows at grade n. Fewer is better, so it counts down. */
+const CRIT_EVERY = [0, 5, 4, 3, 3, 2] as const
+
+/** How long the echo waits before it lands. Long enough to read as a second blow. */
+const ECHO_DELAY = 0.22
 
 /** Guard against the arc test becoming unable to miss. Same cap deriveStats uses. */
 const MAX_HALF_ANGLE = 3.0
@@ -119,6 +146,12 @@ function copyStats(from: Stats, into: Stats): Stats {
   into.novaInterval = from.novaInterval
   into.novaRadius = from.novaRadius
   into.novaDamage = from.novaDamage
+  into.critEvery = from.critEvery
+  into.echoDelay = from.echoDelay
+  into.echoDamage = from.echoDamage
+  into.pushForce = from.pushForce
+  into.damageScale = from.damageScale
+  into.healPerKill = from.healPerKill
   return into
 }
 
@@ -126,9 +159,15 @@ function copyStats(from: Stats, into: Stats): Stats {
 export const LIVE_EFFECTS: readonly EffectKind[] = [
   'arc',
   'bolt',
+  'crit',
   'damage',
+  'echo',
+  'guard',
+  'heal',
   'magnet',
   'orbit',
+  'pierce',
+  'push',
   'range',
   'rate',
   'speed',
@@ -195,10 +234,38 @@ export function applyArts(
           out.boltDamage *= s
         }
         break
+      case 'pierce':
+        // Narrow AND long. See STEP.pierceArc for why this is a trade.
+        out.slashHalfAngle *= Math.pow(STEP.pierceArc, 1 / (1 + (level - 1) * 0.4))
+        out.slashRange *= 1 + STEP.pierceRange * level
+        break
+      case 'crit': {
+        // Keeps the SHORTER cycle when two crit arts overlap, rather than
+        // multiplying two counters into something nobody can predict.
+        const every = CRIT_EVERY[Math.min(level, CRIT_EVERY.length - 1)]!
+        out.critEvery = out.critEvery === 0 ? every : Math.min(out.critEvery, every)
+        break
+      }
+      case 'echo':
+        out.echoDelay = ECHO_DELAY
+        out.echoDamage += STEP.echo * level
+        break
+      case 'push':
+        out.pushForce += STEP.push * level
+        break
+      case 'guard':
+        // Multiplicative, so stacked guards approach zero without ever
+        // reaching it. Additive reduction reaches invulnerability, and a
+        // survivors-like with an invulnerable player has no game left.
+        out.damageScale *= Math.pow(STEP.guard, level)
+        break
+      case 'heal':
+        out.healPerKill += STEP.heal * level
+        break
       default:
-        // pierce, crit, echo, push, guard, heal, nova, maxHp — see the header.
-        // Falling through silently is correct: the art is carried and its tile
-        // still lights, it simply has no lever yet.
+        // nova and maxHp are in the vocabulary and no art uses them. Falling
+        // through is correct rather than lazy: an art with no lever must be a
+        // no-op, not a partial effect landing on whichever stat looked closest.
         break
     }
   }

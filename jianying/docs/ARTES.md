@@ -148,7 +148,7 @@ uma com o seu teste.
 |---|---|---|---|
 | A | Modelo de dados: condições, artes, o rolo de cada arma | testes: 5 por arma, ids únicos, toda a condição usada | **feito** |
 | B | Deteção das condições na simulação, e o sinal no ecrã | harness: forçar cada condição e ver o selo acender | **feito** |
-| C | Efeitos aplicados, começando pelos que já existem | `tools/artsBalance.mts`: o ganho por arma | **feito, em parte** |
+| C | Efeitos aplicados, começando pelos que já existem | `tools/artsBalance.mts`: o ganho por arma | **feito — as 30 agem** |
 | D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste | modelo feito, ecrã por fazer |
 | E | 秘笈 caem e ensinam | teste: um manual duplicado não ensina duas vezes | |
 | F | As 3 cartas saem; 感悟 avança a lista | `artsBalance.mts`: bater a coluna das cartas | **bloqueado pelo passo 3** |
@@ -287,3 +287,78 @@ fundo e vira". É falso: esse piloto voa a 0.3 de deflexão, que fica acima dos
 tabela**. Medido: desligar as artes não muda um único dígito de nenhuma linha.
 A ligação lá fica na mesma, para que no dia em que uma arte de situação (围,
 危) conte, a tabela passe a refleti-la em vez de medir um jogo sem artes.
+
+
+---
+
+## Os seis efeitos novos, e o que eles custaram a acertar
+
+`pierce` `crit` `echo` `push` `guard` `heal` estão feitos. **As 30 artes agem.**
+
+Três decisões que não eram óbvias:
+
+**`pierce` teve de virar uma troca.** O golpe já atinge *todos* os inimigos
+dentro do arco, por isso "atravessa o que acerta" já era verdade e o efeito
+seria uma palavra sem nada por trás. Passou a estocada a sério: o arco fecha a
+metade e o alcance cresce. Estreito e longo é uma forma genuinamente diferente
+de largo e curto — e custa alguma coisa, que uma arte condicional pode dar-se
+ao luxo de custar.
+
+**`crit` conta, não sorteia.** Um sorteio teria de puxar do RNG da corrida, e
+cada puxão desloca todos os rolamentos de drop seguintes — o loot passaria a
+depender de quantas vezes provocaste uma arte, e partia a propriedade
+*mesma seed + mesmos inputs = mesma corrida* de que dependem os replays e os
+harnesses. É a cada N golpes. Ganha-se ainda outra coisa: o jogador pode
+aprender o ritmo, o que um sorteio nunca lhe deixa fazer.
+
+**`guard` é multiplicativo.** Redução aditiva chega a zero, e um
+survivors-like com um jogador invulnerável não é um jogo.
+
+### 血 mudou de condição, e foi a medição que o obrigou
+
+Em 危 esta arte dava **460 a 525 segundos** contra 135 sem artes e 179 com as
+cartas — três vezes qualquer outra build. A causa é estrutural, e nenhuma
+afinação lá chegou:
+
+| Tentativa | Resultado |
+|---|---|
+| cooldown de 0.5s entre curas | 525 → **523** |
+| cura reduzida a um quarto | **479** |
+| orçamento por episódio de perigo | **460** |
+
+Uma cura ligada a *vida baixa* é um ciclo estabilizador: só tem de igualar o
+dano recebido no limiar onde dispara, e é o jogador que decide quanto dano
+entra. **Magnitude não vence um ciclo de realimentação.**
+
+Em 静 o ciclo não fecha: curar exige parar, e parar no meio da multidão é como
+se morre. A arte passa a ser uma decisão sob pressão em vez de um chão onde te
+sentas. 血 e 压 trocaram de condição; o rolo do sabre continua a cobrir as cinco.
+
+### Dois pilotos, porque um estava a decidir a resposta
+
+O `kite` corre em círculo a fundo: segura 疾 para sempre e **nunca está
+parado**, por isso as seis artes de 静 do jogo pontuavam exatamente zero e uma
+arma que se apoie em plantar-se era reportada como fraca sem nunca ter sido
+testada.
+
+O `duel` corre, planta-se, inverte, corre outra vez. Provoca as três posturas.
+
+| Piloto | Artes contra as cartas |
+|---|---|
+| kite | +1% |
+| duel | −4% |
+
+E com o `duel` as seis armas ficam todas dentro de poucos pontos umas das
+outras — nenhum outlier, que é o que interessa mais do que o total.
+
+**Também havia um erro no rótulo da tabela:** usava a primeira letra da
+condição, e `still` e `surrounded` começam ambas por *s*. Passou a usar o selo.
+
+### Onde isto deixa o passo F
+
+As artes estão agora **a par do chão das cartas**, não claramente acima. E esse
+chão é generoso comigo: o piloto escolhe sempre a primeira carta oferecida, e um
+jogador escolhe melhor. Tirar as cartas hoje ainda encurtaria a corrida.
+
+Falta uma passagem de afinação sobre os passos das artes, medida contra as duas
+colunas, antes de F. As cartas ficam até lá.

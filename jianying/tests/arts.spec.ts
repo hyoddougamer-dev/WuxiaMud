@@ -78,6 +78,40 @@ describe('the arts acting', () => {
         expect(o.boltInterval).toBeGreaterThan(0)
         expect(o.boltDamage).toBeGreaterThan(0)
       },
+      // The thrust is a TRADE — narrower and longer — so it is the one effect
+      // where a stat legitimately gets worse, and the test has to say so or a
+      // future change could quietly flip it into a pure bonus.
+      pierce: (b, o) => {
+        expect(o.slashHalfAngle).toBeLessThan(b.slashHalfAngle)
+        expect(o.slashRange).toBeGreaterThan(b.slashRange)
+      },
+      crit: (b, o) => {
+        expect(b.critEvery).toBe(0)
+        expect(o.critEvery).toBeGreaterThan(1)
+      },
+      echo: (b, o) => {
+        expect(b.echoDelay).toBe(0)
+        expect(o.echoDelay).toBeGreaterThan(0)
+        expect(o.echoDamage).toBeGreaterThan(0)
+        // Never the full blow, or the echo is simply double damage with a
+        // delay bolted on.
+        expect(o.echoDamage).toBeLessThan(1)
+      },
+      push: (b, o) => {
+        expect(b.pushForce).toBe(0)
+        expect(o.pushForce).toBeGreaterThan(0)
+      },
+      // A multiplier on damage TAKEN, so lower is better and it must never
+      // reach zero — an invulnerable player has no game left.
+      guard: (b, o) => {
+        expect(b.damageScale).toBe(1)
+        expect(o.damageScale).toBeLessThan(1)
+        expect(o.damageScale).toBeGreaterThan(0)
+      },
+      heal: (b, o) => {
+        expect(b.healPerKill).toBe(0)
+        expect(o.healPerKill).toBeGreaterThan(0)
+      },
     }
     expect(Object.keys(CHECKS).sort()).toEqual([...LIVE_EFFECTS].sort())
 
@@ -135,15 +169,39 @@ describe('the arts acting', () => {
     }
   })
 
-  it('leaves the arts with no lever alone rather than half-applying them', () => {
-    // pierce, crit, echo, push, guard and heal are still simulation work. An
-    // art without a lever must be a no-op, not a partial effect that quietly
-    // lands on whichever stat looked closest.
+  it('now has a lever for every art in the game', () => {
+    // This used to assert the opposite — that the thirteen arts with no lever
+    // were no-ops — and flipping it is the point of the change that landed the
+    // six new effects. Every art in the game now does something.
+    const idle = ARTS.filter((a) => !artActs(a))
+    expect(idle.map((a) => `${a.id}:${a.effect}`)).toEqual([])
+  })
+
+  it('never lets stacked guards make a player untouchable', () => {
+    // Multiplicative reduction approaches zero without reaching it. Additive
+    // reduction reaches invulnerability, and a survivors-like with an
+    // invulnerable player is not a game.
+    const guards = ARTS.filter((a) => a.effect === 'guard').map((art) => ({ art, level: 5 }))
+    const all = only(...guards.map((c) => c.art.condition))
+    const out = applyArts(base(), guards, all, scratch())
+    expect(out.damageScale).toBeGreaterThan(0)
+    expect(out.damageScale).toBeLessThan(1)
+  })
+
+  it('keeps the shorter crit cycle when two overlap, rather than stacking them', () => {
+    const crits = ARTS.filter((a) => a.effect === 'crit')
     const b = base()
-    for (const art of ARTS.filter((a) => !artActs(a))) {
-      const out = applyArts(b, [{ art, level: 5 }], only(art.condition), scratch())
-      expect(out, `${art.id} (${art.effect}) should do nothing yet`).toEqual(b)
-    }
+    const one = applyArts(b, [{ art: crits[0]!, level: 1 }], only(crits[0]!.condition), scratch())
+    const both = applyArts(
+      b,
+      crits.map((art) => ({ art, level: 5 })),
+      only(...crits.map((a) => a.condition)),
+      scratch(),
+    )
+    expect(both.critEvery).toBeLessThanOrEqual(one.critEvery)
+    // A cycle of 1 would be "every sweep doubled", which is just damage under
+    // a different name.
+    expect(both.critEvery).toBeGreaterThan(1)
   })
 
   it('agrees with itself about which arts act', () => {

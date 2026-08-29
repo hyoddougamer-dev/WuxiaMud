@@ -202,18 +202,36 @@ export const ARTS: readonly Art[] = [
     seal: '血',
     name: 'Blood',
     weapon: 'dao',
-    condition: 'peril',
+    /**
+     * MENDING IS PAIRED WITH STANDING STILL, not with being in peril, and the
+     * swap was forced by measurement rather than taste.
+     *
+     * On 危 this art produced 460-525 seconds against 135 with no arts and 179
+     * with the technique cards — three times any other build in the game. The
+     * cause is structural and no amount of tuning reached it: a mend tied to
+     * LOW HEALTH is a stabilising loop. It only has to match incoming damage at
+     * the threshold it fires below, and the player decides how much damage
+     * comes in. A cooldown moved 525 to 523. Quartering the heal still left
+     * 479. A budget per scrape still left 460, because leaving peril is what
+     * refills it and a kiting player crosses that line constantly.
+     *
+     * On 静 the loop cannot close: mending demands that you stop moving, and
+     * standing still in a crowd is how you die. The art becomes a real decision
+     * made under pressure instead of a floor to sit on — which is what every
+     * other art in this game already is.
+     */
+    condition: 'still',
     effect: 'heal',
-    blurb: 'On low health, every kill gives a sliver back.',
+    blurb: 'Plant your feet and each kill staunches the wound.',
   },
   {
     id: 'dao-press',
     seal: '压',
     name: 'Press',
     weapon: 'dao',
-    condition: 'still',
+    condition: 'peril',
     effect: 'push',
-    blurb: 'Planted, the sweep shoves what it touches away.',
+    blurb: 'On low health, the sweep shoves what it touches away.',
   },
   {
     id: 'dao-armybreaker',

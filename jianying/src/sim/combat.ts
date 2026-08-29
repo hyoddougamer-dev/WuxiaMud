@@ -49,6 +49,12 @@ export const PLAYER_MAX_HP = 120
  * single tick and the player evaporates in a fraction of a second with no
  * chance to read what happened.
  */
+/** Seconds between mends from 血, whatever the kill rate. */
+const HEAL_INTERVAL = 0.5
+
+/** Mends allowed per scrape, before the art has to be earned again. */
+const HEAL_BUDGET = 8
+
 export const HURT_IMMUNITY = 0.85
 
 /** The player's collision radius, in world units. */
@@ -68,6 +74,43 @@ export interface RunState {
   kills: number
   immunity: number
   slashCooldown: number
+  /**
+   * Sweeps since the run began, for the crit counter.
+   *
+   * Counted rather than rolled — see Stats.critEvery. It also means a player
+   * can learn the rhythm, which a chance never lets them do.
+   */
+  slashCount: number
+  /**
+   * Seconds until the next mend is allowed.
+   *
+   * 血 heals per kill, and the first measurement of it was a runaway: on the
+   * Curved Dao it produced 525s against 179s for every other build, because
+   * healing per kill scales with the CROWD, the crowd scales with time, and the
+   * art's own condition (低 health) switches back on the moment you drop under
+   * the line. The result was a player pinned just below the peril threshold,
+   * healing faster than the game could hurt them, forever.
+   *
+   * A cooldown alone did not fix it — 525s became 523s — and neither did
+   * shrinking the heal: at a quarter of the size it still produced 479s. That
+   * is the tell that the problem is STRUCTURAL rather than a number. Any
+   * sustained mend tied to a low-health condition is a stabilising loop: it
+   * only has to match incoming damage at the threshold, and the player controls
+   * how much damage comes in. Magnitude cannot beat a feedback loop.
+   *
+   * So the mend is bounded per SCRAPE instead of per second. The budget refills
+   * only when the art is off — which is exactly when the player is no longer in
+   * peril — so 血 is a second wind that has to be earned again by getting out
+   * and getting back into trouble, rather than a floor you sit on.
+   */
+  healCooldown: number
+  /** Mends left in this scrape. Refills only once the art switches off. */
+  healBudget: number
+  /** Seconds until a queued echo lands. 0 or less means none is queued. */
+  echoTimer: number
+  echoAimX: number
+  echoAimY: number
+  echoDamage: number
   slashVisual: number
   /** Where the blade currently points — the nearest threat, or facing. */
   aimX: number
@@ -111,6 +154,13 @@ export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
     kills: 0,
     immunity: 0,
     slashCooldown: firstSweep,
+    slashCount: 0,
+    healCooldown: 0,
+    healBudget: HEAL_BUDGET,
+    echoTimer: 0,
+    echoAimX: 0,
+    echoAimY: 0,
+    echoDamage: 0,
     slashVisual: 0,
     aimX: 1,
     aimY: 0,
@@ -226,6 +276,16 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   ctx.events?.hit(e.x, e.y, amount, e.hp <= 0)
   if (e.hp > 0) return false
 
+  // 血 — a felled enemy mends a sliver, at most once per HEAL_INTERVAL. Capped
+  // at the maximum too, so the art is a way to stay standing rather than a way
+  // to bank health for later. See RunState.healCooldown for why the interval
+  // is not optional.
+  if (ctx.stats.healPerKill > 0 && ctx.run.healCooldown <= 0 && ctx.run.healBudget > 0) {
+    ctx.run.healCooldown = HEAL_INTERVAL
+    ctx.run.healBudget--
+    ctx.run.hp = Math.min(ctx.stats.maxHp, ctx.run.hp + ctx.stats.healPerKill)
+  }
+
   // A boss is worth a scattering of qi rather than one mote, so clearing it
   // visibly pays — and so the level it grants arrives as a shower.
   const drops = Math.min(12, e.kind.qi)
@@ -283,13 +343,11 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   }
 
   // --- the sweep -------------------------------------------------------
-  run.slashCooldown -= dt
-  if (run.slashCooldown <= 0) {
-    run.slashCooldown += stats.slashInterval
-    run.slashVisual = SLASH_VISUAL
-    run.slashAimX = aimX
-    run.slashAimY = aimY
-
+  //
+  // One cut, used twice: the blow itself and, when 影 is awake, its echo a
+  // fraction of a second later. Both go through `cut` so the two can never
+  // disagree about what an arc is.
+  const cut = (ax: number, ay: number, damage: number): void => {
     // Iterating backwards lets a dead enemy be released without disturbing the
     // indices still to be visited.
     for (let i = swarm.pool.size - 1; i >= 0; i--) {
@@ -299,9 +357,56 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       const distance = Math.hypot(dx, dy)
       if (distance > stats.slashRange + e.kind.radius) continue
       if (distance > 0.001) {
-        if (angleBetween(aimX, aimY, dx / distance, dy / distance) > stats.slashHalfAngle) continue
+        if (angleBetween(ax, ay, dx / distance, dy / distance) > stats.slashHalfAngle) continue
       }
-      damageEnemy(ctx, i, stats.slashDamage)
+      // 压 — shoved straight out from the swordsman, before the blow lands, so
+      // a killing hit still throws the body rather than dropping it underfoot.
+      if (stats.pushForce > 0 && distance > 0.001) {
+        e.x += (dx / distance) * stats.pushForce
+        e.y += (dy / distance) * stats.pushForce
+      }
+      damageEnemy(ctx, i, damage)
+    }
+  }
+
+  if (run.healCooldown > 0) run.healCooldown -= dt
+  // Off means out of peril, which is the only thing that earns the next wind.
+  if (stats.healPerKill <= 0) run.healBudget = HEAL_BUDGET
+
+  run.slashCooldown -= dt
+  if (run.slashCooldown <= 0) {
+    run.slashCooldown += stats.slashInterval
+    run.slashVisual = SLASH_VISUAL
+    run.slashAimX = aimX
+    run.slashAimY = aimY
+    run.slashCount++
+
+    // 断 — every Nth sweep lands doubled. Counted, never rolled: see
+    // Stats.critEvery for why a chance would have cost the run its seed.
+    const crit = stats.critEvery > 0 && run.slashCount % stats.critEvery === 0
+    cut(aimX, aimY, crit ? stats.slashDamage * 2 : stats.slashDamage)
+
+    // 影 — the cut leaves a copy of itself where you were aiming. Queued rather
+    // than struck twice at once, or it would read as one bigger number instead
+    // of as a second blow.
+    if (stats.echoDelay > 0 && stats.echoDamage > 0) {
+      run.echoTimer = stats.echoDelay
+      run.echoAimX = aimX
+      run.echoAimY = aimY
+      run.echoDamage = stats.slashDamage * stats.echoDamage
+    }
+  }
+
+  // The echo lands on its own clock, and lands even if the condition that made
+  // it has since dropped — it was already thrown.
+  if (run.echoTimer > 0) {
+    run.echoTimer -= dt
+    if (run.echoTimer <= 0) {
+      run.echoTimer = 0
+      run.slashVisual = SLASH_VISUAL * 0.6
+      run.slashAimX = run.echoAimX
+      run.slashAimY = run.echoAimY
+      cut(run.echoAimX, run.echoAimY, run.echoDamage)
     }
   }
 
@@ -373,7 +478,10 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   // --- enemy projectiles -----------------------------------------------
   ctx.hazards.update(dt)
   if (run.immunity <= 0) {
-    const shot = ctx.hazards.strike(player.x, player.y, PLAYER_RADIUS)
+    const raw = ctx.hazards.strike(player.x, player.y, PLAYER_RADIUS)
+    // 山 — guard scales what gets through. Rounded up off zero so a stacked
+    // guard can never make a blow free; taking 1 still reads as being hit.
+    const shot = raw > 0 ? Math.max(1, raw * stats.damageScale) : raw
     if (shot > 0) {
       const source = ctx.hazards.lastStrikeSource || 'a stray bolt'
       run.hp -= shot
@@ -399,7 +507,8 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       // A sleeping lurker and an unstruck pilgrim deal nothing, so walking
       // through either is safe — which is what makes both behaviours a real
       // question rather than a differently-shaped chaser.
-      const damage = contactDamage(e)
+      const raw = contactDamage(e)
+      const damage = raw > 0 ? Math.max(1, raw * stats.damageScale) : raw
       if (damage > 0 && dx * dx + dy * dy <= reach * reach) {
         run.hp -= damage
         run.immunity = HURT_IMMUNITY

@@ -26,7 +26,7 @@ import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { REGIONS } from '../src/data/regions'
 import { WEAPONS } from '../src/data/weapons'
-import { ARTS } from '../src/data/arts'
+import { ARTS, CONDITION_BY_ID } from '../src/data/arts'
 import { createPlayer, updatePlayer } from '../src/sim/player'
 import { Swarm } from '../src/sim/enemies'
 import { Motes } from '../src/sim/pickups'
@@ -51,8 +51,36 @@ const SEEDS = [4242, 90210, 31337, 8675309, 1618, 271828]
 const REGION = REGIONS[0]!
 const SECONDS = 600
 
-/** The same kiting circle regions.mts flies, so the two tables are comparable. */
-const KITE = (t: number): [number, number] => [Math.cos(t * 0.9), Math.sin(t * 0.9)]
+type Pilot = (t: number) => [number, number]
+
+/**
+ * Two pilots, because one of them was quietly deciding the answer.
+ *
+ * KITE runs a constant circle at full deflection. It holds 疾 forever and is
+ * NEVER still — so every art on 静 scored exactly zero, and a weapon whose
+ * scroll leans on standing still was reported as weak when it had simply never
+ * been tested. Six of the game's thirty arts wait on 静.
+ *
+ * DUEL is closer to a person: it runs, plants its feet, reverses, and runs
+ * again. It provokes all three postures, which means a row here is a claim
+ * about the weapon rather than about the pilot's habits.
+ *
+ * Neither is a player. Both are honest about which one they are.
+ */
+const PILOTS: Array<[string, Pilot]> = [
+  ['kite', (t) => [Math.cos(t * 0.9), Math.sin(t * 0.9)]],
+  [
+    'duel',
+    (t) => {
+      // A four-second bar: run out, plant, run back, plant.
+      const phase = t % 4
+      if (phase < 1.5) return [1, 0]
+      if (phase < 2) return [0, 0]
+      if (phase < 3.5) return [-1, 0]
+      return [0, 0]
+    },
+  ],
+]
 
 /** Points a mid-game character would have spent. Held equal across every row. */
 const SPENT = { ...emptyAttributes(), body: 6, edge: 6, swift: 4, spirit: 2 }
@@ -77,7 +105,7 @@ interface Result {
  */
 type Growth = 'none' | 'cards' | 'arts'
 
-function play(weaponId: string, growth: Growth): Result {
+function play(weaponId: string, growth: Growth, fly: Pilot): Result {
   const weapon = WEAPONS.find((w) => w.id === weaponId)!
   let secs = 0
   let kills = 0
@@ -109,7 +137,7 @@ function play(weaponId: string, growth: Growth): Result {
     for (let i = 0; i < Math.round(SECONDS / TICK_S); i++) {
       if (run.over) break
       t += TICK_S
-      const [ix, iy] = KITE(run.elapsed)
+      const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
       applyArts(stats, progress.carried, sense.active, live)
       updatePlayer(
@@ -173,40 +201,43 @@ function play(weaponId: string, growth: Growth): Result {
   return { secs: secs / SEEDS.length, kills: kills / SEEDS.length }
 }
 
-console.log(`\nThe arts, weapon by weapon. ${REGION.name}, ${SEEDS.length} seeds, same pilot.`)
-console.log('The pilot kites: it holds 疾, turns every lap, never stands still.\n')
-console.log(
-  'weapon                live  secs: none  cards  arts   kills: none  cards  arts   what fires',
-)
-
-let cardsTotal = 0
-let artsTotal = 0
-for (const weapon of WEAPONS) {
-  const scroll = ARTS.filter((a) => a.weapon === weapon.id)
-  const carriedFour = scroll.slice(0, 4)
-  const liveCount = carriedFour.filter(artActs).length
-  const none = play(weapon.id, 'none')
-  const cards = play(weapon.id, 'cards')
-  const arts = play(weapon.id, 'arts')
-  cardsTotal += cards.secs
-  artsTotal += arts.secs
-  const firing = carriedFour
-    .filter(artActs)
-    .map((a) => `${a.condition[0]!.toUpperCase()}${a.effect}`)
-    .join(' ')
+for (const [pilotName, fly] of PILOTS) {
+  console.log(`\nThe arts — pilot "${pilotName}". ${REGION.name}, ${SEEDS.length} seeds.`)
   console.log(
-    `${weapon.name.padEnd(20)} ${String(liveCount).padStart(4)} ` +
-      `${none.secs.toFixed(0).padStart(5)} ${cards.secs.toFixed(0).padStart(6)} ` +
-      `${arts.secs.toFixed(0).padStart(5)} ` +
-      `${none.kills.toFixed(0).padStart(7)} ${cards.kills.toFixed(0).padStart(6)} ` +
-      `${arts.kills.toFixed(0).padStart(5)}   ${firing}`,
+    'weapon                live  secs: none  cards  arts   kills: none  cards  arts   what fires',
+  )
+  let cardsTotal = 0
+  let artsTotal = 0
+  for (const weapon of WEAPONS) {
+    const carriedFour = ARTS.filter((a) => a.weapon === weapon.id).slice(0, 4)
+    const liveCount = carriedFour.filter(artActs).length
+    const none = play(weapon.id, 'none', fly)
+    const cards = play(weapon.id, 'cards', fly)
+    const arts = play(weapon.id, 'arts', fly)
+    cardsTotal += cards.secs
+    artsTotal += arts.secs
+    // The condition's SEAL, not its first letter: "still" and "surrounded"
+    // both start with s, and reading one as the other sent a whole tuning
+    // pass in the wrong direction.
+    const firing = carriedFour
+      .map((a) => `${CONDITION_BY_ID.get(a.condition)!.seal}${a.effect}`)
+      .join(' ')
+    console.log(
+      `${weapon.name.padEnd(20)} ${String(liveCount).padStart(4)} ` +
+        `${none.secs.toFixed(0).padStart(5)} ${cards.secs.toFixed(0).padStart(6)} ` +
+        `${arts.secs.toFixed(0).padStart(5)} ` +
+        `${none.kills.toFixed(0).padStart(7)} ${cards.kills.toFixed(0).padStart(6)} ` +
+        `${arts.kills.toFixed(0).padStart(5)}   ${firing}`,
+    )
+  }
+  const swing = ((artsTotal - cardsTotal) / cardsTotal) * 100
+  console.log(
+    `  against the cards: ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival overall`,
   )
 }
 
-const swing = ((artsTotal - cardsTotal) / cardsTotal) * 100
 console.log(
-  `\nAgainst the cards this replaced: ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival overall.\n` +
-    'The card column is a FLOOR — it always takes the first card offered, and a\n' +
+  '\nThe card column is a FLOOR — it always takes the first card offered, and a\n' +
     'real player picks better — so the arts needing to beat it is the honest bar.\n' +
     'Well below it means the run stopped growing while the enemies kept growing,\n' +
     'which is not a harder game, only a shorter one.',
