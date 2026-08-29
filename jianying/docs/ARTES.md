@@ -148,7 +148,7 @@ uma com o seu teste.
 |---|---|---|---|
 | A | Modelo de dados: condições, artes, o rolo de cada arma | testes: 5 por arma, ids únicos, toda a condição usada | **feito** |
 | B | Deteção das condições na simulação, e o sinal no ecrã | harness: forçar cada condição e ver o selo acender | **feito** |
-| C | Efeitos aplicados, começando pelos que já existem | `tools/regions.mts`: a curva não parte | |
+| C | Efeitos aplicados, começando pelos que já existem | `tools/artsBalance.mts`: o ganho por arma | **feito, em parte** |
 | D | Aba 法 no hub: equipar quatro, definir a ordem | harness: equipar, reordenar, confirmar que persiste | |
 | E | 秘笈 caem e ensinam | teste: um manual duplicado não ensina duas vezes | |
 | F | As 3 cartas saem; 感悟 avança a lista | `regions.mts` outra vez, e o APK | |
@@ -181,3 +181,59 @@ feita a meia deflexão só chega a −0.25 e não passava o limiar.
 **A condição antes do efeito.** Se o jogador não conseguir ver *quando* uma
 arte dispara, nenhum efeito a torna legível — e um sistema que o jogador não
 consegue ler é um sistema que não existe.
+
+### Passo C, como ficou — e o que ainda não faz
+
+`src/sim/arts.ts`. **8 dos 16 efeitos estão ligados, e 17 das 30 artes agem.**
+Os outros 13 esperam pelas seis funcionalidades novas.
+
+Duas coisas do vocabulário nunca chegam a ser precisas: **nenhuma arte usa
+`maxHp` nem `nova`**. O primeiro é um alívio — uma vida máxima condicional
+teria de decidir o que acontece à vida atual quando a condição cai, e todas as
+respostas a isso são más.
+
+**Uma segunda camada, não uma mudança à primeira.** `deriveStats` produz o que
+a personagem traz de permanente e só muda quando o equipamento muda; recalcular
+isso por frame poria o custo de tudo o que o jogador possui dentro de cada
+tick. Uma arte é o contrário: é verdade enquanto a condição se cumpre e falsa no
+instante em que deixa de se cumprir. Por isso as artes são uma camada barata
+por cima, escrita num objeto reutilizado — um frame custa uma cópia de quinze
+números e zero alocações.
+
+**Um frame de atraso, de propósito.** As condições são sentidas no fim de um
+frame, a partir do estado que esse frame produziu, e as artes aplicam-se no
+início do seguinte. Sentir primeiro seria sentir a partir de uma posição onde o
+jogador ainda não está, e a arte de velocidade passaria a depender de um
+movimento que depende dela. Dezasseis milissegundos ninguém sente; a alternativa
+é uma dependência circular.
+
+**Três efeitos têm o seu próprio passo, e não os 35% partilhados:**
+
+| Efeito | Por grau | Porquê |
+|---|---|---|
+| `range` | +22% | a área do golpe cresce com o **quadrado** do alcance — 35% seria quase o dobro dos abates |
+| `speed` | +12% | num jogo cujo único verbo é mover, velocidade não é uma stat entre outras; a 35% nada te apanha e o género deixa de funcionar |
+| `magnet` | +60% | o mais generoso, porque não tira nada aos inimigos — remove uma tarefa, não ganha um combate |
+
+**Medido, não argumentado.** `tools/artsBalance.mts` joga cada arma com e sem o
+seu rolo, mesmo piloto, mesmas sementes:
+
+| Arma | vivas | sobrevivência | abates |
+|---|---|---|---|
+| Straight Jian | 2 | +24% | +40% |
+| Curved Dao | 3 | −1% | +4% |
+| Heavy Zhanmadao | 2 | +2% | +15% |
+| Twin Blades | 4 | +4% | +7% |
+| Long Spear | 3 | +20% | +40% |
+| Iron Fan | 3 | +3% | +12% |
+
+E `regions.mts` (que agora também corre as artes, senão mediria um jogo que
+ninguém joga) mantém a ordem entre as cinco regiões, com sobrevivência a subir
+entre 0 e 8%.
+
+**O que a medição não vê, e é preciso dizê-lo.** O piloto anda em círculo: segura
+疾 quase sempre, vira a cada volta, é cercado quando a multidão fecha, e só
+chega a 危 se estiver a perder. **Nunca está parado.** Uma arte em 静 não
+contribui nada nestas tabelas e parece grátis. São precisamente essas as que um
+jogador provoca de propósito — e nenhum piloto headless as vai medir por nós.
+Precisam de mãos.

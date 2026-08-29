@@ -34,6 +34,8 @@ import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats } from '../src/sim/loadout'
+import { applyArts, carriedFor } from '../src/sim/arts'
+import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
 import { createPlayer, updatePlayer } from '../src/sim/player'
@@ -121,6 +123,16 @@ for (const region of REGIONS) {
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
 
+    // The arts, exactly as main.ts runs them.
+    //
+    // Without this the table would measure a game the player never plays: the
+    // arts fire on conditions the kiting pilot below genuinely provokes — it
+    // runs flat out and it turns — so leaving them out would report the curve
+    // of a different game and call it balanced.
+    const sense = createSense()
+    const carried = carriedFor(weapon.id)
+    const live = deriveStats(new Map(), { spent, weapon, worn: [] })
+
     const rule = region.rule
     const drift = rule.drift ?? 0
     let t = 0
@@ -130,19 +142,39 @@ for (const region of REGIONS) {
       t += TICK_S
       const [ix, iy] = KITE(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
+      // Applied from the previous tick's sense, the one-frame lag main.ts has.
+      applyArts(stats, carried, sense.active, live)
       updatePlayer(
         player,
         ix,
         iy,
         TICK_S,
-        stats.moveSpeed * (rule.playerSpeed ?? 1),
+        live.moveSpeed * (rule.playerSpeed ?? 1),
         Math.cos(wind) * drift,
         Math.sin(wind) * drift,
+      )
+      const stickLen = Math.hypot(ix, iy)
+      let nearby = 0
+      swarm.grid.query(player.x, player.y, SURROUND_RADIUS, () => {
+        nearby++
+      })
+      senseConditions(
+        sense,
+        {
+          speed: Math.hypot(player.vx, player.vy),
+          maxSpeed: live.moveSpeed * (rule.playerSpeed ?? 1),
+          moveX: stickLen > 0 ? ix / stickLen : 0,
+          moveY: stickLen > 0 ? iy / stickLen : 0,
+          nearby,
+          hp: run.hp,
+          maxHp: live.maxHp,
+        },
+        TICK_S,
       )
       swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
       run.pendingLevelUps = 0
       updateCombat(
-        { run, player, swarm, motes, bolts, hazards, stats, rng, depth: region.depth },
+        { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: region.depth },
         TICK_S,
       )
       peak = Math.max(peak, swarm.count)

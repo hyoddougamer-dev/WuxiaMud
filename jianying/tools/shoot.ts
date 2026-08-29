@@ -649,6 +649,18 @@ async function main(): Promise<void> {
     )
     if (sawTurn.includes('turn')) held.push('转')
     const lit = await page.locator('.art-on').count()
+
+    // Do the arts actually MOVE a number, or only light a tile?
+    //
+    // This is the check the previous step could not make. Its failure mode is
+    // the quiet one: the seals light, the strip looks alive, and the simulation
+    // goes on reading the untouched baseline. Sampled while the running posture
+    // is still held, because the whole point is that it stops being true the
+    // moment the condition does.
+    const acting = await page.evaluate(() => {
+      const d = document.body.dataset
+      return { live: d.live ?? '', base: d.base ?? '' }
+    })
     await page.mouse.up()
 
     // 围 and 危 are situations rather than postures — being surrounded, and
@@ -669,8 +681,18 @@ async function main(): Promise<void> {
     } else if (lit === 0) {
       console.error('arts:   conditions hold but no tile lit — the strip is not reading them')
       process.exitCode = 1
+    } else if (acting.live === '' || acting.live === acting.base) {
+      // Every weapon's scroll has at least one art on a posture this harness
+      // provokes, so an identical pair here means the layer is not wired.
+      console.error(
+        `arts:   a condition held but no stat moved — live="${acting.live}" base="${acting.base}"`,
+      )
+      process.exitCode = 1
     } else {
-      console.log(`arts:   ${held.join(' ')} provoked, ${lit} tile(s) lit`)
+      console.log(
+        `arts:   ${held.join(' ')} provoked, ${lit} tile(s) lit, stats moved ` +
+          `(${acting.base} → ${acting.live})`,
+      )
     }
 
     await page.waitForTimeout(1500)

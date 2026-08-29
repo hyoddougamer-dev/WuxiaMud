@@ -21,11 +21,12 @@ import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
 import { ITEMS, MAX_RANK, type Slot } from '../src/data/items'
 import { ARTS, CONDITIONS, MAX_ART_LEVEL, EQUIPPED_ARTS, NEW_EFFECTS } from '../src/data/arts'
+import { artActs, LIVE_EFFECTS } from '../src/sim/arts'
 import { WEAPONS } from '../src/data/weapons'
 import { ATTRIBUTES } from '../src/meta/character'
 import { REGIONS } from '../src/data/regions'
 import { ENEMY_KINDS } from '../src/data/enemies'
-import { PACK_ICON, PACK_SLOT_ICON } from '../src/render/packIcons'
+import { PACK_SLOT_ICON } from '../src/render/packIcons'
 import { hex } from './sheet'
 
 const OUT = join(fileURLToPath(new URL('..', import.meta.url)), 'docs')
@@ -132,24 +133,27 @@ y += 4
 parts.push(rule(y))
 y += 22
 
-// --- what does not ---------------------------------------------------------
-parts.push(text(M, y, 'AS ARTES — DEFINIDAS, MAS NÃO AGEM', 10, cinnabar, 0.95, 'start', '600'))
+// --- half acting -----------------------------------------------------------
+const acting = ARTS.filter(artActs).length
+parts.push(text(M, y, 'AS ARTES — METADE JÁ AGE', 10, goldDeep, 0.95, 'start', '600'))
 y += 14
 para(
-  'É isto que te confundiu, e a culpa é minha: pus ícones numa barra que acende ' +
-    'certo e não faz nada a seguir.',
+  `${acting} das ${ARTS.length} mudam mesmo os números quando a condição se cumpre. ` +
+    'As outras esperam pelas seis funcionalidades novas da simulação.',
   9.5, ink, 0.5, 62,
 )
 y += 6
 
-row('Artes 功法', `${ARTS.length}`, false,
-  `${WEAPONS.length} armas × 5 · graus 1–${MAX_ART_LEVEL}`)
-row('Efeitos', `${Object.keys(PACK_ICON).length}`, false,
-  `${Object.keys(PACK_ICON).length - NEW_EFFECTS.length} já existem na sim · ${NEW_EFFECTS.length} são código novo`)
+row('Artes que agem', `${acting}`, true,
+  `de ${ARTS.length} · ${LIVE_EFFECTS.length} efeitos ligados`)
+row('Artes à espera', `${ARTS.length - acting}`, false,
+  `precisam de: ${NEW_EFFECTS.join(', ')}`)
 row('Condições', `${CONDITIONS.length}`, true,
-  'estas SIM: a barra acende quando se cumprem')
+  'a barra acende, e agora acender significa alguma coisa')
 row('Equipar 4 e ordenar', '0', false,
-  `${EQUIPPED_ARTS} previstas · a barra mostra as 5 da arma`)
+  `${EQUIPPED_ARTS} previstas · carrega-se o rolo todo (5) da arma`)
+row('Graus 感悟', '1', false,
+  `todas ao grau 1 de ${MAX_ART_LEVEL} · subir ainda não existe`)
 row('秘笈 manuais que caem', '0', false, 'aprender uma arte ainda não existe')
 
 y += 4
@@ -192,20 +196,20 @@ y += 22
 // --- the recommendation ----------------------------------------------------
 parts.push(text(M, y, 'ENTÃO, CRESCER A BASE DE DADOS?', 10, ink, 0.5, 'start', '600'))
 y += 16
-parts.push(text(M, y, 'Não. Primeiro fazer agir o que já lá está.', 12.5, cinnabar, 0.95, 'start', '600'))
+parts.push(text(M, y, 'Ainda não. Falta agir o resto do que já lá está.', 12, cinnabar, 0.95, 'start', '600'))
 y += 18
 para(
-  `${ARTS.length} artes e ${ITEMS.length} itens já são mais conteúdo do que a simulação usa. ` +
-    'Acrescentar linhas a uma tabela inerte multiplica o problema que estás a ver: ' +
-    'mais coisas no ecrã que não fazem nada.',
+  `${ARTS.length - acting} das ${ARTS.length} artes ainda não têm consequência, e nenhuma delas ` +
+    'pode subir de grau. Acrescentar linhas antes disso multiplica o problema que ' +
+    'estás a ver: mais coisas no ecrã que não fazem nada.',
   10, ink, 0.55, 58,
 )
 y += 8
 
 const STEPS: Array<[string, string, string]> = [
-  ['1', 'Efeitos das artes', `os ${Object.keys(PACK_ICON).length - NEW_EFFECTS.length} que a sim já sabe fazer, medidos com regions.mts`],
+  ['✓', 'Efeitos das artes', `${LIVE_EFFECTS.length} efeitos ligados, ${acting} artes vivas — medido com artsBalance.mts`],
   ['2', 'Equipar 4 e ordenar', 'a barra passa a mostrar a tua build, não o rolo todo'],
-  ['3', 'Os 6 efeitos novos', 'pierce, crit, echo, push, guard, heal — um de cada vez'],
+  ['3', 'Os 6 efeitos novos', `${NEW_EFFECTS.join(', ')} — um de cada vez`],
   ['4', '秘笈 caem e ensinam', 'e as 3 cartas da corrida saem'],
   ['5', 'Os 4 slots novos', 'guarda-roupa primeiro; itens depois'],
 ]

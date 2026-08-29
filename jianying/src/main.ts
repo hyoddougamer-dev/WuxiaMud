@@ -40,6 +40,7 @@ import { deriveStats } from './sim/loadout'
 import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
+import { applyArts, carriedFor, type CarriedArt } from './sim/arts'
 import { artsFor } from './data/arts'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
@@ -49,7 +50,7 @@ import { acquire, equip, equippedIn, equippedItems, rankOf } from './meta/invent
 import { ITEMS, ITEM_BY_ID, rollRank } from './data/items'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
-import type { Kit } from './sim/loadout'
+import type { Kit, Stats } from './sim/loadout'
 import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
@@ -178,6 +179,34 @@ async function boot(): Promise<void> {
 
   let kit = currentKit()
   let stats = deriveStats(loadout, kit)
+  /**
+   * The arts carried, and the stats once those whose condition holds are in.
+   *
+   * `live` is a scratch object reused every frame — see sim/arts.ts, which
+   * explains why the arts are a second layer rather than part of deriveStats.
+   * Everything downstream of the sense reads `live`; `stats` stays the
+   * permanent baseline the hub quotes and the level-up screen compares against.
+   *
+   * The whole scroll of the weapon in hand is carried, at grade 1. Equipping
+   * four and setting their order is the next step; until it exists, carrying
+   * five is what keeps the strip and the simulation telling one story — the
+   * tiles the player can see are exactly the arts that can fire.
+   */
+  let carried: CarriedArt[] = carriedFor(kit.weapon.id)
+  const live: Stats = deriveStats(loadout, kit)
+  /**
+   * Recomputes the permanent stats AND the scroll, together.
+   *
+   * They are recomputed in six places — a level-up, a new expedition, a
+   * swordsman swap, a weapon change — and the weapon decides both. Leaving them
+   * as two adjacent lines would eventually mean a sixth site that refreshed one
+   * and not the other, and the symptom of that is arts from a weapon you are no
+   * longer holding.
+   */
+  const refreshKit = (): void => {
+    stats = deriveStats(loadout, kit)
+    carried = carriedFor(kit.weapon.id)
+  }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
   /** The place being walked. Chosen in the hub before every expedition. */
@@ -247,7 +276,7 @@ async function boot(): Promise<void> {
     roster.active = index
     character = roster.swordsmen[index]!
     kit = currentKit()
-    stats = deriveStats(loadout, kit)
+    refreshKit()
     region = regionAt(clampDepth(character.depth, character.depth))
     rebuildFigure()
     void saveCharacter(roster)
@@ -299,7 +328,7 @@ async function boot(): Promise<void> {
         roster.active = Math.min(roster.active, roster.swordsmen.length - 1)
         character = roster.swordsmen[roster.active]!
         kit = currentKit()
-        stats = deriveStats(loadout, kit)
+        refreshKit()
         region = regionAt(clampDepth(character.depth, character.depth))
         rebuildFigure()
         void saveCharacter(roster)
@@ -497,7 +526,7 @@ async function boot(): Promise<void> {
     // The kit is read here, and this is the only place permanent power touches
     // a run: after this the expedition knows nothing about the hub.
     kit = currentKit()
-    stats = deriveStats(loadout, kit)
+    refreshKit()
     rebuildFigure()
     pickRng = new Rng(runSeed ^ 0x5bf03635)
     dropRng = new Rng(runSeed ^ 0x1b873593)
@@ -608,7 +637,7 @@ async function boot(): Promise<void> {
         levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
           const before = stats.maxHp
           loadout.set(tech.id, (loadout.get(tech.id) ?? 0) + 1)
-          stats = deriveStats(loadout, kit)
+          refreshKit()
           // Iron Skin heals for what it adds, so taking it while badly hurt is
           // a real decision rather than a promise for the next run.
           run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
@@ -620,6 +649,16 @@ async function boot(): Promise<void> {
     }
 
     const insightBefore = run.level
+
+    // The arts, applied before anything reads a stat this frame.
+    //
+    // `sense.active` still holds what was true at the END of the previous
+    // frame, and that is on purpose: sensing first would mean sensing from a
+    // position the player has not moved to yet, and the speed art would depend
+    // on a move that depends on the speed art. One frame of lag at 60Hz is
+    // sixteen milliseconds — not a thing anyone can feel, and the only way out
+    // of the circle. See sim/arts.ts.
+    applyArts(stats, carried, sense.active, live)
 
     const { x: ix, y: iy } = joystick.state
     // The region bends the player, not the enemies, and that asymmetry is the
@@ -633,7 +672,7 @@ async function boot(): Promise<void> {
       ix,
       iy,
       dt,
-      stats.moveSpeed * (rule.playerSpeed ?? 1),
+      live.moveSpeed * (rule.playerSpeed ?? 1),
       Math.cos(windAngle) * drift,
       Math.sin(windAngle) * drift,
     )
@@ -648,7 +687,7 @@ async function boot(): Promise<void> {
       sense,
       {
         speed: playerSpeed(player),
-        maxSpeed: stats.moveSpeed * (rule.playerSpeed ?? 1),
+        maxSpeed: live.moveSpeed * (rule.playerSpeed ?? 1),
         // The direction of TRAVEL, taken from the thumb rather than from the
         // figure's facing — facing persists while standing still, so a player
         // who stops and starts would read as having turned.
@@ -661,7 +700,7 @@ async function boot(): Promise<void> {
         moveY: stickLen > 0 ? iy / stickLen : 0,
         nearby,
         hp: run.hp,
-        maxHp: stats.maxHp,
+        maxHp: live.maxHp,
       },
       dt,
     )
@@ -675,7 +714,7 @@ async function boot(): Promise<void> {
         motes,
         bolts,
         hazards,
-        stats,
+        stats: live,
         rng: pickRng,
         events,
         depth: depthOf(),
@@ -683,7 +722,7 @@ async function boot(): Promise<void> {
       },
       dt,
     )
-    updateCamera(camera, player, stats.moveSpeed, dt)
+    updateCamera(camera, player, live.moveSpeed, dt)
 
     // A boss used to simply walk on from off-screen, indistinguishable from a
     // larger silhouette in a crowd of silhouettes until it started firing.
@@ -702,7 +741,7 @@ async function boot(): Promise<void> {
         kills: run.kills,
         motes: motes.pool.size,
         hp: run.hp,
-        maxHp: stats.maxHp,
+        maxHp: live.maxHp,
         insight: run.level,
       })
     }
@@ -721,7 +760,7 @@ async function boot(): Promise<void> {
     stage.world.x = stage.width / 2 - camera.x * zoom
     stage.world.y = stage.height / 2 - camera.y * zoom
 
-    const ratio = playerSpeedRatio(player, stats.moveSpeed)
+    const ratio = playerSpeedRatio(player, live.moveSpeed)
     const bobRate = 2.0 + ratio * 6
     const bob = Math.sin(time * bobRate) * (0.6 + ratio * 1.3)
 
@@ -815,7 +854,7 @@ async function boot(): Promise<void> {
       // 200-degree cone is most of the screen, and shading all of it buries the
       // characters. A crescent traces the same reach as a brush mark instead —
       // the edge of the sweep, not the area it covers.
-      const reach = stats.slashRange * (0.72 + 0.28 * ease)
+      const reach = live.slashRange * (0.72 + 0.28 * ease)
       const width = 15 * ease
       const steps = 20
 
@@ -823,7 +862,7 @@ async function boot(): Promise<void> {
       const inner: number[] = []
       for (let i = 0; i <= steps; i++) {
         const t = i / steps
-        const a = angle - stats.slashHalfAngle + 2 * stats.slashHalfAngle * t
+        const a = angle - live.slashHalfAngle + 2 * live.slashHalfAngle * t
         // Thickest mid-sweep, tapering to nothing at both ends, the way a blade
         // enters and leaves the arc.
         const w = width * Math.sin(t * Math.PI)
@@ -878,9 +917,9 @@ async function boot(): Promise<void> {
 
     // --- guardian blades and thunder palm -------------------------------
     orbitGfx.clear()
-    if (stats.orbitBlades > 0) {
-      const step = (Math.PI * 2) / stats.orbitBlades
-      for (let b = 0; b < stats.orbitBlades; b++) {
+    if (live.orbitBlades > 0) {
+      const step = (Math.PI * 2) / live.orbitBlades
+      for (let b = 0; b < live.orbitBlades; b++) {
         const a = run.orbitAngle + step * b
         const bx = wx + Math.cos(a) * ORBIT_RADIUS
         const by = wy + Math.sin(a) * ORBIT_RADIUS
@@ -907,7 +946,7 @@ async function boot(): Promise<void> {
     // --- character -----------------------------------------------------
     swordsman.x = wx
     swordsman.y = wy + bob
-    swordsman.rotation = clamp01(ratio) * (player.vx / stats.moveSpeed) * 0.13
+    swordsman.rotation = clamp01(ratio) * (player.vx / live.moveSpeed) * 0.13
     // Flash the swordsman while immune, so being hit is legible.
     swordsman.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
 
@@ -925,7 +964,7 @@ async function boot(): Promise<void> {
     bladeGfx.zIndex = aimY < 0 ? -1 : 2
 
     sashRng.snapshot = 1337
-    const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * stats.moveSpeed, 1)
+    const spine = sashSpine(figure.sashAnchor, time, -aimX, -aimY, ratio * live.moveSpeed, 1)
     const poly = sashPoly(spine, sashRng, 1)
     sashGfx.clear()
     // A null colour is a swordsman who wears no sash, and drawing nothing is
@@ -942,7 +981,7 @@ async function boot(): Promise<void> {
     stage.ground.tilePosition.y = -camera.y * zoom
 
     // --- ui ------------------------------------------------------------
-    ui.update(run.hp, stats.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
+    ui.update(run.hp, live.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
     // The scroll of the weapon in hand. Cheap: setScroll returns immediately
     // unless the weapon actually changed.
     ui.setScroll(artsFor(kit.weapon.id))
@@ -1027,6 +1066,22 @@ async function boot(): Promise<void> {
       // unit tests cannot — they exercise the detector, not the wiring from a
       // thumb on a joystick through to a class on a tile.
       document.body.dataset.conditions = activeSeals(sense.active).join(',')
+      // What the arts are actually doing to the numbers, right now.
+      //
+      // The conditions lighting a tile was the last step's feature and it has
+      // its own line above. This one exists because the failure this step can
+      // have is quieter and worse: the seals light, the strip looks alive, and
+      // the simulation reads the untouched baseline anyway. A machine can only
+      // catch that by comparing a live stat against the permanent one, so both
+      // are published. Rounded, because the harness compares strings.
+      document.body.dataset.live =
+        `${live.slashDamage.toFixed(1)},${live.slashInterval.toFixed(3)},` +
+        `${live.slashRange.toFixed(0)},${live.slashHalfAngle.toFixed(2)},` +
+        `${live.moveSpeed.toFixed(0)},${live.orbitBlades},${live.boltInterval.toFixed(2)}`
+      document.body.dataset.base =
+        `${stats.slashDamage.toFixed(1)},${stats.slashInterval.toFixed(3)},` +
+        `${stats.slashRange.toFixed(0)},${stats.slashHalfAngle.toFixed(2)},` +
+        `${stats.moveSpeed.toFixed(0)},${stats.orbitBlades},${stats.boltInterval.toFixed(2)}`
       // Published so a performance report can be turned into a measurement.
       // "It stutters on my phone" is unactionable; "render costs 9ms with 240
       // enemies" points at one loop.
@@ -1094,7 +1149,7 @@ async function boot(): Promise<void> {
           equip(character.inventory, id)
         }
         kit = currentKit()
-        stats = deriveStats(loadout, kit)
+        refreshKit()
         rebuildFigure()
         persist()
         creator.hide()
