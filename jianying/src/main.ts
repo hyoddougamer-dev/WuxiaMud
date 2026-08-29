@@ -60,7 +60,7 @@ import { strings } from './ui/strings'
 import { createTitle } from './ui/title'
 import { createTutorial } from './ui/tutorial'
 
-const BUILD = '1.9.0'
+const BUILD = '1.9.1'
 
 async function hideSplash(): Promise<void> {
   try {

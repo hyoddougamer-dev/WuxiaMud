@@ -264,6 +264,7 @@ export function buildSwordsmanTopDown(
   // At 0.55 it came out mid-grey and read as a rendering fault rather than as a
   // garment — a wash that pale belongs in a background, not on a character.
   if (shoulders.mantle) {
+    tag = { part: 'robe' }
     mark(
       { x: -shoulders.mantle * s, y: -27.5 * s },
       { x: shoulders.mantle * s, y: -27.5 * s },
@@ -271,6 +272,7 @@ export function buildSwordsmanTopDown(
       elliptic(12.5 * s),
       { alpha: 0.8, segments: 22, jitter: 1.2 * s, bleedBy: 0.6 * s },
     )
+    tag = {}
   }
 
   // A shoulder is a shallow arc across the top of the chest. `cap` is 11 or 12
@@ -279,6 +281,13 @@ export function buildSwordsmanTopDown(
   // whole dyed part of the robe, which is why a coloured swordsman only showed
   // colour below the waist. Those numbers were authored against the old figure,
   // where the "shoulders" were the top of a bell and had to be thick to read.
+  // The shoulder bar and the sleeves are CLOTH, so they take the dye like the
+  // robe does. They did not, and the result was reported as the colour only
+  // catching part of the figure — which it was: a coloured skirt and chest
+  // hanging under black shoulders and black sleeves reads as two garments on
+  // one person, not as a dyed robe. The dye is the swordsman's, and it is on
+  // everything they are wearing that is made of cloth.
+  tag = { part: 'robe' }
   mark(
     { x: -span * s, y: shoulderY },
     { x: span * s, y: shoulderY },
@@ -286,6 +295,7 @@ export function buildSwordsmanTopDown(
     elliptic(shoulders.cap * 0.46 * s),
     { segments: 20, jitter: 0.5 * s, bleedBy: 0.7 * s },
   )
+  tag = {}
 
   /** The sword hand, filled in by the loop below and used for the portrait. */
   let hand: Point = { x: span * 0.6 * s, y: shoulderY + 19 * s }
@@ -300,26 +310,31 @@ export function buildSwordsmanTopDown(
       x: side * (span * 0.52 + shoulders.sleeveOut * 0.2 * bearing.sleeve) * s,
       y: shoulderY + shoulders.sleeveDrop * 1.05 * bearing.sleeve * s,
     }
-    const elbow = { x: side * (span * 0.72 + 1) * s, y: shoulderY + 9 * s }
     const wrist = { x: cuff.x - side * 1.4 * s, y: cuff.y + 2.6 * s }
 
     // ---- Arm -------------------------------------------------------------
     // Down, not out. The first version ran the arm along the sleeve's own
     // reach, which for court silks meant a limb sticking twenty units sideways
     // — a T-pose with claws on the end. Arms at rest hang, and the sleeve is
-    // cloth draped over them; those are two different shapes and conflating
-    // them was the whole mistake. Bare arms show all of this; a court sleeve
-    // covers it down to the wrist, which is the difference the item should make.
+    // cloth draped OVER them; those are two different shapes and conflating
+    // them was the whole mistake.
+    //
+    // It follows the SLEEVE'S line, with the same bow. Drawn straight while the
+    // sleeve swung outward, the arm escaped through the inner edge and read as
+    // a black slit down a dyed sleeve — invisible while everything was ink, and
+    // the first thing the eye found once the cloth took a colour. Cloth covers
+    // an arm; only a sleeve too narrow to hide one lets it show, which is what
+    // Bare Arms is.
     mark(
       { x: side * (span - 2.5) * s, y: shoulderY + 1 * s },
-      elbow,
-      side * 1.2 * s,
+      { x: cuff.x, y: cuff.y },
+      -side * shoulders.sleeveBow * s,
       tapered(4 * s, 0.3),
-      { alpha: 0.95, segments: 10, jitter: 0.3 * s, bleedBy: 0.5 * s },
+      { alpha: 0.95, segments: 12, jitter: 0.3 * s, bleedBy: 0.5 * s },
     )
-    mark(elbow, wrist, -side * 1 * s, tapered(3.4 * s, 0.3), {
+    mark({ x: cuff.x, y: cuff.y - 1 * s }, wrist, -side * 1 * s, tapered(3.4 * s, 0.3), {
       alpha: 0.95,
-      segments: 10,
+      segments: 8,
       jitter: 0.3 * s,
       bleedBy: 0.5 * s,
     })
@@ -328,13 +343,17 @@ export function buildSwordsmanTopDown(
     // Drawn over the arm, hanging from the shoulder. `sleeveOut` now flares the
     // drape rather than relocating the limb, so wide court sleeves still read
     // as wide — the difference lands in the cloth, which is where it belongs.
+    tag = { part: 'robe' }
     mark(
       { x: side * (span - 2) * s, y: shoulderY },
       cuff,
       -side * shoulders.sleeveBow * s,
-      calligraphic(shoulders.sleeveWidth * 0.52 * s, 0.45, 0.4),
-      { alpha: 0.92, bleedBy: 0.6 * s },
+      calligraphic(shoulders.sleeveWidth * 0.52 * s, 0.8, 0.68),
+      { bleedBy: 0.6 * s },
     )
+    // Arms, hands and armour stay ink from here: skin is not dyed, and a
+    // pauldron is iron.
+    tag = {}
 
     // The hand goes on last, over the cuff, so it is never buried by cloth.
     mark(
@@ -381,7 +400,7 @@ export function buildSwordsmanTopDown(
   if (bearing.hair > 0) {
     mark(
       { x: 0, y: headY - 1 * s },
-      { x: 0, y: headY + bearing.hair * s },
+      { x: 0, y: headY + Math.min(bearing.hair, 11) * s },
       0,
       // Narrow at the crown, widest just below the jaw, gone by the collar.
       // Two shapes were tried first and both failed for the same reason: any
@@ -444,17 +463,19 @@ export function buildSwordsmanTopDown(
     // Squared off rather than tapered: a crown must not read as another topknot.
     mark(
       { x: 0, y: skullTop + 1.5 * s },
-      { x: 0, y: skullTop - head.crown.rise * s },
+      { x: 0, y: skullTop - head.crown.rise * 0.85 * s },
       0,
-      () => head.crown!.width * s,
+      (u) => head.crown!.width * (1 - u * 0.22) * s,
       { segments: 10, jitter: 0.25 * s, bleedBy: 0.6 * s },
     )
+    // The 簪 through it, crossing wider than the cap so the two read as two
+    // objects. Level with the cap they merged into one black chimney.
     mark(
-      { x: -head.crown.width * 0.9 * s, y: skullTop - head.crown.rise * 0.55 * s },
-      { x: head.crown.width * 0.9 * s, y: skullTop - head.crown.rise * 0.55 * s },
+      { x: -head.crown.width * 1.25 * s, y: skullTop - head.crown.rise * 0.62 * s },
+      { x: head.crown.width * 1.25 * s, y: skullTop - head.crown.rise * 0.48 * s },
       0,
-      elliptic(2.2 * s),
-      { alpha: 0.8, segments: 10, jitter: 0.2 * s, bleedBy: 0.4 * s },
+      calligraphic(1.8 * s, 0.7, 0.35),
+      { alpha: 0.9, segments: 10, jitter: 0.2 * s, bleedBy: 0.4 * s },
     )
   }
 
