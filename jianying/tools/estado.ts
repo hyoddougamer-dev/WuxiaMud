@@ -135,25 +135,36 @@ y += 22
 
 // --- half acting -----------------------------------------------------------
 const acting = ARTS.filter(artActs).length
-parts.push(text(M, y, 'AS ARTES — METADE JÁ AGE', 10, goldDeep, 0.95, 'start', '600'))
+const waiting = ARTS.length - acting
+parts.push(
+  text(
+    M, y,
+    waiting === 0 ? 'AS ARTES — TODAS AGEM' : 'AS ARTES — PARTE AGE',
+    10, waiting === 0 ? goldDeep : cinnabar, 0.95, 'start', '600',
+  ),
+)
 y += 14
 para(
-  `${acting} das ${ARTS.length} mudam mesmo os números quando a condição se cumpre. ` +
-    'As outras esperam pelas seis funcionalidades novas da simulação.',
+  waiting === 0
+    ? `As ${ARTS.length} mudam os números quando a condição se cumpre. O que falta ` +
+      'já não são efeitos — é escolheres quais levas, e elas subirem de grau.'
+    : `${acting} das ${ARTS.length} mudam os números. As outras esperam por efeitos ` +
+      'que a simulação ainda não tem.',
   9.5, ink, 0.5, 62,
 )
 y += 6
 
-row('Artes que agem', `${acting}`, true,
+row('Artes que agem', `${acting}`, acting === ARTS.length,
   `de ${ARTS.length} · ${LIVE_EFFECTS.length} efeitos ligados`)
-row('Artes à espera', `${ARTS.length - acting}`, false,
-  `precisam de: ${NEW_EFFECTS.join(', ')}`)
+if (waiting > 0) {
+  row('Artes à espera', `${waiting}`, false, `precisam de: ${NEW_EFFECTS.join(', ')}`)
+}
 row('Condições', `${CONDITIONS.length}`, true,
-  'a barra acende, e agora acender significa alguma coisa')
-row('Equipar 4 e ordenar', '0', false,
-  `${EQUIPPED_ARTS} previstas · carrega-se o rolo todo (5) da arma`)
+  'a barra acende, e acender já significa alguma coisa')
+row('Escolher as 4 e a ordem', '0', false,
+  `guardado, mas sem ecrã · leva as ${EQUIPPED_ARTS} primeiras do rolo`)
 row('Graus 感悟', '1', false,
-  `todas ao grau 1 de ${MAX_ART_LEVEL} · subir ainda não existe`)
+  `todas ao grau 1 de ${MAX_ART_LEVEL} · a corrida ainda cresce por cartas`)
 row('秘笈 manuais que caem', '0', false, 'aprender uma arte ainda não existe')
 
 y += 4
@@ -196,22 +207,26 @@ y += 22
 // --- the recommendation ----------------------------------------------------
 parts.push(text(M, y, 'ENTÃO, CRESCER A BASE DE DADOS?', 10, ink, 0.5, 'start', '600'))
 y += 16
-parts.push(text(M, y, 'Ainda não. Falta agir o resto do que já lá está.', 12, cinnabar, 0.95, 'start', '600'))
+parts.push(
+  text(M, y, 'Ainda não. Falta a build, não o conteúdo.', 12, cinnabar, 0.95, 'start', '600'),
+)
 y += 18
 para(
-  `${ARTS.length - acting} das ${ARTS.length} artes ainda não têm consequência, e nenhuma delas ` +
-    'pode subir de grau. Acrescentar linhas antes disso multiplica o problema que ' +
-    'estás a ver: mais coisas no ecrã que não fazem nada.',
+  'As artes fazem todas alguma coisa, mas ainda não são uma escolha tua: levas ' +
+    'sempre as quatro primeiras do rolo, todas ao grau 1, e a corrida continua a ' +
+    'crescer por cartas sorteadas. Mais linhas na tabela não resolvem nada disso.',
   10, ink, 0.55, 58,
 )
 y += 8
 
 const STEPS: Array<[string, string, string]> = [
-  ['✓', 'Efeitos das artes', `${LIVE_EFFECTS.length} efeitos ligados, ${acting} artes vivas — medido com artsBalance.mts`],
-  ['2', 'Equipar 4 e ordenar', 'a barra passa a mostrar a tua build, não o rolo todo'],
-  ['3', 'Os 6 efeitos novos', `${NEW_EFFECTS.join(', ')} — um de cada vez`],
-  ['4', '秘笈 caem e ensinam', 'e as 3 cartas da corrida saem'],
-  ['5', 'Os 4 slots novos', 'guarda-roupa primeiro; itens depois'],
+  ['✓', 'Efeitos das artes', `${LIVE_EFFECTS.length} ligados, ${acting} de ${ARTS.length} artes vivas`],
+  ['✓', 'Os 6 efeitos novos', `${NEW_EFFECTS.join(', ')} — feitos`],
+  ['3', 'Afinar os passos', 'as artes ainda só empatam com as cartas; têm de as bater'],
+  ['4', 'As cartas saem, 感悟 sobe as artes', 'só depois do 3 — medido, não adivinhado'],
+  ['5', 'Aba 法: escolher as 4 e a ordem', 'a build passa a ser tua'],
+  ['6', '秘笈 caem e ensinam', 'as artes tornam-se dropáveis'],
+  ['7', 'Os 4 slots novos', 'guarda-roupa primeiro; itens depois'],
 ]
 for (const [n, name, note] of STEPS) {
   parts.push(

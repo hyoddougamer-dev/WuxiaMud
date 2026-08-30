@@ -4,23 +4,18 @@
  *   npx tsx tools/artsBalance.mts
  *
  * `tools/regions.mts` answers "does each place play differently" and fixes the
- * weapon to the jian so that it measures places. That makes it almost blind to
- * this question: the jian's scroll has only two arts with a lever the
- * simulation owns, so the regions table moved 0-8% and told us very little
- * about the other five weapons.
+ * weapon to the jian so that it measures places. This tool asks the other
+ * question: what is a weapon's scroll worth, and — the one that decides whether
+ * the technique cards can ever be removed — is it worth more than they are?
  *
- * This tool asks the other question. Same pilot, same seeds, same region, every
- * weapon — once with the arts off and once with them on — so the column that
- * matters is the DELTA. A weapon whose scroll happens to line up with what the
- * pilot provokes will show a big one, and that is the number that says whether
- * a grade of an art is worth 35% or something quieter.
+ * Three columns per row, same seeds, same region, same pilot: the run with no
+ * growth at all, with the CARDS, and with the ARTS. The middle column is the
+ * bar. It is also a FLOOR, because the pilot always takes the first card
+ * offered and a person picks better, so the arts merely matching it is not
+ * enough.
  *
- * WHAT IT CANNOT SEE, stated because it changes how to read the table. The
- * pilot kites in a circle: it holds 疾 almost always, provokes 转 on every
- * lap, gets 围 when the crowd closes, and reaches 危 only if it is losing. It
- * is never 静, so an art on standing still contributes NOTHING here and will
- * look free. Those arts are the ones a real player provokes deliberately, and
- * no headless pilot is going to measure them for us — they need hands.
+ * TWO PILOTS, and the reason is in the code below: one of them was quietly
+ * deciding the answer. Read both rows before believing either.
  */
 import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'

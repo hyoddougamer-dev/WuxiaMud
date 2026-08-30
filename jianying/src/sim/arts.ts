@@ -14,15 +14,14 @@
  * are a SECOND, cheap layer applied on top of the derived stats each frame,
  * into a caller-owned scratch object so the hot loop allocates nothing.
  *
- * EIGHT OF SIXTEEN EFFECTS, and the honest count of what that buys. Only eight
- * of the vocabulary's effects are used by an art that also has a lever the
- * simulation already owns: arc, bolt, damage, magnet, orbit, range, rate and
- * speed. Those cover 17 of the 30 arts. The remaining 13 wait on the six new
- * features — pierce, crit, echo, push, guard, heal — which are real simulation
- * work and land one at a time. `maxHp` and `nova` are in the vocabulary but no
- * art uses them, which is a relief in the first case: a conditional maximum
- * health would have to decide what happens to current health when the condition
- * drops, and every answer to that is bad.
+ * FOURTEEN EFFECTS, AND ALL THIRTY ARTS ACT. This landed in two passes: eight
+ * effects that were already levers the simulation owned (arc, bolt, damage,
+ * magnet, orbit, range, rate, speed), covering 17 arts, and then the six that
+ * were real simulation work (pierce, crit, echo, push, guard, heal) for the
+ * other 13. `maxHp` and `nova` remain in the vocabulary with no art using them,
+ * and the first is a relief: a conditional maximum health would have to decide
+ * what happens to current health when the condition drops, and every answer to
+ * that is bad.
  *
  * A ONE-FRAME LAG, deliberately. Conditions are sensed at the end of a frame
  * from the state that frame produced, and the arts are applied at the start of
@@ -45,7 +44,13 @@ import type { Stats } from './loadout'
 /** One art the swordsman carries into an expedition, and the grade it is at. */
 export interface CarriedArt {
   readonly art: Art
-  /** 1 to MAX_ART_LEVEL. Advancing this is a later step; everything is 1 now. */
+  /**
+   * 1 to MAX_ART_LEVEL.
+   *
+   * `advanceArt` raises it and is fully tested, but nothing calls it in the
+   * game yet: 感悟 still buys a technique card. See docs/ARTES.md for the
+   * measurement that is holding that swap back.
+   */
   readonly level: number
 }
 
