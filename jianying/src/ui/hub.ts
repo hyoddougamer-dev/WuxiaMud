@@ -56,7 +56,9 @@ import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } fr
 import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
-import { packIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
+import { packIconSvg, effectIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
+import { CONDITIONS, CONDITION_BY_ID, EQUIPPED_ARTS, artsFor, type Art } from '../data/arts'
+import { equippedIds } from '../sim/arts'
 import { palette } from '../render/palette'
 import { strings } from './strings'
 
@@ -89,7 +91,7 @@ export interface RosterView {
   readonly limit: number
 }
 
-type TabId = 'self' | 'gear' | 'world'
+type TabId = 'self' | 'gear' | 'arts' | 'world'
 
 interface Tab {
   readonly id: TabId
@@ -100,6 +102,7 @@ interface Tab {
 const TABS: readonly Tab[] = [
   { id: 'self', seal: '剑', name: 'Swordsman' },
   { id: 'gear', seal: '装', name: 'Equipment' },
+  { id: 'arts', seal: '法', name: 'Arts' },
   { id: 'world', seal: '界', name: 'World' },
 ] as const
 
@@ -455,6 +458,119 @@ export function createHub(
     return pane
   }
 
+  /**
+   * 法 — the arts, which until now had nowhere to live.
+   *
+   * Every art in the game acts, the strip lights during a run, and none of it
+   * was visible from the hub: no list, no names, no way to see what a seal on
+   * the strip meant or to choose which four went out with you. The work existed
+   * and the player could not find it, which is indistinguishable from the work
+   * not existing.
+   *
+   * THE SCROLL BELONGS TO THE WEAPON. Only the arts of the blade in hand are
+   * shown, because that is the whole point of "your class is what you carry" —
+   * picking up a spear is picking up a different way to fight, and a list that
+   * mixed all thirty would bury that.
+   *
+   * ORDER IS SHOWN BUT DOES NOT BITE YET. Each 感悟 is meant to advance the next
+   * art in this list, and `advanceArt` is written and tested for it — but the
+   * run still grows by technique cards, so the numbering here is a promise
+   * rather than a rule. The pane says so in as many words rather than letting a
+   * player carefully arrange four rows that nothing reads.
+   */
+  const paneArts = (c: Character, weapon: WeaponClass): HTMLElement => {
+    const pane = document.createElement('div')
+    pane.className = 'pane'
+
+    const scroll = artsFor(weapon.id)
+    const carried = equippedIds(c.arts, weapon.id)
+
+    const head = document.createElement('div')
+    head.className = 'block-head arts-head'
+    head.innerHTML =
+      `<span>${weapon.seal} ${escapeHtml(weapon.name)}</span>` +
+      `<b class="arts-count">${carried.length} / ${EQUIPPED_ARTS}</b>`
+    pane.appendChild(head)
+
+    const note = document.createElement('div')
+    note.className = 'arts-note'
+    note.textContent = strings.artsNote
+    pane.appendChild(note)
+
+    /**
+     * One art. Tapping toggles whether it is carried.
+     *
+     * Unequipping is allowed down to zero rather than pinned at four: a player
+     * who wants to see what one art alone does should be able to, and the
+     * simulation reads whatever is here.
+     */
+    const artRow = (art: Art, place: number): HTMLElement => {
+      const on = place > 0
+      const cond = CONDITION_BY_ID.get(art.condition)!
+      const row = document.createElement('button')
+      row.type = 'button'
+      row.className = 'art-row' + (on ? ' art-row-on' : '')
+      row.innerHTML = `
+        <span class="art-row-place">${on ? place : ''}</span>
+        ${effectIconSvg(art.effect, palette.ink, 1, 'art-row-icon')}
+        <span class="art-row-text">
+          <span class="art-row-name">${art.seal} ${escapeHtml(art.name)}</span>
+          <span class="art-row-blurb">${escapeHtml(art.blurb)}</span>
+        </span>
+        <span class="art-row-cond">
+          <span class="art-row-seal">${cond.seal}</span>
+          <span class="art-row-how">${escapeHtml(cond.name)}</span>
+        </span>
+      `
+      row.addEventListener('click', () => {
+        if (!character) return
+        const next = carried.filter((id) => id !== art.id)
+        // Adding appends, so the order is the order you tapped them in — the
+        // only reordering control a thumb needs, and one nobody has to learn.
+        if (!on && next.length < EQUIPPED_ARTS) next.push(art.id)
+        character.arts = { ...character.arts, [weapon.id]: next }
+        onSave()
+        render()
+      })
+      return row
+    }
+
+    const list = document.createElement('div')
+    list.className = 'art-list'
+    // Carried first and in their order, then the rest of the scroll. Sorting by
+    // state rather than by the table's order means the four that matter are
+    // always the four at the top.
+    for (const id of carried) {
+      const art = scroll.find((a) => a.id === id)
+      if (art) list.appendChild(artRow(art, carried.indexOf(id) + 1))
+    }
+    for (const art of scroll) {
+      if (!carried.includes(art.id)) list.appendChild(artRow(art, 0))
+    }
+    pane.appendChild(list)
+
+    // What the five conditions actually ask of the player. The strip during a
+    // run shows which is true; this is the only place that says what they are.
+    const legend = document.createElement('div')
+    legend.className = 'block'
+    const legendHead = document.createElement('div')
+    legendHead.className = 'block-head'
+    legendHead.innerHTML = `<span>${strings.conditions}</span>`
+    legend.appendChild(legendHead)
+    for (const cond of CONDITIONS) {
+      const row = document.createElement('div')
+      row.className = 'cond-row'
+      row.innerHTML =
+        `<span class="cond-seal">${cond.seal}</span>` +
+        `<span class="cond-name">${escapeHtml(cond.name)}</span>` +
+        `<span class="cond-how">${escapeHtml(cond.how)}</span>`
+      legend.appendChild(row)
+    }
+    pane.appendChild(legend)
+
+    return pane
+  }
+
   /** 界 — where you go. Five places, each with its rule and what it keeps. */
   const paneWorld = (c: Character): HTMLElement => {
     const pane = document.createElement('div')
@@ -566,7 +682,13 @@ export function createHub(
     const body = document.createElement('div')
     body.className = 'hub-body'
     body.appendChild(
-      tab === 'self' ? paneSelf(c, total, weapon) : tab === 'gear' ? paneGear(c) : paneWorld(c),
+      tab === 'self'
+        ? paneSelf(c, total, weapon)
+        : tab === 'gear'
+          ? paneGear(c)
+          : tab === 'arts'
+            ? paneArts(c, weapon)
+            : paneWorld(c),
     )
     panel.appendChild(body)
 

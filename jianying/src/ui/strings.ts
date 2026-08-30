@@ -41,6 +41,17 @@ export const strings = {
   attributes: 'Attributes',
   /** Shown where a slot has nothing in it — the question that sends you out. */
   slotEmpty: 'Nothing found for this yet.',
+  /** Heading for the five things a player can DO to wake an art. */
+  conditions: 'What wakes them',
+  /**
+   * The 法 tab's one line of instruction.
+   *
+   * Says outright that the numbering is not yet read by anything, because a
+   * player who carefully orders four rows for no effect has been lied to.
+   */
+  artsNote:
+    'Tap to carry an art. Only the four you carry can fire. ' +
+    'The order will decide which deepens first once 感悟 raises them.',
   pointsToSpend: 'points to spend',
   onePointToSpend: 'point to spend',
   spend: '+',

@@ -161,8 +161,8 @@ if (waiting > 0) {
 }
 row('Condições', `${CONDITIONS.length}`, true,
   'a barra acende, e acender já significa alguma coisa')
-row('Escolher as 4 e a ordem', '0', false,
-  `guardado, mas sem ecrã · leva as ${EQUIPPED_ARTS} primeiras do rolo`)
+row('Escolher as 4', `${EQUIPPED_ARTS}`, true,
+  'aba 法 no hub · guardado por arma')
 row('Graus 感悟', '1', false,
   `todas ao grau 1 de ${MAX_ART_LEVEL} · a corrida ainda cresce por cartas`)
 row('秘笈 manuais que caem', '0', false, 'aprender uma arte ainda não existe')
@@ -212,9 +212,9 @@ parts.push(
 )
 y += 18
 para(
-  'As artes fazem todas alguma coisa, mas ainda não são uma escolha tua: levas ' +
-    'sempre as quatro primeiras do rolo, todas ao grau 1, e a corrida continua a ' +
-    'crescer por cartas sorteadas. Mais linhas na tabela não resolvem nada disso.',
+  'Já escolhes as quatro que levas, na aba 法. Falta subirem de grau: vão todas ' +
+    'ao grau 1 e a corrida continua a crescer por cartas sorteadas, por isso a ' +
+    'ordem em que as puseste ainda não conta. Mais linhas na tabela não mudam isso.',
   10, ink, 0.55, 58,
 )
 y += 8
@@ -222,9 +222,10 @@ y += 8
 const STEPS: Array<[string, string, string]> = [
   ['✓', 'Efeitos das artes', `${LIVE_EFFECTS.length} ligados, ${acting} de ${ARTS.length} artes vivas`],
   ['✓', 'Os 6 efeitos novos', `${NEW_EFFECTS.join(', ')} — feitos`],
-  ['3', 'Afinar os passos', 'as artes ainda só empatam com as cartas; têm de as bater'],
-  ['4', 'As cartas saem, 感悟 sobe as artes', 'só depois do 3 — medido, não adivinhado'],
-  ['5', 'Aba 法: escolher as 4 e a ordem', 'a build passa a ser tua'],
+  ['✓', 'Aba 法 no hub', 'escolher as quatro que levas, por arma'],
+  ['4', 'Afinar os passos', 'as artes ainda só empatam com as cartas; têm de as bater'],
+  ['5', 'As cartas saem, 感悟 sobe as artes', 'só depois do 4 — a ordem passa a contar'],
+
   ['6', '秘笈 caem e ensinam', 'as artes tornam-se dropáveis'],
   ['7', 'Os 4 slots novos', 'guarda-roupa primeiro; itens depois'],
 ]

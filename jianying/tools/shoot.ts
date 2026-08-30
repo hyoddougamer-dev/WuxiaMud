@@ -400,7 +400,7 @@ async function main(): Promise<void> {
       console.warn('warn:   no attribute point available to spend')
     }
 
-    // The hub is three tabs now, so one screenshot can only ever show a third
+    // The hub is four tabs now, so one screenshot can only ever show a quarter
     // of it. Walking them also proves the tab bar actually switches panes —
     // a bar that looks right and does nothing would photograph identically.
     const tabs = page.locator('.hub-tabs .tab')
@@ -416,8 +416,49 @@ async function main(): Promise<void> {
     await tabs.first().click()
     await page.waitForTimeout(200)
     console.log(`hub:    ${tabCount} tabs, ${placeCount} places`)
-    if (tabCount !== 3) console.warn('warn:   expected three tabs')
+    if (tabCount !== 4) console.warn('warn:   expected four tabs')
     if (placeCount !== 5) console.warn('warn:   expected five places on the world tab')
+
+    // --- 法, and the fact that choosing there actually STICKS ---------------
+    //
+    // This tab exists because every art in the game acted and none of it was
+    // reachable from the hub. The failure it has to be guarded against is the
+    // one that shape of bug always takes: a list that renders, responds to a
+    // tap, and writes nothing — so the player arranges a build, walks out, and
+    // carries the default anyway.
+    const artsTab = page.locator('.hub-tabs .tab', { hasText: 'Arts' })
+    if ((await artsTab.count()) === 0) {
+      console.error('arts:   no 法 tab in the hub')
+      process.exitCode = 1
+    } else {
+      await artsTab.first().click()
+      await page.waitForTimeout(250)
+      const rows = await page.locator('.art-row').count()
+      const before = await page.locator('.art-row-on').count()
+      // Drop one, then read the SAVE rather than the screen.
+      await page.locator('.art-row-on').first().click()
+      await page.waitForTimeout(250)
+      const after = await page.locator('.art-row-on').count()
+      const stored = await page.evaluate(() => {
+        const raw = localStorage.getItem('jianying.save.v2')
+        if (!raw) return -1
+        const arts = JSON.parse(raw).swordsmen?.[0]?.arts ?? {}
+        const first = Object.values(arts)[0]
+        return Array.isArray(first) ? first.length : -1
+      })
+      await page.screenshot({ path: join(OUT, 'hub-arts.png') })
+      if (rows !== 5 || before !== 4 || after !== 3 || stored !== 3) {
+        console.error(
+          `arts:   the 法 tab is not wired — ${rows} rows, ${before} carried, ` +
+            `${after} after dropping one, ${stored} in the save`,
+        )
+        process.exitCode = 1
+      } else {
+        console.log(`arts:   法 tab ${rows} rows, dropped one → ${after} carried and saved`)
+      }
+      await tabs.first().click()
+      await page.waitForTimeout(200)
+    }
 
     // The swordsman must actually be drawn. This is the check that would have
     // caught the whole reason for this redesign: a hub that describes your

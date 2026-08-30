@@ -975,6 +975,135 @@
         opacity: 1;
       }
 
+      /* --- 法 the arts ----------------------------------------------------
+         A list where the four you carry sit at the top with a number, and the
+         rest of the scroll sits below them faded. Sorting by state rather than
+         by the data's order means the rows that matter are always the rows at
+         the top, which is the only thing a thumb should have to learn here. */
+      .arts-head {
+        margin-top: 2px;
+      }
+      .arts-count {
+        color: #8a6d16;
+        font-weight: 600;
+      }
+      .arts-note {
+        font-size: 10.5px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.42);
+        margin: 2px 0 10px;
+      }
+      .art-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .art-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid rgba(13, 13, 13, 0.12);
+        border-radius: 5px;
+        background: rgba(13, 13, 13, 0.015);
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      /* Carried: cinnabar, the colour this game uses for "now" everywhere. */
+      .art-row-on {
+        border-color: rgba(193, 39, 45, 0.5);
+        background: rgba(193, 39, 45, 0.05);
+      }
+      .art-row-place {
+        flex: none;
+        width: 13px;
+        font-size: 12px;
+        font-weight: 600;
+        color: rgba(13, 13, 13, 0.3);
+        text-align: center;
+      }
+      .art-row-icon {
+        flex: none;
+        width: 26px;
+        height: 26px;
+        opacity: 0.3;
+      }
+      .art-row-on .art-row-icon {
+        opacity: 0.95;
+      }
+      .art-row-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .art-row-name {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: rgba(13, 13, 13, 0.9);
+      }
+      .art-row-blurb {
+        display: block;
+        font-size: 9.5px;
+        line-height: 1.35;
+        color: rgba(13, 13, 13, 0.45);
+        margin-top: 1px;
+      }
+      .art-row-cond {
+        flex: none;
+        width: 52px;
+        text-align: center;
+      }
+      .art-row-seal {
+        display: block;
+        font-family: serif;
+        font-size: 17px;
+        line-height: 1;
+        color: rgba(13, 13, 13, 0.35);
+      }
+      .art-row-on .art-row-seal {
+        color: var(--cinnabar);
+      }
+      .art-row-how {
+        display: block;
+        font-size: 8.5px;
+        color: rgba(13, 13, 13, 0.4);
+        margin-top: 2px;
+      }
+      /* The five conditions, spelled out. The strip in play shows WHICH is
+         true; this is the only place that says what they mean. */
+      .cond-row {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        padding: 6px 0;
+        border-top: 1px solid rgba(13, 13, 13, 0.07);
+      }
+      .cond-seal {
+        flex: none;
+        width: 20px;
+        font-family: serif;
+        font-size: 15px;
+        color: var(--cinnabar);
+        opacity: 0.8;
+      }
+      .cond-name {
+        flex: none;
+        width: 74px;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(13, 13, 13, 0.8);
+      }
+      .cond-how {
+        flex: 1;
+        font-size: 10px;
+        line-height: 1.35;
+        color: rgba(13, 13, 13, 0.45);
+      }
+
       /* --- roster ---------------------------------------------------------
          A strip of swordsmen with the one being played picked out. Replaced a
          single button that destroyed the character you were playing. */
