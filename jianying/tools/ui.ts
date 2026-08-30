@@ -26,7 +26,7 @@ import { palette } from '../src/render/palette'
 import { portraitSvg } from '../src/render/silhouette'
 import { gearFromIds } from '../src/render/wardrobe'
 import { CONDITION_BY_ID, artsFor, type Art, type EffectKind } from '../src/data/arts'
-import { glyphSvg } from '../src/render/artGlyph'
+import { effectIconSvg } from '../src/render/packIcons'
 import { ITEM_BY_ID, statLine } from '../src/data/items'
 import { W, hex, label } from './sheet'
 
@@ -142,16 +142,17 @@ const SCROLL = artsFor('jian')
  *
  * The seal was the tile's mark until this sheet was read at full size: four
  * seals of similar stroke count, glanced at with a thumb busy, are four
- * identical grey squares. The glyph draws the EFFECT — see render/artGlyph.ts —
- * and the seal moves to where there is time to read it, beside the name.
+ * identical grey squares. The icon draws the EFFECT instead, and the seal moves
+ * to where there is time to read it, beside the name.
+ *
+ * Reads `effectIconSvg` — the SAME function the game calls — rather than the
+ * procedural glyphs in render/artGlyph.ts, which were built first and lost.
+ * Drawing a mockup with icons the game does not ship is how a proposal starts
+ * quietly describing a different product.
  */
 const artIcon = (effect: EffectKind, x: number, y: number, size: number, lit: boolean): string =>
-  glyphSvg(effect, {
-    ink: palette.ink,
-    self: lit ? palette.cinnabar : palette.ink,
-    opacity: lit ? 1 : 0.34,
-  }).replace(
-    '<svg class="art-glyph" ',
+  effectIconSvg(effect, palette.ink, lit ? 1 : 0.34, 'art-icon').replace(
+    '<svg class="art-icon" ',
     `<svg width="${size}" height="${size}" x="${x - size / 2}" y="${y - size / 2}" `,
   )
 
@@ -167,10 +168,23 @@ const artIcon = (effect: EffectKind, x: number, y: number, size: number, lit: bo
  * The same strip becomes tappable the day one art is made active. Designing it
  * as a readout first costs nothing and does not paint that door shut.
  */
-function artStrip(x: number, y: number, arts: readonly Art[], litIndex: number): string {
+function artStrip(
+  x: number,
+  y: number,
+  arts: readonly Art[],
+  litIndex: number,
+  tile = 62,
+  gap = 8,
+  /**
+   * Grade pips under each tile.
+   *
+   * Off during play, because grades do not rise yet — the run still grows by
+   * technique cards. Five dots that never move are the same lie as an icon on
+   * an inert strip, and this project has already paid for that one.
+   */
+  pips = true,
+): string {
   const out: string[] = []
-  const tile = 62
-  const gap = 8
   arts.forEach((art, i) => {
     const tx = x + i * (tile + gap)
     const lit = i === litIndex
@@ -195,6 +209,7 @@ function artStrip(x: number, y: number, arts: readonly Art[], litIndex: number):
       ),
     )
     // Grade pips along the bottom edge.
+    if (!pips) return
     for (let p = 0; p < 5; p++) {
       out.push(
         `<circle cx="${tx + 12 + p * 10}" cy="${y + tile + 8}" r="2.1" fill="${goldDeep}" ` +
@@ -208,47 +223,62 @@ function artStrip(x: number, y: number, arts: readonly Art[], litIndex: number):
 // ===========================================================================
 // SCREEN 1 — in play
 // ===========================================================================
+/**
+ * In play — the version with nothing on it that does not have to be there.
+ *
+ * The screen this replaces carried five things the player never reads while
+ * something is chasing them: the region's name, the region's rule, the name of
+ * whichever art had just woken, its blurb, and a kill count. Each was defensible
+ * on its own. Together they turned the top third of a phone into a document.
+ *
+ * WHAT SURVIVES, and the test each had to pass — can it be read in the quarter
+ * second between two dodges?
+ *
+ *   health      a bar. The number is on it only because "how close am I" is the
+ *               one question worth an exact answer.
+ *   insight     a thinner gold bar under it. No number: the only thing that
+ *               matters is how near the next 感悟 is, and a bar says that.
+ *   time        two digits, top right, small.
+ *   the strip   four tiles, and the seal of what wakes each.
+ *
+ * Everything else moved to where there is time: the region is a banner at the
+ * start that fades, and an art's name and blurb live in the 法 tab.
+ *
+ * THE STRIP IS CENTRED AT THE BOTTOM, which is the change you asked for and is
+ * right for a reason worth writing down: it was in the top-left corner, the
+ * furthest point on the screen from a thumb, and it is the one element a player
+ * needs to glance at CONSTANTLY. Bottom-centre is where the eye already is,
+ * because that is where the swordsman is.
+ *
+ * The joystick floats — it appears wherever the thumb lands — so it can overlap
+ * the strip. That is survivable only because the strip is a READOUT and not a
+ * row of buttons: a thumb resting on it costs a little visibility and nothing
+ * else. The day one art becomes tappable, this decision has to be revisited.
+ */
 function screenPlay(): string {
   const o: string[] = []
   const M = 16
 
-  // --- top: health, insight, time ---
+  // --- top: two bars and the clock, and nothing else ---
+  // The number sits ABOVE the bar, not on it: ink on a nearly-full ink bar is
+  // invisible, which the first draft of this screen proved at full size.
   o.push(
-    text(M, 34, '128', 21, ink, 0.9, 'start', '600'),
-    text(M + 52, 34, '/ 160', 12, ink, 0.4),
-    bar(M, 42, 200, 0.8, ink, 6),
-    // Insight sits directly under health and is gold, because gold means
-    // progression everywhere else in this game and nowhere else.
-    bar(M, 54, 200, 0.45, goldDeep, 3),
-    text(M + 206, 52, '感悟 4', 10, goldDeep, 0.9),
-
-    text(PH.w - M, 30, '12:04', 17, ink, 0.85, 'end'),
-    text(PH.w - M, 48, '斩 341', 11, ink, 0.42, 'end'),
-  )
-
-  // --- the art strip ---
-  o.push(artStrip(M, 74, SCROLL.slice(0, 4), 0))
-
-  // A single line naming what just woke, in the player's words. It fades; it is
-  // the bridge between "a seal lit" and "I understand why".
-  o.push(
-    text(M, 166, '静 · 点 Point', 12, cinnabar, 0.95, 'start', '600'),
-    text(M, 182, 'Planted, the arc narrows and runs through what it hits.', 9.5, ink, 0.45),
+    text(M, 26, '116', 13, ink, 0.75, 'start', '600'),
+    text(PH.w - M, 26, '12:04', 13, ink, 0.5, 'end'),
+    bar(M, 34, PH.w - M * 2, 0.72, ink, 7),
+    bar(M, 45, PH.w - M * 2, 0.45, goldDeep, 3),
   )
 
   // --- the field ---
-  // Drawn at the camera distance the game actually uses: the swordsman is
-  // about a fifth of the screen height, not a speck. A mockup that frames the
-  // action further out than the game does flatters the layout, because the
-  // empty space it leaves is space the real screen never has.
   o.push(`<g opacity="0.92">`)
   const cx = PH.w / 2
-  const cy = 452
+  const cy = 400
   const foes: Array<[number, number, number]> = [
     [-104, -96, 13], [-46, -128, 11], [38, -140, 12], [104, -104, 14],
     [148, -34, 12], [132, 58, 13], [64, 122, 11], [-24, 146, 14],
     [-112, 112, 12], [-158, 24, 13], [-74, -34, 10], [92, -26, 11],
     [-140, -150, 11], [176, 118, 12], [-176, -60, 10], [10, -186, 12],
+    [-60, 190, 12], [120, 176, 11],
   ]
   for (const [dx, dy, r] of foes) {
     o.push(
@@ -256,12 +286,9 @@ function screenPlay(): string {
         `fill="${ink}" fill-opacity="0.85"/>`,
     )
   }
-  // Qi left by the fallen. Gold, and the only gold on the field.
   for (const [dx, dy] of [[-64, 40], [46, -60], [-10, 74], [110, -70]]) {
     o.push(`<circle cx="${cx + dx!}" cy="${cy + dy!}" r="4" fill="${gold}" fill-opacity="0.75"/>`)
   }
-  // The sweep, as the wedge the game draws — narrowed, because 点 is firing.
-  // A straight grey triangle read as a rendering fault rather than a cut.
   o.push(
     `<path d="M ${cx} ${cy - 10} L ${cx + 146} ${cy - 58} A 154 154 0 0 1 ${cx + 152} ${cy + 12} Z" ` +
       `fill="${ink}" fill-opacity="0.13"/>`,
@@ -269,24 +296,31 @@ function screenPlay(): string {
       `stroke="${ink}" stroke-opacity="0.5" stroke-width="2.5"/>`,
   )
   o.push(figure(cx, cy + 40, 118, KIT))
+  // Damage numbers stay: they are the only feedback that a blow landed, and
+  // they are read as motion rather than as text.
   o.push(
     text(cx + 152, cy - 66, '−48', 16, cinnabar, 0.95, 'middle', '600'),
     text(cx + 108, cy - 112, '−31', 13, goldDeep, 0.8, 'middle'),
-    text(cx - 92, cy - 118, '−31', 12, goldDeep, 0.6, 'middle'),
     `</g>`,
   )
 
-  // --- region, bottom-left, fading ---
-  o.push(
-    text(M, PH.h - 164, '断崖  The Broken Cliff', 11, cinnabar, 0.55),
-    text(M, PH.h - 149, 'Narrow ground. What falls on you was already above.', 9, ink, 0.32),
-  )
+  // --- the strip, centred, above the thumb ---
+  {
+    const tile = 58
+    const gap = 9
+    const total = tile * 4 + gap * 3
+    const x = (PH.w - total) / 2
+    const y = PH.h - 196
+    o.push(artStrip(x, y, SCROLL.slice(0, 4), 1, tile, gap, false))
+  }
 
-  // --- the joystick, where the thumb is ---
+  // --- the thumb, floating wherever it lands ---
+  // Drawn low and off-centre, which is where a thumb actually rests. Sitting it
+  // under the strip in the first draft put the ring straight through the tiles.
   o.push(
-    `<circle cx="${PH.w - 88}" cy="${PH.h - 96}" r="46" fill="none" stroke="${ink}" ` +
-      `stroke-opacity="0.15" stroke-width="1.5"/>`,
-    `<circle cx="${PH.w - 72}" cy="${PH.h - 110}" r="19" fill="${ink}" fill-opacity="0.2"/>`,
+    `<circle cx="${PH.w / 2 - 66}" cy="${PH.h - 74}" r="42" fill="none" stroke="${ink}" ` +
+      `stroke-opacity="0.1" stroke-width="1.5"/>`,
+    `<circle cx="${PH.w / 2 - 50}" cy="${PH.h - 86}" r="17" fill="${ink}" fill-opacity="0.14"/>`,
   )
   return o.join('')
 }
