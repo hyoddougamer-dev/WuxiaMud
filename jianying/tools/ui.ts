@@ -255,24 +255,21 @@ function artStrip(
  * row of buttons: a thumb resting on it costs a little visibility and nothing
  * else. The day one art becomes tappable, this decision has to be revisited.
  */
-function screenPlay(): string {
-  const o: string[] = []
-  const M = 16
+const PLAY_CX = PH.w / 2
+const PLAY_CY = 400
 
-  // --- top: two bars and the clock, and nothing else ---
-  // The number sits ABOVE the bar, not on it: ink on a nearly-full ink bar is
-  // invisible, which the first draft of this screen proved at full size.
-  o.push(
-    text(M, 26, '116', 13, ink, 0.75, 'start', '600'),
-    text(PH.w - M, 26, '12:04', 13, ink, 0.5, 'end'),
-    bar(M, 34, PH.w - M * 2, 0.72, ink, 7),
-    bar(M, 45, PH.w - M * 2, 0.45, goldDeep, 3),
-  )
-
-  // --- the field ---
-  o.push(`<g opacity="0.92">`)
-  const cx = PH.w / 2
-  const cy = 400
+/**
+ * The fight itself — identical in every variant below.
+ *
+ * Held in one function on purpose. Three proposals that each redraw their own
+ * swarm would differ in a dozen ways at once, and the only honest way to ask
+ * "which chrome is right" is for the chrome to be the ONLY thing that differs.
+ */
+function playField(opts: { numbers?: boolean; ring?: number } = {}): string {
+  const { numbers = true, ring } = opts
+  const o: string[] = [`<g opacity="0.92">`]
+  const cx = PLAY_CX
+  const cy = PLAY_CY
   const foes: Array<[number, number, number]> = [
     [-104, -96, 13], [-46, -128, 11], [38, -140, 12], [104, -104, 14],
     [148, -34, 12], [132, 58, 13], [64, 122, 11], [-24, 146, 14],
@@ -295,33 +292,156 @@ function screenPlay(): string {
     `<path d="M ${cx + 146} ${cy - 58} A 154 154 0 0 1 ${cx + 152} ${cy + 12}" fill="none" ` +
       `stroke="${ink}" stroke-opacity="0.5" stroke-width="2.5"/>`,
   )
-  o.push(figure(cx, cy + 40, 118, KIT))
-  // Damage numbers stay: they are the only feedback that a blow landed, and
-  // they are read as motion rather than as text.
-  o.push(
-    text(cx + 152, cy - 66, '−48', 16, cinnabar, 0.95, 'middle', '600'),
-    text(cx + 108, cy - 112, '−31', 13, goldDeep, 0.8, 'middle'),
-    `</g>`,
-  )
-
-  // --- the strip, centred, above the thumb ---
-  {
-    const tile = 58
-    const gap = 9
-    const total = tile * 4 + gap * 3
-    const x = (PH.w - total) / 2
-    const y = PH.h - 196
-    o.push(artStrip(x, y, SCROLL.slice(0, 4), 1, tile, gap, false))
+  // Health as a ring drawn on the ground the swordsman stands on, for the
+  // variant that refuses to put a bar anywhere. Under the figure, so it reads
+  // as the circle of ground they hold rather than as a UI element on top.
+  if (ring !== undefined) {
+    const r = 46
+    const c = 2 * Math.PI * r
+    o.push(
+      `<circle cx="${cx}" cy="${cy + 24}" r="${r}" fill="none" stroke="${ink}" ` +
+        `stroke-opacity="0.1" stroke-width="4"/>`,
+      `<circle cx="${cx}" cy="${cy + 24}" r="${r}" fill="none" stroke="${cinnabar}" ` +
+        `stroke-opacity="0.85" stroke-width="4" stroke-linecap="round" ` +
+        `stroke-dasharray="${(c * ring).toFixed(1)} ${c.toFixed(1)}" ` +
+        `transform="rotate(-90 ${cx} ${cy + 24})"/>`,
+    )
   }
+  o.push(figure(cx, cy + 40, 118, KIT))
+  if (numbers) {
+    o.push(
+      text(cx + 152, cy - 66, '−48', 16, cinnabar, 0.95, 'middle', '600'),
+      text(cx + 108, cy - 112, '−31', 13, goldDeep, 0.8, 'middle'),
+    )
+  } else {
+    // Without digits the blow still has to be felt. Ink spatter where the arc
+    // bit, which is the game's own vocabulary rather than a borrowed one.
+    for (const [dx, dy, r] of [[150, -64, 7], [136, -30, 4.5], [118, -96, 5.5], [162, -14, 3.5]]) {
+      o.push(
+        `<circle cx="${cx + dx!}" cy="${cy + dy!}" r="${r}" fill="${cinnabar}" ` +
+          `fill-opacity="0.55"/>`,
+      )
+    }
+  }
+  o.push(`</g>`)
+  return o.join('')
+}
 
-  // --- the thumb, floating wherever it lands ---
-  // Drawn low and off-centre, which is where a thumb actually rests. Sitting it
-  // under the strip in the first draft put the ring straight through the tiles.
+/** The floating thumb, low and off-centre — where a thumb actually rests. */
+const thumb = (): string =>
+  `<circle cx="${PH.w / 2 - 66}" cy="${PH.h - 74}" r="42" fill="none" stroke="${ink}" ` +
+  `stroke-opacity="0.1" stroke-width="1.5"/>` +
+  `<circle cx="${PH.w / 2 - 50}" cy="${PH.h - 86}" r="17" fill="${ink}" fill-opacity="0.14"/>`
+
+/** The strip, at the position that was approved: centred, above the thumb. */
+const STRIP = { tile: 58, gap: 9, y: PH.h - 196 }
+const STRIP_W = STRIP.tile * 4 + STRIP.gap * 3
+const STRIP_X = (PH.w - STRIP_W) / 2
+
+function screenPlay(): string {
+  const o: string[] = []
+  const M = 16
+
+  // --- top: two bars and the clock, and nothing else ---
+  // The number sits ABOVE the bar, not on it: ink on a nearly-full ink bar is
+  // invisible, which the first draft of this screen proved at full size.
   o.push(
-    `<circle cx="${PH.w / 2 - 66}" cy="${PH.h - 74}" r="42" fill="none" stroke="${ink}" ` +
-      `stroke-opacity="0.1" stroke-width="1.5"/>`,
-    `<circle cx="${PH.w / 2 - 50}" cy="${PH.h - 86}" r="17" fill="${ink}" fill-opacity="0.14"/>`,
+    text(M, 26, '116', 13, ink, 0.75, 'start', '600'),
+    text(PH.w - M, 26, '12:04', 13, ink, 0.5, 'end'),
+    bar(M, 34, PH.w - M * 2, 0.72, ink, 7),
+    bar(M, 45, PH.w - M * 2, 0.45, goldDeep, 3),
   )
+  o.push(playField())
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  o.push(thumb())
+  return o.join('')
+}
+
+// ===========================================================================
+// SCREEN 1a/1b/1c — three ways to dress the same fight
+// ===========================================================================
+/**
+ * "A posição da hotbar parece-me bem, mas tudo o resto não."
+ *
+ * That is a verdict on the chrome and not on the strip, so the strip does not
+ * move in any of the three below and everything else does. They are not
+ * refinements of each other — each answers the question differently, and one of
+ * them is meant to be picked rather than averaged:
+ *
+ *   A 无字  no digits anywhere. Health is the circle of ground you hold.
+ *   B 裱    the HUD is the mounting of a hanging scroll, on the two margins.
+ *   C 底    one console at the foot of the screen. The top is empty.
+ *
+ * All three delete the same thing the approved screen still carried: a
+ * full-width bar across the top, which is the single most generic object in
+ * mobile games and the one element that makes this look like every other
+ * survivors-like on the store.
+ */
+function screenPlayA(): string {
+  const o: string[] = []
+  // Health is drawn on the ground under the swordsman, so the one number you
+  // must never look away from is AT the thing you are already looking at.
+  o.push(playField({ numbers: false, ring: 0.72 }))
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  // Insight: a hairline under the strip, exactly its width. No number, because
+  // the only question is "how close is the next one".
+  o.push(
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${STRIP_W}" height="2" ` +
+      `rx="1" fill="${ink}" fill-opacity="0.1"/>`,
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${(STRIP_W * 0.45).toFixed(0)}" ` +
+      `height="2" rx="1" fill="${goldDeep}" fill-opacity="0.9"/>`,
+  )
+  o.push(thumb())
+  return o.join('')
+}
+
+function screenPlayB(): string {
+  const o: string[] = []
+  const T = 5
+  const top = 96
+  const bottom = PH.h - 120
+  const h = bottom - top
+  // Two columns on the margins, like the silk mounting either side of a hanging
+  // scroll. They fill UPWARD, which is the direction a scroll is read and the
+  // direction "more" means in every other part of this game.
+  const column = (x: number, fraction: number, colour: string): string =>
+    `<rect x="${x}" y="${top}" width="${T}" height="${h}" rx="${T / 2}" fill="${ink}" ` +
+    `fill-opacity="0.07"/>` +
+    `<rect x="${x}" y="${(bottom - h * fraction).toFixed(0)}" width="${T}" ` +
+    `height="${(h * fraction).toFixed(0)}" rx="${T / 2}" fill="${colour}" fill-opacity="0.85"/>`
+  o.push(column(10, 0.72, cinnabar), column(PH.w - 10 - T, 0.45, goldDeep))
+  // A seal, not a clock face: the minute is the only digit on the screen.
+  o.push(
+    `<rect x="${PH.w / 2 - 22}" y="18" width="44" height="26" rx="3" fill="${ink}" ` +
+      `fill-opacity="0.05"/>`,
+    text(PH.w / 2, 36, '4:12', 12, ink, 0.5, 'middle'),
+  )
+  o.push(playField())
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  o.push(thumb())
+  return o.join('')
+}
+
+function screenPlayC(): string {
+  const o: string[] = []
+  o.push(playField())
+  // One block at the foot: health above the strip, insight below it, both
+  // exactly the strip's width. Three objects become one, and the top half of
+  // the phone — where nothing is ever read during a fight — stays empty.
+  const hy = STRIP.y - 22
+  o.push(
+    text(STRIP_X, hy - 6, '116', 12, ink, 0.7, 'start', '600'),
+    text(STRIP_X + STRIP_W, hy - 6, '4:12', 12, ink, 0.42, 'end'),
+    bar(STRIP_X, hy, STRIP_W, 0.72, cinnabar, 6),
+  )
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  o.push(
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${STRIP_W}" height="3" ` +
+      `rx="1.5" fill="${ink}" fill-opacity="0.09"/>`,
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${(STRIP_W * 0.45).toFixed(0)}" ` +
+      `height="3" rx="1.5" fill="${goldDeep}" fill-opacity="0.9"/>`,
+  )
+  o.push(thumb())
   return o.join('')
 }
 
@@ -945,6 +1065,9 @@ function screenCompare(): string {
  */
 const SCREENS: Array<{ file: string; title: string; tag: string; draw: () => string }> = [
   { file: '01-play', title: 'Em jogo', tag: 'PROPOSTA', draw: screenPlay },
+  { file: '01a-play-nada', title: 'Em jogo · A 无字', tag: 'PROPOSTA', draw: screenPlayA },
+  { file: '01b-play-margem', title: 'Em jogo · B 裱', tag: 'PROPOSTA', draw: screenPlayB },
+  { file: '01c-play-base', title: 'Em jogo · C 底', tag: 'PROPOSTA', draw: screenPlayC },
   { file: '02-arts', title: 'Hub · 法 Artes', tag: 'PROPOSTA', draw: screenArts },
   { file: '03-gear', title: 'Hub · 装 Equipamento', tag: 'HOJE', draw: screenGear },
   { file: '08-doll', title: 'Hub · 装 Paperdoll', tag: 'PROPOSTA', draw: screenDoll },

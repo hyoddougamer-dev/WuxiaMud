@@ -1,0 +1,187 @@
+/**
+ * How long a corrida actually lasts, and what the player gets out of it.
+ *
+ *   npx tsx tools/runLength.mts
+ *
+ * The plan this game was written from promised expeditions of 8 to 15 minutes.
+ * Nothing ever measured one, and the first measurement is the reason this file
+ * exists: a mid-game swordsman lasts a hundred and thirty seconds on the
+ * EASIEST region and under a minute on the deep ones. The run is a third of the
+ * length it was designed for, and it dies before its own boss has landed twice.
+ *
+ * That is not a balance nit. It decides what a corrida IS — how many 感悟 fit
+ * inside one, whether a build ever finishes forming, whether a boss can be the
+ * end of anything. So it gets a permanent instrument rather than a one-off
+ * script, and the target it measures against is written down here where it can
+ * be argued with:
+ *
+ *   LENGTH   ~5 minutes to the gate. Short on purpose — see docs/CORRIDAS.md.
+ *   INSIGHT  16 感悟 by the gate, which is exactly what four arts need to reach
+ *            grade five. Finishing the run finishes the build.
+ *   BOSS     reached, once, at the gate rather than every 115 seconds.
+ *
+ * Two pilots for the same reason `artsBalance.mts` has two: kite never stands
+ * still and duel never stops turning, and a single one of them decides the
+ * answer. Neither is a player; a real one lands between them.
+ */
+import { TICK_S } from '../src/core/loop'
+import { Rng } from '../src/core/rng'
+import { REGIONS } from '../src/data/regions'
+import { WEAPONS } from '../src/data/weapons'
+import { BOSS_EVERY } from '../src/data/enemies'
+import { createPlayer, updatePlayer } from '../src/sim/player'
+import { Swarm } from '../src/sim/enemies'
+import { Motes } from '../src/sim/pickups'
+import { Bolts } from '../src/sim/projectiles'
+import { Hazards } from '../src/sim/hazards'
+import { createRun, updateCombat } from '../src/sim/combat'
+import { deriveStats } from '../src/sim/loadout'
+import { advanceArt, applyArts, beginProgress, equippedIds } from '../src/sim/arts'
+import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
+import { emptyAttributes } from '../src/meta/character'
+import { EQUIPPED_ARTS, MAX_ART_LEVEL } from '../src/data/arts'
+
+const SEEDS = [4242, 90210, 31337, 8675309, 1618, 271828]
+/** Points a mid-game character would have spent. The same set artsBalance uses. */
+const SPENT = { ...emptyAttributes(), body: 6, edge: 6, swift: 4, spirit: 2 }
+/** Long enough that the harness never truncates a run the player would still be in. */
+const CEILING = 1200
+
+/** What a finished build costs, in 感悟. Four arts, grade one to five. */
+export const INSIGHT_TO_FINISH = EQUIPPED_ARTS * (MAX_ART_LEVEL - 1)
+/** Where the gate should sit. */
+export const TARGET_SECONDS = 300
+
+export type Pilot = (t: number) => [number, number]
+export const PILOTS: Array<[string, Pilot]> = [
+  ['kite', (t) => [Math.cos(t * 0.9), Math.sin(t * 0.9)]],
+  [
+    'duel',
+    (t) => {
+      const phase = t % 4
+      if (phase < 1.5) return [1, 0]
+      if (phase < 2) return [0, 0]
+      if (phase < 3.5) return [-1, 0]
+      return [0, 0]
+    },
+  ],
+]
+
+export interface Row {
+  secs: number
+  insight: number
+  kills: number
+  /** Bosses whose arrival the player actually lived to see. */
+  bosses: number
+}
+
+export function play(regionId: string, fly: Pilot): Row {
+  const region = REGIONS.find((r) => r.id === regionId)!
+  const out: Row = { secs: 0, insight: 0, kills: 0, bosses: 0 }
+
+  for (const seed of SEEDS) {
+    const weapon = WEAPONS[0]!
+    const player = createPlayer(0, 0)
+    const swarm = new Swarm(new Rng(seed), region)
+    const motes = new Motes()
+    const bolts = new Bolts()
+    const hazards = new Hazards()
+    const rng = new Rng(seed ^ 0x5bf03635)
+    const stats = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
+    const live = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
+    const run = createRun(stats.slashInterval)
+    run.hp = stats.maxHp
+    const sense = createSense()
+    const progress = beginProgress(equippedIds({}, weapon.id))
+    const rule = region.rule
+    const drift = rule.drift ?? 0
+    let insight = 0
+    let t = 0
+
+    for (let i = 0; i < Math.round(CEILING / TICK_S); i++) {
+      if (run.over) break
+      t += TICK_S
+      const [ix, iy] = fly(run.elapsed)
+      const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
+      applyArts(stats, progress.carried, sense.active, live)
+      updatePlayer(
+        player,
+        ix,
+        iy,
+        TICK_S,
+        live.moveSpeed * (rule.playerSpeed ?? 1),
+        Math.cos(wind) * drift,
+        Math.sin(wind) * drift,
+      )
+      const stickLen = Math.hypot(ix, iy)
+      let nearby = 0
+      swarm.grid.query(player.x, player.y, SURROUND_RADIUS, () => {
+        nearby++
+      })
+      senseConditions(
+        sense,
+        {
+          speed: Math.hypot(player.vx, player.vy),
+          maxSpeed: live.moveSpeed * (rule.playerSpeed ?? 1),
+          moveX: stickLen > 0 ? ix / stickLen : 0,
+          moveY: stickLen > 0 ? iy / stickLen : 0,
+          nearby,
+          hp: run.hp,
+          maxHp: live.maxHp,
+        },
+        TICK_S,
+      )
+      swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
+      while (run.pendingLevelUps > 0) {
+        run.pendingLevelUps--
+        insight++
+        advanceArt(progress)
+      }
+      updateCombat(
+        { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: region.depth },
+        TICK_S,
+      )
+    }
+    out.secs += run.elapsed
+    out.insight += insight
+    out.kills += run.kills
+    out.bosses += Math.floor(run.elapsed / BOSS_EVERY)
+  }
+  const n = SEEDS.length
+  return { secs: out.secs / n, insight: out.insight / n, kills: out.kills / n, bosses: out.bosses / n }
+}
+
+// Printing is guarded so `docs/corridas` can IMPORT this file and measure with
+// the same code the table prints. A figure drawn from remembered numbers is a
+// figure that goes stale the first time the ramp is touched.
+if (process.argv[1]?.endsWith('runLength.mts')) {
+  console.log(
+    `A corrida, medida. ${SEEDS.length} seeds, espadachim a meio (${Object.entries(SPENT)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k} ${v}`)
+      .join(' ')}), sem equipamento.\n` +
+      `Alvo: ${TARGET_SECONDS}s até ao portão, ${INSIGHT_TO_FINISH} 感悟 lá chegado, um chefe.\n`,
+  )
+
+  for (const [name, fly] of PILOTS) {
+    console.log(`piloto "${name}"`)
+    console.log('  região              secs   感悟   kills   chefes   até ao alvo')
+    for (const region of REGIONS) {
+      const r = play(region.id, fly)
+      const share = (r.secs / TARGET_SECONDS) * 100
+      console.log(
+        `  ${region.name.padEnd(18)} ${r.secs.toFixed(0).padStart(4)} ` +
+          `${r.insight.toFixed(1).padStart(6)} ${r.kills.toFixed(0).padStart(7)} ` +
+          `${r.bosses.toFixed(1).padStart(8)}   ${share.toFixed(0).padStart(3)}%`,
+      )
+    }
+    console.log()
+  }
+
+  console.log(
+    'Uma corrida que acaba antes do seu próprio chefe não tem forma nenhuma: não\n' +
+      'tem princípio, meio nem fim, só um contador que pára. E uma build de quatro\n' +
+      `artes precisa de ${INSIGHT_TO_FINISH} 感悟 para ficar feita — abaixo disso o jogador nunca\n` +
+      'chega a ver aquilo que escolheu na aba 法.',
+  )
+}
