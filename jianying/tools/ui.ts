@@ -606,7 +606,7 @@ function screenReward(): string {
     y += 22
   }
   o.push(
-    text(28, y + 8, '感悟 gained', 12.5, gold, 0.95),
+    text(28, y + 8, '境界 cultivation', 12.5, gold, 0.95),
     text(PH.w - 28, y + 8, '+912', 13, gold, 0.95, 'end'),
     text(28, y + 30, 'Foundation Building 12 → 13', 10, paper, 0.45),
   )
@@ -748,6 +748,257 @@ function screenWorld(): string {
     text(PH.w - M - 79, PH.h - 106, 'SET OUT', 14, paper, 0.95, 'middle', '600'),
     tabs(3),
   )
+  return o.join('')
+}
+
+// ===========================================================================
+// SCREEN 10-13 — 裂隙, the rift
+// ===========================================================================
+/**
+ * The rift, and why it beat the five-minute timer I had proposed.
+ *
+ * The proposal on the table was three acts and a gate at 4:30 — a CLOCK. The
+ * measurement in tools/runLength.mts kills it: a run lasts 227 seconds on the
+ * Post Road and 38 on the Pass, so a gate on the clock means the deep regions
+ * never once meet their own boss. A bar filled by KILLING is a distance rather
+ * than a clock, and a distance self-adjusts: the Pass is dense, so its bar fills
+ * fast even though its runs are short.
+ *
+ * It also fixes a pathology the same harness measured. The kiting pilot survives
+ * 227 seconds and gathers five 感悟; the duelling pilot dies at 133 and gathers
+ * eleven. Running away is currently the winning play and it starves the build.
+ * When the bar is fed by kills, running away stops being progress.
+ *
+ * The two additions on top are where "muito conteúdo PvE" actually comes from,
+ * and neither one costs art:
+ *
+ *   天象 OMENS   two or three rolled per rift, seen BEFORE entering, some in
+ *                your favour and some not. Five regions × a pool of omens is
+ *                combinatorial, and it is all data.
+ *   阶 TIERS     no ceiling. After the boss you bank, or you push the next tier
+ *                straight away carrying the build you just finished growing.
+ */
+const OMENS: Array<[string, string, string, boolean]> = [
+  ['血雾', 'Blood Mist', 'O que morre deixa uma nuvem que queima.', false],
+  ['双弓', 'Twin Bows', 'Os arqueiros vêm a dobrar.', false],
+  ['丰', 'Abundance', '+40% qi de tudo o que cai.', true],
+]
+
+function screenRift(): string {
+  const o: string[] = [header('Shen Baoyu', '筑基 Foundation Building', 12)]
+  const M = 16
+  let y = 116
+
+  o.push(
+    text(M, y, '裂隙', 11, cinnabar, 0.9, 'start', '600'),
+    text(M + 38, y, 'A FENDA', 10, ink, 0.45, 'start', '600'),
+    text(PH.w - M, y, '阶 7', 13, goldDeep, 0.95, 'end', '600'),
+  )
+  y += 16
+  o.push(text(M, y, 'Cada fenda é sorteada. Vês tudo antes de entrar.', 9, ink, 0.4))
+  y += 18
+
+  // The place. One line, because the region's rule is the only thing that
+  // changes how it is played and the blurb is read once ever.
+  o.push(
+    box(M, y, PH.w - M * 2, 64),
+    seal(M + 32, y + 38, '断崖', 18, ink, 0.85),
+    text(M + 62, y + 26, 'The Broken Cliff', 13, ink, 0.9),
+    text(M + 62, y + 44, 'O vento empurra-te, e vira.', 9.5, ink, 0.45),
+  )
+  y += 76
+
+  o.push(text(M, y, '天象  OMENS', 10, ink, 0.45, 'start', '600'))
+  y += 10
+  for (const [s, name, what, good] of OMENS) {
+    const colour = good ? palette.gold : palette.cinnabar
+    o.push(
+      box(M, y, PH.w - M * 2, 46, { fill: colour, fillOp: 0.05, stroke: colour, strokeOp: 0.35 }),
+      seal(M + 28, y + 30, s, 15, hex(colour), 0.9),
+      text(M + 54, y + 22, name, 11.5, ink, 0.85),
+      text(M + 54, y + 37, what, 9, ink, 0.45),
+      text(PH.w - M - 12, y + 29, good ? '+' : '−', 15, hex(colour), 0.8, 'end'),
+    )
+    y += 52
+  }
+  y += 4
+
+  // Rerolling is the loop that makes a rift worth reading rather than entering
+  // blind, and it costs something so that reading is a decision.
+  o.push(
+    box(M, y, (PH.w - M * 2 - 10) / 2, 46, { strokeOp: 0.3 }),
+    text(M + (PH.w - M * 2 - 10) / 4, y + 22, 'RESSORTEAR', 11, ink, 0.7, 'middle', '600'),
+    text(M + (PH.w - M * 2 - 10) / 4, y + 36, '1 · 玉符', 8.5, goldDeep, 0.8, 'middle'),
+    box(M + (PH.w - M * 2 + 10) / 2, y, (PH.w - M * 2 - 10) / 2, 46, {
+      fill: palette.ink, fillOp: 0.92, strokeOp: 0,
+    }),
+    text(PH.w - M - (PH.w - M * 2 - 10) / 4, y + 28, 'ENTRAR', 13, paper, 0.95, 'middle', '600'),
+  )
+  y += 58
+
+  o.push(
+    rule(M, y, PH.w - M * 2),
+    text(M, y + 18, 'CAI AQUI', 9.5, ink, 0.4, 'start', '600'),
+    text(M, y + 34, 'Duplas · 秘笈 do rolo das duplas · rank até 4', 9.5, ink, 0.55),
+    text(M, y + 50, 'Chefe garantido no fim da barra.', 9.5, goldDeep, 0.8),
+  )
+  y += 74
+
+  // Three open at once, and they expire. This is the whole content model in one
+  // block: the places and the rosters are finite, the ROLL is not, and a player
+  // who dislikes all three can wait for the turn rather than grind the one.
+  o.push(
+    rule(M, y, PH.w - M * 2),
+    text(M, y + 18, 'OUTRAS FENDAS ABERTAS', 9.5, ink, 0.4, 'start', '600'),
+    text(PH.w - M, y + 18, 'viram em 2h14', 9, goldDeep, 0.7, 'end'),
+  )
+  y += 28
+  const others: Array<[string, string, string, string]> = [
+    ['芦荡', 'Reed Marsh', '阶 6', '沉 · 群'],
+    ['鬼市', 'Ghost Market', '阶 9', '纸 · 丰 · 疫'],
+  ]
+  for (const [s, name, tier, omens] of others) {
+    o.push(
+      box(M, y, PH.w - M * 2, 40, { fillOp: 0.02, strokeOp: 0.09 }),
+      seal(M + 26, y + 26, s, 14, ink, 0.6),
+      text(M + 50, y + 24, name, 11, ink, 0.7),
+      text(PH.w - M - 12, y + 18, tier, 10, goldDeep, 0.85, 'end', '600'),
+      text(PH.w - M - 12, y + 32, omens, 9, ink, 0.4, 'end'),
+    )
+    y += 46
+  }
+
+  o.push(tabs(3))
+  return o.join('')
+}
+
+/**
+ * The rift bar in play — a full-bleed edge, not a HUD block.
+ *
+ * Everything else on this screen is variant C, which is deliberate: the rift
+ * needs exactly ONE new thing on screen, and the argument for C was that the top
+ * half of a phone is never read during a fight. A three-pixel edge at the very
+ * top is the one exception that survives, because it is read peripherally —
+ * "how much is left" — and never looked at directly.
+ */
+function screenPlayRift(): string {
+  const o: string[] = []
+  const fill = 0.62
+  o.push(
+    `<rect x="0" y="0" width="${PH.w}" height="4" fill="${ink}" fill-opacity="0.08"/>`,
+    `<rect x="0" y="0" width="${(PH.w * fill).toFixed(0)}" height="4" fill="${cinnabar}" ` +
+      `fill-opacity="0.85"/>`,
+  )
+  o.push(playField())
+  const hy = STRIP.y - 22
+  o.push(
+    text(STRIP_X, hy - 6, '116', 12, ink, 0.7, 'start', '600'),
+    // The count that matters is what is LEFT of the rift, not the clock.
+    text(STRIP_X + STRIP_W, hy - 6, '裂 62%', 12, cinnabar, 0.75, 'end'),
+    bar(STRIP_X, hy, STRIP_W, 0.72, cinnabar, 6),
+  )
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  o.push(
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${STRIP_W}" height="3" ` +
+      `rx="1.5" fill="${ink}" fill-opacity="0.09"/>`,
+    `<rect x="${STRIP_X}" y="${STRIP.y + STRIP.tile + 12}" width="${(STRIP_W * 0.45).toFixed(0)}" ` +
+      `height="3" rx="1.5" fill="${goldDeep}" fill-opacity="0.9"/>`,
+  )
+  o.push(thumb())
+  return o.join('')
+}
+
+/** The bar fills, and the thing at the end of it walks on. */
+function screenGate(): string {
+  const o: string[] = []
+  o.push(
+    `<rect x="0" y="0" width="${PH.w}" height="4" fill="${cinnabar}" fill-opacity="0.9"/>`,
+  )
+  o.push(playField())
+  // The boss, larger and gold-marked, which is the game's existing rule for it.
+  o.push(
+    `<ellipse cx="${PLAY_CX + 6}" cy="${PLAY_CY - 130}" rx="34" ry="46" fill="${ink}" ` +
+      `fill-opacity="0.92"/>`,
+    `<path d="M ${PLAY_CX - 30} ${PLAY_CY - 162} L ${PLAY_CX + 42} ${PLAY_CY - 176}" ` +
+      `stroke="${gold}" stroke-opacity="0.8" stroke-width="3" fill="none"/>`,
+  )
+  // The announcement: a seal and a name, and it fades. No instructions — the
+  // player has one input and it is already in their thumb.
+  //
+  // It sits ABOVE the boss and not over it, which the first draft got wrong:
+  // a 64-point seal laid across the one silhouette the player most needs to
+  // read is an announcement that hides the thing it announces.
+  o.push(
+    seal(PH.w / 2, 136, '关', 60, cinnabar, 0.85),
+    text(PH.w / 2, 164, 'O PORTÃO', 10.5, ink, 0.45, 'middle', '600'),
+    text(PH.w / 2, 188, 'The Cliff Warden', 15, ink, 0.85, 'middle'),
+  )
+  o.push(artStrip(STRIP_X, STRIP.y, SCROLL.slice(0, 4), 1, STRIP.tile, STRIP.gap, false))
+  o.push(thumb())
+  return o.join('')
+}
+
+/**
+ * Bank, or push. The one greed decision in the game.
+ *
+ * It is placed AFTER the reward is already counted, not before, so the choice is
+ * "risk the extra" rather than "risk everything" — dying in the deep must never
+ * take back what the gate already paid, or nobody ever presses the second
+ * button twice.
+ */
+function screenPush(): string {
+  const o: string[] = [`<rect width="${PH.w}" height="${PH.h}" rx="18" fill="${ink}"/>`]
+  o.push(
+    seal(PH.w / 2, 128, '踏破', 40, gold, 0.9),
+    text(PH.w / 2, 164, 'FENDA FEITA · 阶 7', 11, paper, 0.5, 'middle', '600'),
+    text(PH.w / 2, 200, '+1 240 境界', 26, gold, 0.95, 'middle', '300'),
+    text(PH.w / 2, 222, 'já está no bolso, aconteça o que acontecer', 9.5, paper, 0.4, 'middle'),
+    `<rect x="28" y="252" width="${PH.w - 56}" height="1" fill="${paper}" fill-opacity="0.16"/>`,
+  )
+
+  let y = 290
+  const options: Array<[string, string, string, string, boolean]> = [
+    ['收', 'SAIR COM TUDO', 'Voltas ao pátio. Nada disto se perde.', '', false],
+    ['深', 'DESCER AO 阶 8', 'Levas a build que acabaste de fazer.', 'inimigos +12% · prémio ×1.4', true],
+  ]
+  for (const [s, name, what, extra, push] of options) {
+    const h = extra ? 104 : 84
+    o.push(
+      `<rect x="24" y="${y}" width="${PH.w - 48}" height="${h}" rx="5" ` +
+        `fill="${push ? gold : paper}" fill-opacity="${push ? 0.1 : 0.06}" ` +
+        `stroke="${push ? gold : paper}" stroke-opacity="${push ? 0.6 : 0.25}"/>`,
+      seal(64, y + 46, s, 26, push ? gold : paper, 0.9),
+      text(104, y + 34, name, 13.5, paper, 0.95, 'start', '600'),
+      text(104, y + 54, what, 9.5, paper, 0.45),
+    )
+    if (extra) o.push(text(104, y + 76, extra, 9.5, gold, 0.85))
+    y += h + 14
+  }
+
+  o.push(
+    text(PH.w / 2, y + 24, 'A build só se perde quando saíres.', 9.5, paper, 0.35, 'middle'),
+    text(PH.w / 2, y + 42, 'É essa a decisão.', 9.5, cinnabar, 0.9, 'middle'),
+  )
+  y += 74
+
+  // What is already banked, listed. The screen argues "push"; the honest
+  // counterweight is showing the player exactly what they would be gambling
+  // NOTHING of — the list is the proof that the offer is not a trick.
+  o.push(
+    `<rect x="28" y="${y}" width="${PH.w - 56}" height="1" fill="${paper}" fill-opacity="0.14"/>`,
+    text(28, y + 22, 'JÁ NO BOLSO', 9.5, paper, 0.35, 'start', '600'),
+  )
+  const banked: Array<[string, string]> = [
+    ['秘笈  Swallow  燕', 'arte nova'],
+    ['Iron Pauldrons ····', 'rank 4'],
+    ['Cliff Warden felled', '阶 7'],
+  ]
+  banked.forEach(([what, note], i) => {
+    o.push(
+      text(28, y + 46 + i * 20, what, 11, paper, i === 0 ? 0.9 : 0.55),
+      text(PH.w - 28, y + 46 + i * 20, note, 9.5, i === 0 ? gold : paper, i === 0 ? 0.9 : 0.35, 'end'),
+    )
+  })
   return o.join('')
 }
 
@@ -1068,6 +1319,10 @@ const SCREENS: Array<{ file: string; title: string; tag: string; draw: () => str
   { file: '01a-play-nada', title: 'Em jogo · A 无字', tag: 'PROPOSTA', draw: screenPlayA },
   { file: '01b-play-margem', title: 'Em jogo · B 裱', tag: 'PROPOSTA', draw: screenPlayB },
   { file: '01c-play-base', title: 'Em jogo · C 底', tag: 'PROPOSTA', draw: screenPlayC },
+  { file: '10-rift', title: 'A fenda · antes de entrar', tag: 'PROPOSTA', draw: screenRift },
+  { file: '11-play-rift', title: 'A fenda · a encher', tag: 'PROPOSTA', draw: screenPlayRift },
+  { file: '12-gate', title: 'A fenda · o portão', tag: 'PROPOSTA', draw: screenGate },
+  { file: '13-push', title: 'A fenda · sair ou descer', tag: 'PROPOSTA', draw: screenPush },
   { file: '02-arts', title: 'Hub · 法 Artes', tag: 'PROPOSTA', draw: screenArts },
   { file: '03-gear', title: 'Hub · 装 Equipamento', tag: 'HOJE', draw: screenGear },
   { file: '08-doll', title: 'Hub · 装 Paperdoll', tag: 'PROPOSTA', draw: screenDoll },

@@ -124,8 +124,8 @@ y += 6
   parts.push(
     `<rect x="${LEFT + span}" y="${y}" width="1.5" height="${REGIONS.length * 26 + 6}" ` +
       `fill="${cinnabar}" fill-opacity="0.55"/>`,
-    text(RIGHT + 4, y + 8, '5:00', 8, cinnabar, 0.8),
-    text(RIGHT + 4, y + 18, 'alvo', 8, cinnabar, 0.5),
+    text(RIGHT + 4, y + 8, '~5min', 8, cinnabar, 0.8),
+    text(RIGHT + 4, y + 18, 'fenda', 8, cinnabar, 0.5),
   )
   y += 6
   for (const region of REGIONS) {
@@ -163,14 +163,14 @@ y += 10
 // ===========================================================================
 // 1 — the shape proposed
 // ===========================================================================
-heading('A FORMA QUE PROPONHO — CINCO MINUTOS, COM PORTÃO')
+heading('A FORMA — 裂隙, UMA FENDA')
 
 const ACTS: Array<[string, string, string, string]> = [
-  ['起', '0:00', 'Sair', 'Poucos. A build toma forma: 4 感悟.'],
-  ['行', '1:30', 'A estrada', 'O roster enche. A regra da região começa a morder.'],
-  ['险', '3:30', 'O aperto', 'Densidade no máximo. A build aguenta ou não.'],
-  ['关', '4:30', 'O portão', 'O chefe da região. Uma vez, não de 115 em 115s.'],
-  ['深', '5:00', 'O fundo', 'Opcional. Ficas ou sais com tudo. Cada minuto multiplica.'],
+  ['隙', 'sorteada', 'A fenda', 'Região, andar e presságios. Vês tudo antes de entrar.'],
+  ['杀', '0%', 'A barra', 'Enche a MATAR, não a sobreviver. Fugir não é progresso.'],
+  ['首', '~60%', 'Os elites', 'Valem um pedaço grande da barra. É neles que cai o loot.'],
+  ['关', '100%', 'O portão', 'O chefe. Matá-lo fecha a fenda e paga na hora.'],
+  ['深', 'depois', 'Sair ou descer', '收 levas tudo · 深 andar seguinte com a build feita.'],
 ]
 {
   const RAIL = M + 22
@@ -186,7 +186,7 @@ const ACTS: Array<[string, string, string, string]> = [
       seal(M + 8, y + 18, s, 15, gate ? cinnabar : ink, gate ? 0.9 : 0.75, 'middle'),
       text(RAIL + 16, y + 11, name, 11, ink, 0.85, 'start', '600'),
       text(RAIL + 16, y + 24, what, 8.5, ink, 0.45),
-      text(W - M, y + 11, at, 9.5, goldDeep, 0.85, 'end', '600'),
+      text(W - M, y + 11, at, 9, goldDeep, 0.85, 'end', '600'),
     )
     y += 42
   })
@@ -194,16 +194,24 @@ const ACTS: Array<[string, string, string, string]> = [
 }
 
 para(
-  'O portão é a peça que falta. Um survivors-like que só acaba em morte nunca ' +
-    'fecha nada; um que acaba num relógio perde o "até onde consigo ir". O 关 dá ' +
-    'os dois: matas o chefe e a corrida CONTA como feita, e depois decides se ' +
-    'sais com o prémio no bolso ou se continuas a ganhar mais arriscando o extra.',
+  'Uma barra e não um relógio, e a razão está na tabela acima: com corridas de ' +
+    '38s a 227s conforme a região, um portão ao minuto 4:30 fazia com que as ' +
+    'regiões fundas nunca vissem o próprio chefe. Uma barra é uma DISTÂNCIA e ' +
+    'ajusta-se sozinha — o Pass é denso, logo a barra lá enche depressa mesmo ' +
+    'com corridas curtas.',
 )
 y += 6
 para(
-  `Cinco minutos e não quinze, porque isto joga-se com uma mão à espera do ` +
-    `autocarro. As horas ficam no que sobrevive à corrida, não dentro dela.`,
-  9.5, 0.5, 66, cinnabar,
+  'E corrige o que a medição mostrou: quem foge vive 227s e apanha 5 感悟, quem ' +
+    'luta morre aos 133s e apanha 11. Fugir é hoje a jogada vencedora e mata a ' +
+    'build. Com a barra a encher por mortes, fugir deixa de ser progresso.',
+  9.5, 0.55, 66, cinnabar,
+)
+y += 8
+para(
+  'O conteúdo PvE sai de duas coisas que são só dados: 天象 presságios sorteados ' +
+    'por fenda (uns a teu favor, outros não, vistos antes de entrar) e 阶 andares ' +
+    'sem teto. Cinco regiões × um saco de presságios é combinatório.',
 )
 y += 10
 
@@ -339,10 +347,11 @@ y += 10
 // ===========================================================================
 heading('O QUE ISTO CUSTA, POR ORDEM')
 const STEPS: Array<[string, string]> = [
-  ['1', 'A rampa: chegar aos 5 minutos e ao portão. É onde está o problema medido.'],
+  ['1', 'A barra da fenda e o chefe no fim. Dá forma à corrida e tira o prémio a quem foge.'],
   ['2', 'Cartas fora, 感悟 sobe as artes. O código já existe e está testado, não é chamado.'],
-  ['3', `As ${ARTS.length} passam a ${ARTS.length * 2}: cinco artes novas por arma. Dados, mais 秘笈 a cair.`],
-  ['4', 'A UI de combate, quando escolheres entre A, B e C.'],
+  ['3', '天象 e 阶: presságios sorteados e andares sem teto. É aqui que aparece o conteúdo.'],
+  [`4`, `As ${ARTS.length} passam a ${ARTS.length * 2}: cinco artes novas por arma, mais 秘笈 a cair.`],
+  ['5', 'A UI de combate, quando escolheres entre A, B e C.'],
 ]
 for (const [n, what] of STEPS) {
   parts.push(text(M + 4, y + 10, n, 11, cinnabar, 0.6, 'start', '600'))

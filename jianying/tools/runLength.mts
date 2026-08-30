@@ -15,10 +15,13 @@
  * script, and the target it measures against is written down here where it can
  * be argued with:
  *
- *   LENGTH   ~5 minutes to the gate. Short on purpose — see docs/CORRIDAS.md.
+ *   LENGTH   ~5 minutes to fill one rift. NOT a timed gate — see
+ *            docs/CORRIDAS.md for why a bar fed by kills beat a clock — but a
+ *            rift that takes 38 seconds or 20 minutes to fill is the same
+ *            defect wearing different clothes, so the clock stays the yardstick.
  *   INSIGHT  16 感悟 by the gate, which is exactly what four arts need to reach
- *            grade five. Finishing the run finishes the build.
- *   BOSS     reached, once, at the gate rather than every 115 seconds.
+ *            grade five. Finishing the rift finishes the build.
+ *   BOSS     reached, once, at the end of the bar rather than every 115 seconds.
  *
  * Two pilots for the same reason `artsBalance.mts` has two: kite never stands
  * still and duel never stops turning, and a single one of them decides the
@@ -49,7 +52,7 @@ const CEILING = 1200
 
 /** What a finished build costs, in 感悟. Four arts, grade one to five. */
 export const INSIGHT_TO_FINISH = EQUIPPED_ARTS * (MAX_ART_LEVEL - 1)
-/** Where the gate should sit. */
+/** Roughly how long one rift should take to fill. */
 export const TARGET_SECONDS = 300
 
 export type Pilot = (t: number) => [number, number]
