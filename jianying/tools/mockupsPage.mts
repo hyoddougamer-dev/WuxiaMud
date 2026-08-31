@@ -101,6 +101,7 @@ const learn = (await Promise.all(LEARN.map(shot))).join('\n')
 const world = (await Promise.all(WORLD.map(shot))).join('\n')
 const rift = (await Promise.all(RIFT.map(shot))).join('\n')
 const sheet = await svg('corridas.svg')
+const progress = await svg('progressao.svg')
 
 const BRANCH = 'claude/mobile-gaming-project-from-scratch-5xeghp'
 const REPO = `https://github.com/hyoddougamer-dev/WuxiaMud/blob/${BRANCH}/jianying/docs`
@@ -340,21 +341,21 @@ footer {
 
 <div class="wrap">
   <header class="top">
-    <h1 class="mark">剑影<br><span>A fenda</span> e a interface</h1>
-    <p class="sub">Sete ecrãs a 390×844, o tamanho real do telemóvel. Tudo o que está aqui é proposta — nada disto está construído.</p>
+    <h1 class="mark">剑影<br><span>A fenda</span> está viva</h1>
+    <p class="sub">Isto já não são mockups de algo por fazer — é o jogo a correr. Verificado num browser real: a fenda enche, o chefe morre, o portão pergunta.</p>
     <hr class="rule">
   </header>
 
   <div class="ask">
-    <h2>O que mudou nesta versão</h2>
-    <p><strong>C 底 é a UI.</strong> Os selos chineses saíram de todo o lado onde carregavam uma regra — na barra das artes são agora pictogramas. E a tab 界 deixou de ser texto: cada região tem a sua pintura.</p>
-    <p>As três propostas A / B / C continuam no GitHub, no fim da página.</p>
+    <h2>O que está construído agora</h2>
+    <p><strong>C 底 é a HUD real</strong>, não só o mockup — vida, 感悟 e a barra das artes num bloco só, pictogramas nas condições, grau em pips. As cartas de técnica saíram: 感悟 sobe as artes na hora.</p>
+    <p>A fenda enche a matar, o chefe entra quando a barra fecha, e ao cair abre a escolha de sair com tudo ou empurrar para um andar mais difícil com a mesma build. Testado a sério — um chefe já matou o espadachim pelo nome certo.</p>
   </div>
 
   <section>
-    <div class="eyebrow"><span>Escolhida</span> <b>C 底</b></div>
+    <div class="eyebrow"><span>Construído</span> <b>C 底</b></div>
     <h2 class="head">UI de combate</h2>
-    <p class="lede">Vida, 感悟 e a barra das artes num só bloco em baixo. A metade de cima do telemóvel — onde nada é lido durante uma luta — fica vazia.</p>
+    <p class="lede">Vida, 感悟 e a barra das artes num só bloco em baixo. A metade de cima do telemóvel — onde nada é lido durante uma luta — fica vazia. É a HUD real do jogo; os ecrãs abaixo vêm do gerador de mockups, mas o código por trás é o mesmo.</p>
     <div class="rail">
 ${combat}
     </div>
@@ -386,18 +387,25 @@ ${world}
   </section>
 
   <section>
-    <div class="eyebrow"><span>Corrida</span> <b>裂隙</b></div>
+    <div class="eyebrow"><span>Construído</span> <b>裂隙</b></div>
     <h2 class="head">O resto da fenda</h2>
-    <p class="lede">A barra enche <strong>a matar</strong>, não a sobreviver. Com corridas de 38 s a 227 s conforme a região, um portão ao relógio fazia com que quatro regiões nunca vissem o próprio chefe — uma barra é uma distância e ajusta-se sozinha.</p>
+    <p class="lede">A barra enche <strong>a matar</strong>, não a sobreviver — e para isto funcionar de verdade tive de corrigir dois bugs que só a medição apanhou: a espada ignorava o chefe enquanto houvesse inimigos mais perto, e os chefes eram lentos demais para apanhar quem foge. Os dois estão corrigidos e testados.</p>
     <div class="stack">
 ${rift}
     </div>
   </section>
 
   <section>
+    <div class="eyebrow"><span>Novo</span> <b>境界</b></div>
+    <h2 class="head">A escada vertical</h2>
+    <p class="lede">A pergunta que faltava responder: ao longo de dezenas de corridas, quando é que o mapa pára de crescer para os lados e passa a crescer para baixo? Medido, não imaginado — a mesma fórmula de prémio que o jogo usa, corrida a corrida.</p>
+    <div class="phone" style="max-width:390px">${progress}</div>
+  </section>
+
+  <section>
     <div class="eyebrow"><span>Porquê</span> <b>medido</b></div>
-    <h2 class="head">A corrida está partida</h2>
-    <p class="lede">Espadachim a meio do jogo, sem equipamento, seis seeds, dois pilotos automáticos. O melhor dos dois, por região:</p>
+    <h2 class="head">O que estava partido, antes</h2>
+    <p class="lede">A medição que levou a apagar o relógio: espadachim a meio do jogo, sem equipamento, corrida cronometrada até ao chefe.</p>
     <table class="data">
       <thead><tr><th>região</th><th>dura</th><th>感悟</th><th>chefes</th></tr></thead>
       <tbody>
@@ -408,7 +416,7 @@ ${rift}
         <tr><td>关隘 Pass</td><td>38 s</td><td>3</td><td class="bad">0</td></tr>
       </tbody>
     </table>
-    <p class="lede" style="margin-top:22px">Uma build de quatro artes precisa de <strong>16 感悟</strong> para ficar feita. A melhor corrida do jogo dá 11. E quem foge vive 227 s e apanha 5; quem luta morre aos 133 s e apanha 11 — <strong>fugir é hoje a jogada vencedora</strong>, e é o que a barra corrige.</p>
+    <p class="lede" style="margin-top:22px">Quem fugia vivia 227 s e apanhava 5 感悟; quem lutava morria aos 133 s e apanhava 11 — <strong>fugir era a jogada vencedora</strong>. Depois da fenda construída e dos dois bugs de alvo corrigidos, o mesmo espadachim sem equipamento limpa a fenda cerca de <strong>metade das vezes</strong> quando luta a sério, e quase nunca quando só foge — que é exatamente a troca que se queria. <code>tests/regions.spec.ts</code> fixa os dois números para nunca mais se perderem.</p>
   </section>
 
   <section>
@@ -434,6 +442,7 @@ ${rift}
       <a href="${REPO}/corridas.png">A folha das corridas <span>png</span></a>
       <a href="${REPO}/CORRIDAS.md">O documento, com resumo em cima <span>md</span></a>
       <a href="${REPO}/artes-mapa.png">As 30 artes, o mapa <span>png</span></a>
+      <a href="${REPO}/progressao.png">A escada vertical <span>png</span></a>
     </div>
   </section>
 
