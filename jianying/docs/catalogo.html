@@ -1,0 +1,611 @@
+<title>剑影 · O Catálogo</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --ink: #191510; --ground: #fbf8f1; --raised: #f3ede0; --card: #ffffff;
+  --line: #ddd2bd; --muted: #6d6455; --cinnabar: #b52a24; --gold: #8a6d22;
+  --shadow: 0 1px 2px rgba(25,21,16,.05), 0 8px 22px -14px rgba(25,21,16,.24);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #efe7d6; --ground: #14120e; --raised: #1d1a14; --card: #1a1712;
+    --line: #332d23; --muted: #9a907e; --cinnabar: #e2645c; --gold: #cfae57;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #efe7d6; --ground: #14120e; --raised: #1d1a14; --card: #1a1712;
+  --line: #332d23; --muted: #9a907e; --cinnabar: #e2645c; --gold: #cfae57;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -16px rgba(0,0,0,.7);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font: 400 15px/1.55 "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 780px; margin: 0 auto; padding: 0 20px 90px; }
+header { padding: 44px 0 8px; }
+h1 {
+  font-family: "Zen Old Mincho", serif; font-weight: 900;
+  font-size: clamp(30px, 8vw, 44px); line-height: 1.02; margin: 0;
+}
+h1 span { color: var(--cinnabar); }
+.sub-line { margin: 10px 0 0; color: var(--muted); max-width: 52ch; font-size: 14.5px; }
+.counts {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+}
+.counts span {
+  padding: 4px 9px; background: var(--raised); border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.counts b { color: var(--cinnabar); font-weight: 600; }
+section { padding: 34px 0 0; }
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--gold); margin: 0 0 5px;
+}
+h2 { font-family: "Zen Old Mincho", serif; font-weight: 600; font-size: 22px; margin: 0 0 5px; }
+.note { color: var(--muted); font-size: 13.5px; margin: 0 0 16px; max-width: 60ch; }
+.tablewrap { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.t th, table.t td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+table.t th {
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted); font-weight: 500;
+}
+table.t td.n { font-variant-numeric: tabular-nums; text-align: right; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; }
+table.t td.dim { color: var(--muted); font-size: 12.5px; }
+table.t td.cond { color: var(--cinnabar); font-size: 12.5px; white-space: nowrap; }
+table.t i { font-style: normal; color: var(--gold); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+.card, .power {
+  background: var(--card); border: 1px solid var(--line); border-radius: 5px;
+  padding: 13px 15px; box-shadow: var(--shadow);
+}
+.card-head { display: flex; align-items: baseline; gap: 8px; }
+.card-head b { font-size: 15px; }
+.seal { font-family: "Zen Old Mincho", serif; font-size: 17px; color: var(--cinnabar); }
+.seal.gold { color: var(--gold); }
+.slot {
+  margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 10px;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-style: normal;
+}
+.blurb { margin: 5px 0 0; font-size: 13px; color: var(--muted); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 9px; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.stats i { font-style: normal; color: var(--muted); margin-right: 5px; }
+.sub {
+  font-family: "Zen Old Mincho", serif; font-size: 15px; margin: 0 0 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.sub i { font-style: normal; color: var(--muted); font-size: 12px; }
+.scroll { margin-bottom: 20px; }
+footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+footer code { font-family: "IBM Plex Mono", monospace; }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>剑影 — <span>o catálogo</span></h1>
+  <p class="sub-line">Tudo o que existe no jogo, lido das tabelas reais. Nada aqui foi escrito à mão: cada número vem da mesma função contra a qual o jogo rola, por isso não pode divergir do que vais encontrar.</p>
+  <div class="counts">
+    <span><b>6</b> raridades</span>
+    <span><b>7</b> tipos de linha</span>
+    <span><b>22</b> bases</span>
+    <span><b>6</b> armas</span>
+    <span><b>30</b> artes</span>
+    <span><b>6</b> poderes</span>
+    <span><b>5</b> regiões</span>
+    <span><b>24</b> na mochila</span>
+  </div>
+</header>
+
+<section>
+  <p class="eyebrow">A escada</p>
+  <h2>As seis raridades</h2>
+  <p class="note">A raridade decide quantas linhas a peça rola e quanto maior cada uma sai. As probabilidades sobem com a profundidade, mas nenhum degrau fecha — a estrada mais fácil pode, raramente, entregar algo extraordinário.</p>
+  <div class="tablewrap"><table class="t">
+    <thead><tr><th>degrau</th><th class="n">linhas</th><th class="n">potência</th><th class="n">prof 1</th><th class="n">prof 3</th><th class="n">prof 5</th></tr></thead>
+    <tbody><tr>
+    <td><b style="color:#6b6459">凡 Common</b></td>
+    <td class="n">1</td>
+    <td class="n">×1.00</td>
+    <td class="n">61.39%</td><td class="n">43.09%</td><td class="n">33.19%</td>
+  </tr>
+<tr>
+    <td><b style="color:#3f6b46">良 Fine</b></td>
+    <td class="n">2</td>
+    <td class="n">×1.06</td>
+    <td class="n">23.76%</td><td class="n">35.02%</td><td class="n">41.11%</td>
+  </tr>
+<tr>
+    <td><b style="color:#2f5d8a">珍 Rare</b></td>
+    <td class="n">3</td>
+    <td class="n">×1.14</td>
+    <td class="n">9.90%</td><td class="n">14.59%</td><td class="n">17.13%</td>
+  </tr>
+<tr>
+    <td><b style="color:#6b3f8a">宝 Precious</b></td>
+    <td class="n">4</td>
+    <td class="n">×1.26</td>
+    <td class="n">3.37%</td><td class="n">4.96%</td><td class="n">5.82%</td>
+  </tr>
+<tr>
+    <td><b style="color:#8a6d16">神 Divine</b></td>
+    <td class="n">4 <i>+ power</i></td>
+    <td class="n">×1.42</td>
+    <td class="n">1.29%</td><td class="n">1.90%</td><td class="n">2.23%</td>
+  </tr>
+<tr>
+    <td><b style="color:#c1272d">仙 Immortal</b></td>
+    <td class="n">4 <i>+ power</i></td>
+    <td class="n">×1.62</td>
+    <td class="n">0.30%</td><td class="n">0.44%</td><td class="n">0.51%</td>
+  </tr></tbody>
+  </table></div>
+</section>
+
+<section>
+  <p class="eyebrow">O que uma peça pode rolar</p>
+  <h2>As 7 linhas</h2>
+  <p class="note">Os quatro primeiros são os atributos que o hub já explica nas unidades do jogador. Os três últimos mudam a forma do golpe — e são mais raros de propósito, porque multiplicam tudo em vez de somar. Os intervalos vão do pior rolo comum ao melhor rolo imortal.</p>
+  <div class="tablewrap"><table class="t">
+    <thead><tr><th>linha</th><th class="n">prof 1</th><th class="n">prof 3</th><th class="n">prof 5</th><th class="n">peso</th></tr></thead>
+    <tbody><tr>
+    <td><b>体 Body</b></td>
+    <td class="n">2–6</td>
+    <td class="n">4–12</td>
+    <td class="n">6–18</td>
+    <td class="n">100</td>
+  </tr>
+<tr>
+    <td><b>锋 Edge</b></td>
+    <td class="n">2–6</td>
+    <td class="n">4–12</td>
+    <td class="n">6–18</td>
+    <td class="n">100</td>
+  </tr>
+<tr>
+    <td><b>疾 Swiftness</b></td>
+    <td class="n">2–6</td>
+    <td class="n">4–12</td>
+    <td class="n">6–18</td>
+    <td class="n">100</td>
+  </tr>
+<tr>
+    <td><b>神 Spirit</b></td>
+    <td class="n">2–6</td>
+    <td class="n">4–12</td>
+    <td class="n">6–18</td>
+    <td class="n">100</td>
+  </tr>
+<tr>
+    <td><b>命 Health</b></td>
+    <td class="n">10–29</td>
+    <td class="n">20–59</td>
+    <td class="n">29–88</td>
+    <td class="n">70</td>
+  </tr>
+<tr>
+    <td><b>远 Sweep reach</b></td>
+    <td class="n">3–8%</td>
+    <td class="n">5–14%</td>
+    <td class="n">7–20%</td>
+    <td class="n">42</td>
+  </tr>
+<tr>
+    <td><b>疾 Sweep speed</b></td>
+    <td class="n">2–6%</td>
+    <td class="n">4–11%</td>
+    <td class="n">5–15%</td>
+    <td class="n">42</td>
+  </tr></tbody>
+  </table></div>
+</section>
+
+<section>
+  <p class="eyebrow">Só em 神 e 仙</p>
+  <h2>Os 6 poderes com nome</h2>
+  <p class="note">Cada um muda uma <b>regra</b>, nunca um número — uma lendária que desse "+18 Edge" seria uma rara com melhor cor. Um slot sem poder na tabela rola quatro linhas fortes em vez de receber um poder que não lhe assenta.</p>
+  <div class="grid3"><div class="power">
+    <div class="card-head"><span class="seal gold">霜</span><b>Frost That Follows</b>
+      <i class="slot">weapon</i></div>
+    <p class="blurb">Every third sweep freezes the ground. What steps on it moves at half speed.</p>
+  </div>
+<div class="power">
+    <div class="card-head"><span class="seal gold">影</span><b>The Second Blade</b>
+      <i class="slot">weapon</i></div>
+    <p class="blurb">A sweep leaves a shadow of itself that lands a moment later.</p>
+  </div>
+<div class="power">
+    <div class="card-head"><span class="seal gold">甲</span><b>Paper Armour</b>
+      <i class="slot">robe</i></div>
+    <p class="blurb">The first blow of every fight is turned aside entirely.</p>
+  </div>
+<div class="power">
+    <div class="card-head"><span class="seal gold">潮</span><b>Turning Tide</b>
+      <i class="slot">robe</i></div>
+    <p class="blurb">Falling below a third of your health pushes everything around you away.</p>
+  </div>
+<div class="power">
+    <div class="card-head"><span class="seal gold">贪</span><b>The Long Reach</b>
+      <i class="slot">head</i></div>
+    <p class="blurb">Qi and pieces on the ground come to you from twice as far.</p>
+  </div>
+<div class="power">
+    <div class="card-head"><span class="seal gold">守</span><b>Unbroken Vigil</b>
+      <i class="slot">shoulders</i></div>
+    <p class="blurb">Standing still for two seconds mends a sliver of health.</p>
+  </div></div>
+</section>
+
+<section>
+  <p class="eyebrow">A tua classe é o que levas na mão</p>
+  <h2>As 6 armas</h2>
+  <p class="note">O polegar está todo gasto no movimento, por isso a arma não é um conjunto de botões — é a forma do golpe que acontece sozinho. O DPS é próximo entre elas de propósito; o que difere é onde tens de estar.</p>
+  <div class="grid2"><div class="card">
+    <div class="card-head"><span class="seal">剑</span><b>Straight Jian</b></div>
+    <p class="blurb">Even in every way. Nothing it does is wrong.</p>
+    <div class="stats">
+      <span><i>damage</i>11</span>
+      <span><i>every</i>0.46s</span>
+      <span><i>reach</i>95</span>
+      <span><i>arc</i>201°</span>
+      <span><i>dps</i>23.9</span>
+      <span><i>swept/s</i>34k</span>
+    </div>
+  </div>
+<div class="card">
+    <div class="card-head"><span class="seal">刀</span><b>Curved Dao</b></div>
+    <p class="blurb">Heavier and wider. Made for standing in the crowd, not beside it.</p>
+    <div class="stats">
+      <span><i>damage</i>16</span>
+      <span><i>every</i>0.60s</span>
+      <span><i>reach</i>90</span>
+      <span><i>arc</i>246°</span>
+      <span><i>dps</i>26.7</span>
+      <span><i>swept/s</i>29k</span>
+    </div>
+  </div>
+<div class="card">
+    <div class="card-head"><span class="seal">斩</span><b>Heavy Zhanmadao</b></div>
+    <p class="blurb">Enormous and slow. The gaps between sweeps are where you die.</p>
+    <div class="stats">
+      <span><i>damage</i>30</span>
+      <span><i>every</i>0.95s</span>
+      <span><i>reach</i>106</span>
+      <span><i>arc</i>269°</span>
+      <span><i>dps</i>31.6</span>
+      <span><i>swept/s</i>28k</span>
+    </div>
+  </div>
+<div class="card">
+    <div class="card-head"><span class="seal">双</span><b>Twin Blades</b></div>
+    <p class="blurb">Fast and short. You must stand closer than is comfortable.</p>
+    <div class="stats">
+      <span><i>damage</i>7</span>
+      <span><i>every</i>0.27s</span>
+      <span><i>reach</i>76</span>
+      <span><i>arc</i>155°</span>
+      <span><i>dps</i>25.9</span>
+      <span><i>swept/s</i>29k</span>
+    </div>
+  </div>
+<div class="card">
+    <div class="card-head"><span class="seal">枪</span><b>Long Spear</b></div>
+    <p class="blurb">Reaches far and cuts narrow. Where you face matters again.</p>
+    <div class="stats">
+      <span><i>damage</i>21</span>
+      <span><i>every</i>0.62s</span>
+      <span><i>reach</i>168</span>
+      <span><i>arc</i>69°</span>
+      <span><i>dps</i>33.9</span>
+      <span><i>swept/s</i>27k</span>
+    </div>
+  </div>
+<div class="card">
+    <div class="card-head"><span class="seal">扇</span><b>Iron Fan</b></div>
+    <p class="blurb">Almost the full circle, barely past arm’s length.</p>
+    <div class="stats">
+      <span><i>damage</i>10</span>
+      <span><i>every</i>0.42s</span>
+      <span><i>reach</i>72</span>
+      <span><i>arc</i>327°</span>
+      <span><i>dps</i>23.8</span>
+      <span><i>swept/s</i>35k</span>
+    </div>
+  </div></div>
+</section>
+
+<section>
+  <p class="eyebrow">De onde as peças saem</p>
+  <h2>As 22 bases</h2>
+  <p class="note">Uma base é a silhueta e o slot, e nada mais — as linhas são roladas por drop. Duas bases do mesmo slot nunca partilham silhueta, senão uma peça seria invisível numa figura sem detalhe interior.</p>
+  <div class="grid2"><div class="halfcol">
+    <div class="sub">Weapon <i>6</i></div>
+    <table class="t"><tbody><tr><td>Straight Jian</td><td class="n">1</td><td class="dim">jian</td></tr>
+<tr><td>Curved Dao</td><td class="n">1</td><td class="dim">dao</td></tr>
+<tr><td>Twin Blades</td><td class="n">2</td><td class="dim">twin</td></tr>
+<tr><td>Iron Fan</td><td class="n">2</td><td class="dim">fan</td></tr>
+<tr><td>Long Spear</td><td class="n">3</td><td class="dim">spear</td></tr>
+<tr><td>Heavy Zhanmadao</td><td class="n">4</td><td class="dim">great</td></tr></tbody></table>
+  </div>
+<div class="halfcol">
+    <div class="sub">Head <i>5</i></div>
+    <table class="t"><tbody><tr><td>Bound Topknot</td><td class="n">1</td><td class="dim">topknot</td></tr>
+<tr><td>Loose Hair</td><td class="n">1</td><td class="dim">bare</td></tr>
+<tr><td>Bamboo Hat</td><td class="n">2</td><td class="dim">hat</td></tr>
+<tr><td>Jade Crown</td><td class="n">4</td><td class="dim">crown</td></tr>
+<tr><td>Veiled Hat</td><td class="n">6</td><td class="dim">veiled</td></tr></tbody></table>
+  </div>
+<div class="halfcol">
+    <div class="sub">Shoulders <i>5</i></div>
+    <table class="t"><tbody><tr><td>Bound Sleeves</td><td class="n">1</td><td class="dim">plain</td></tr>
+<tr><td>Bare Arms</td><td class="n">1</td><td class="dim">bare</td></tr>
+<tr><td>Iron Pauldrons</td><td class="n">2</td><td class="dim">pauldron</td></tr>
+<tr><td>Wide Sleeves</td><td class="n">3</td><td class="dim">wide</td></tr>
+<tr><td>Feather Mantle</td><td class="n">5</td><td class="dim">mantle</td></tr></tbody></table>
+  </div>
+<div class="halfcol">
+    <div class="sub">Robe <i>6</i></div>
+    <table class="t"><tbody><tr><td>Hemp Robe</td><td class="n">1</td><td class="dim">plain</td></tr>
+<tr><td>Travelling Coat</td><td class="n">1</td><td class="dim">travelling</td></tr>
+<tr><td>Lamellar Skirt</td><td class="n">2</td><td class="dim">lamellar</td></tr>
+<tr><td>Layered Vestment</td><td class="n">3</td><td class="dim">layered</td></tr>
+<tr><td>Tattered Shroud</td><td class="n">4</td><td class="dim">tattered</td></tr>
+<tr><td>Court Silks</td><td class="n">5</td><td class="dim">court</td></tr></tbody></table>
+  </div></div>
+</section>
+
+<section>
+  <p class="eyebrow">4 carregadas de cada vez · grau até 5 · manuais até 3</p>
+  <h2>As 30 artes</h2>
+  <p class="note">Cinco por arma, e cada arma cobre as cinco condições exatamente uma vez: nenhuma arma tem uma condição morta, e quem troca de arma mantém as mesmas cinco coisas a FAZER enquanto tudo o que elas produzem muda.</p>
+  <div class="scroll">
+    <div class="sub">剑 Straight Jian</div>
+    <table class="t"><tbody><tr>
+        <td><b>点 Point</b></td>
+        <td class="dim">Planted, the arc narrows and runs through what it hits.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">pierce</td>
+      </tr>
+<tr>
+        <td><b>流 Flow</b></td>
+        <td class="dim">At speed, the sweeps come closer together.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">rate</td>
+      </tr>
+<tr>
+        <td><b>影 Shadow</b></td>
+        <td class="dim">Turning leaves an echo of the sweep where you stood.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">echo</td>
+      </tr>
+<tr>
+        <td><b>断 Sever</b></td>
+        <td class="dim">Surrounded, the sweep finds the gap and cuts twice as deep.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">crit</td>
+      </tr>
+<tr>
+        <td><b>剑气 Sword Qi</b></td>
+        <td class="dim">On low health, the sweep throws qi past its own reach.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">bolt</td>
+      </tr></tbody></table>
+  </div>
+<div class="scroll">
+    <div class="sub">刀 Curved Dao</div>
+    <table class="t"><tbody><tr>
+        <td><b>势 Momentum</b></td>
+        <td class="dim">Damage grows the longer you keep moving.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">damage</td>
+      </tr>
+<tr>
+        <td><b>卷 Furl</b></td>
+        <td class="dim">The arc widens for every enemy standing close.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">arc</td>
+      </tr>
+<tr>
+        <td><b>血 Blood</b></td>
+        <td class="dim">Plant your feet and each kill staunches the wound.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">heal</td>
+      </tr>
+<tr>
+        <td><b>压 Press</b></td>
+        <td class="dim">On low health, the sweep shoves what it touches away.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">push</td>
+      </tr>
+<tr>
+        <td><b>破军 Army-breaker</b></td>
+        <td class="dim">A hard turn carries the blade the whole way round.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">arc</td>
+      </tr></tbody></table>
+  </div>
+<div class="scroll">
+    <div class="sub">斩 Heavy Zhanmadao</div>
+    <table class="t"><tbody><tr>
+        <td><b>沉 Sink</b></td>
+        <td class="dim">Planted, the weight goes into the cut.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">damage</td>
+      </tr>
+<tr>
+        <td><b>碾 Grind</b></td>
+        <td class="dim">At speed, the blade comes back through on the same swing.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">echo</td>
+      </tr>
+<tr>
+        <td><b>山 Mountain</b></td>
+        <td class="dim">On low health, what reaches you lands lighter.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">guard</td>
+      </tr>
+<tr>
+        <td><b>裂 Rend</b></td>
+        <td class="dim">Surrounded, the blade needs more room and takes it.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">range</td>
+      </tr>
+<tr>
+        <td><b>一斩 One Cut</b></td>
+        <td class="dim">The sweep after a turn lands like a felled tree.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">crit</td>
+      </tr></tbody></table>
+  </div>
+<div class="scroll">
+    <div class="sub">双 Twin Blades</div>
+    <table class="t"><tbody><tr>
+        <td><b>双 Pair</b></td>
+        <td class="dim">At speed, the second blade cuts behind you.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">echo</td>
+      </tr>
+<tr>
+        <td><b>缠 Entangle</b></td>
+        <td class="dim">The more of them there are, the faster the hands move.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">rate</td>
+      </tr>
+<tr>
+        <td><b>燕 Swallow</b></td>
+        <td class="dim">A turn throws you forward out of it.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">speed</td>
+      </tr>
+<tr>
+        <td><b>寸 Inch</b></td>
+        <td class="dim">Planted, everything goes into a cut you must be close to make.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">damage</td>
+      </tr>
+<tr>
+        <td><b>蝶 Butterfly</b></td>
+        <td class="dim">On low health, the blades leave your hands and circle.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">orbit</td>
+      </tr></tbody></table>
+  </div>
+<div class="scroll">
+    <div class="sub">枪 Long Spear</div>
+    <table class="t"><tbody><tr>
+        <td><b>刺 Thrust</b></td>
+        <td class="dim">Planted, the point runs a line through everything ahead.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">pierce</td>
+      </tr>
+<tr>
+        <td><b>扫 Sweep</b></td>
+        <td class="dim">Surrounded, the shaft comes round instead of forward.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">arc</td>
+      </tr>
+<tr>
+        <td><b>追 Pursue</b></td>
+        <td class="dim">The faster you go, the further ahead it reaches.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">range</td>
+      </tr>
+<tr>
+        <td><b>拦 Bar</b></td>
+        <td class="dim">Turning sets the shaft across them and drives them back.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">push</td>
+      </tr>
+<tr>
+        <td><b>龙 Dragon</b></td>
+        <td class="dim">On low health, the point spits what it cannot reach.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">bolt</td>
+      </tr></tbody></table>
+  </div>
+<div class="scroll">
+    <div class="sub">扇 Iron Fan</div>
+    <table class="t"><tbody><tr>
+        <td><b>展 Open</b></td>
+        <td class="dim">Planted, the fan opens the whole circle.</td>
+        <td class="cond">静 Still</td>
+        <td class="dim">arc</td>
+      </tr>
+<tr>
+        <td><b>风 Wind</b></td>
+        <td class="dim">At speed, qi comes to you from much further off.</td>
+        <td class="cond">疾 Running</td>
+        <td class="dim">magnet</td>
+      </tr>
+<tr>
+        <td><b>藏 Conceal</b></td>
+        <td class="dim">On low health, there is a moment where nothing lands.</td>
+        <td class="cond">危 Peril</td>
+        <td class="dim">guard</td>
+      </tr>
+<tr>
+        <td><b>乱 Scatter</b></td>
+        <td class="dim">Surrounded, the blades leave the fan in every direction.</td>
+        <td class="cond">围 Surrounded</td>
+        <td class="dim">bolt</td>
+      </tr>
+<tr>
+        <td><b>回 Return</b></td>
+        <td class="dim">A turn sends the sweep back the way it came.</td>
+        <td class="cond">转 Turning</td>
+        <td class="dim">echo</td>
+      </tr></tbody></table>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Onde se caça</p>
+  <h2>As 5 regiões</h2>
+  <div class="tablewrap"><table class="t">
+    <thead><tr><th>região</th><th class="n">prof</th><th class="n">drop/abate</th><th>a sua pergunta</th></tr></thead>
+    <tbody><tr>
+    <td><b>官道 The Post Road</b></td>
+    <td class="n">1</td>
+    <td class="n">3.0%</td>
+    <td class="dim">Open ground. Nothing here is against you but what walks it.</td>
+  </tr>
+<tr>
+    <td><b>芦荡 The Reed Marsh</b></td>
+    <td class="n">2</td>
+    <td class="n">3.4%</td>
+    <td class="dim">You wade. They do not — reach is worth more than closing.</td>
+  </tr>
+<tr>
+    <td><b>断崖 The Broken Cliff</b></td>
+    <td class="n">3</td>
+    <td class="n">3.8%</td>
+    <td class="dim">The wind pushes you, and it turns. Standing still is not standing still.</td>
+  </tr>
+<tr>
+    <td><b>鬼市 The Ghost Market</b></td>
+    <td class="n">4</td>
+    <td class="n">4.2%</td>
+    <td class="dim">Everything you cut comes apart. Killing is not automatically right.</td>
+  </tr>
+<tr>
+    <td><b>关隘 The Pass</b></td>
+    <td class="n">5</td>
+    <td class="n">4.6%</td>
+    <td class="dim">They come in ranks, from one side. For once you have a front.</td>
+  </tr></tbody>
+  </table></div>
+</section>
+
+<footer>
+  Gerado por <code>tools/catalogo.mts</code> a partir de <code>src/data/</code>.
+  Atributos: 体 Body · 锋 Edge · 疾 Swiftness · 神 Spirit.
+</footer>
+</div>
