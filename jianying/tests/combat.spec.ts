@@ -121,10 +121,20 @@ describe('swarm', () => {
   it('never exceeds the pool ceiling, even deep into a run', () => {
     const sim = newSim()
     sim.run.elapsed = 600 // jump to a brutal spawn rate
+    // The peak is tracked and asserted ONCE rather than asserting inside the
+    // loop. Sixty seconds of frames meant 3600 trips through vitest's
+    // assertion machinery, which cost more than the simulation being measured
+    // and timed the test out on CI the moment the roster got faster (a quicker
+    // field means more of it arrives and stays clustered, so each frame does
+    // more separation work). The property checked is identical: across every
+    // frame, the pool never went over its ceiling.
+    let peak = 0
     for (let i = 0; i < 3600; i++) {
       sim.swarm.update(0, 0, 600, TICK_S, sim.hazards)
-      expect(sim.swarm.count).toBeLessThanOrEqual(MAX_ENEMIES)
+      if (sim.swarm.count > peak) peak = sim.swarm.count
     }
+    expect(peak).toBeLessThanOrEqual(MAX_ENEMIES)
+    expect(peak).toBeGreaterThan(0)
   })
 
   it('moves enemies toward the player', () => {
