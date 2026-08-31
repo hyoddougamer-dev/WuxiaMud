@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    a { color: #8a6d16; } a:hover { color: #c1272d; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; background: #e8dcc0; color: #0d0d0d; padding: 26px 20px; display: flex; flex-direction: column; gap: 16px; overflow: hidden;">
+
+  <div>
+    <div style="font-size: 10px; letter-spacing: 0.24em; color: #8a6d16; margin-bottom: 5px;">A ESCADA DAS RARIDADES</div>
+    <div style="font-size: 21px; font-weight: 600; line-height: 1.25;">Seis degraus, e a cor diz tudo</div>
+    <div style="font-size: 13px; color: rgba(13,13,13,0.55); margin-top: 6px; line-height: 1.5;">Cinzento, verde, azul, roxo, dourado — a mesma ordem que já conheces de qualquer ARPG. Os selos mantêm-na wuxia. A raridade decide <b>quantas linhas</b> a peça rola.</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+
+    <div style="border: 1px solid rgba(13,13,13,0.16); border-left: 4px solid #6b6459; border-radius: 2px; background: rgba(255,252,244,0.4); padding: 11px 13px; display: flex; align-items: center; gap: 12px;">
+      <div style="font-size: 19px; color: #6b6459; width: 22px; text-align: center;">凡</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #6b6459;">Comum</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">1 linha · o chão do jogo</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~62%</div>
+    </div>
+
+    <div style="border: 1px solid rgba(63,107,70,0.4); border-left: 4px solid #3f6b46; border-radius: 2px; background: rgba(63,107,70,0.06); padding: 11px 13px; display: flex; align-items: center; gap: 12px;">
+      <div style="font-size: 19px; color: #3f6b46; width: 22px; text-align: center;">良</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #3f6b46;">Boa</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">2 linhas</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~24%</div>
+    </div>
+
+    <div style="border: 1px solid rgba(47,93,138,0.4); border-left: 4px solid #2f5d8a; border-radius: 2px; background: rgba(47,93,138,0.06); padding: 11px 13px; display: flex; align-items: center; gap: 12px;">
+      <div style="font-size: 19px; color: #2f5d8a; width: 22px; text-align: center;">珍</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #2f5d8a;">Rara</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">3 linhas</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~10%</div>
+    </div>
+
+    <div style="border: 1px solid rgba(107,63,138,0.42); border-left: 4px solid #6b3f8a; border-radius: 2px; background: rgba(107,63,138,0.06); padding: 11px 13px; display: flex; align-items: center; gap: 12px;">
+      <div style="font-size: 19px; color: #6b3f8a; width: 22px; text-align: center;">宝</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #6b3f8a;">Preciosa</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">4 linhas · roxo é a cor imperial</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~3.4%</div>
+    </div>
+
+    <div style="border: 1px solid rgba(138,109,22,0.5); border-left: 4px solid #8a6d16; border-radius: 2px; background: rgba(138,109,22,0.09); padding: 11px 13px; display: flex; align-items: center; gap: 12px; box-shadow: inset 0 0 18px rgba(212,175,55,0.22);">
+      <div style="font-size: 19px; color: #8a6d16; width: 22px; text-align: center;">神</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #8a6d16;">Divina</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">4 linhas + um poder com nome</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~0.5%</div>
+    </div>
+
+    <div style="border: 1px solid rgba(193,39,45,0.5); border-left: 4px solid #c1272d; border-radius: 2px; background: rgba(193,39,45,0.08); padding: 11px 13px; display: flex; align-items: center; gap: 12px; box-shadow: inset 0 0 18px rgba(193,39,45,0.2);">
+      <div style="font-size: 19px; color: #c1272d; width: 22px; text-align: center;">仙</div>
+      <div style="flex-grow: 1;">
+        <div style="font-size: 14.5px; font-weight: 600; color: #c1272d;">Imortal</div>
+        <div style="font-size: 11.5px; color: rgba(13,13,13,0.5);">muda uma regra do combate</div>
+      </div>
+      <div style="font-size: 11px; color: rgba(13,13,13,0.4); font-variant-numeric: tabular-nums;">~0.1%</div>
+    </div>
+  </div>
+
+  <div style="border-top: 1px solid rgba(13,13,13,0.14); padding-top: 14px;">
+    <div style="font-size: 10px; letter-spacing: 0.24em; color: #8a6d16; margin-bottom: 8px;">O QUE ISTO SUBSTITUI</div>
+    <div style="display: flex; align-items: flex-start; gap: 11px; margin-bottom: 9px;">
+      <span style="color: #c1272d; font-size: 15px; line-height: 1.2;">×</span>
+      <div style="font-size: 12.5px; line-height: 1.5; color: rgba(13,13,13,0.65);">Os <b>pips de rank</b> — um segundo eixo, invisível, que ninguém lia. A raridade absorve-o.</div>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 11px;">
+      <span style="color: #3f6b46; font-size: 15px; line-height: 1.2;">✓</span>
+      <div style="font-size: 12.5px; line-height: 1.5; color: rgba(13,13,13,0.65);">Duas Hemp Robes deixam de ser iguais. Uma rola +2 Body; a outra rola azul com +5 Body, +3 Swiftness e velocidade de golpe. <b>É essa a diferença que faz apanhar loot valer a pena.</b></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

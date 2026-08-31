@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    a { color: #8a6d16; } a:hover { color: #c1272d; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; background: #e8dcc0; color: #0d0d0d; display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- character strip, matching the hub's existing header -->
+  <div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid rgba(13,13,13,0.12);">
+    <div style="width: 44px; height: 44px; background: #c1272d; color: #e8dcc0; display: grid; place-content: center; font-size: 15px; letter-spacing: -1px; border-radius: 2px;">淬体</div>
+    <div style="flex-grow: 1;">
+      <div style="font-size: 17px; font-weight: 600;">Wei Zilan</div>
+      <div style="display: flex; align-items: baseline; gap: 7px; font-size: 12px; color: rgba(13,13,13,0.5);">
+        <span>Qi Refining</span><span style="color: #8a6d16; font-weight: 600;">Level 6</span>
+      </div>
+    </div>
+    <div style="text-align: right; font-size: 11px; color: rgba(13,13,13,0.45);">
+      <div style="font-variant-numeric: tabular-nums;">18 / 24</div>
+      <div style="letter-spacing: 0.06em;">CARREGADO</div>
+    </div>
+  </div>
+
+  <!-- equipped: the doll, eight slots around it -->
+  <div style="padding: 14px 16px 10px;">
+    <div style="display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center;">
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- head, rare -->
+        <div style="position: relative; height: 60px; border: 1px solid #2f5d8a; border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(47,93,138,0.07); display: grid; place-content: center;">
+          <svg width="26" height="26" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.75" aria-hidden="true"><path d="M256 32c-18 0-33 15-33 33v16h-30c-53 0-96 43-96 96v14h318v-14c0-53-43-96-96-96h-30V65c0-18-15-33-33-33zM97 223v40h318v-40zm0 62v42c0 53 43 96 96 96h126c53 0 96-43 96-96v-42z"/></svg>
+          <span style="position: absolute; bottom: 3px; right: 4px; font-size: 8px; color: #2f5d8a; font-weight: 700;">珍</span>
+        </div>
+        <!-- shoulders, fine -->
+        <div style="position: relative; height: 60px; border: 1px solid #3f6b46; border-left: 3px solid #3f6b46; border-radius: 2px; background: rgba(63,107,70,0.07); display: grid; place-content: center;">
+          <svg width="26" height="26" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.75" aria-hidden="true"><path d="M256 40 150 84c-42 18-70 58-70 104v52h96l24-64 56-20 56 20 24 64h96v-52c0-46-28-86-70-104zM80 288v76c0 24 20 44 44 44h72l-20-120zm352 0h-96l-20 120h72c24 0 44-20 44-44z"/></svg>
+          <span style="position: absolute; bottom: 3px; right: 4px; font-size: 8px; color: #3f6b46; font-weight: 700;">良</span>
+        </div>
+        <!-- bracers, common -->
+        <div style="position: relative; height: 60px; border: 1px solid rgba(13,13,13,0.2); border-left: 3px solid #6b6459; border-radius: 2px; background: rgba(255,252,244,0.4); display: grid; place-content: center;">
+          <svg width="26" height="26" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.55" aria-hidden="true"><path d="M140 60h232l-22 96H162zm18 130h196l-20 116H178zm22 150h152l-24 132H204z"/></svg>
+        </div>
+      </div>
+
+      <!-- the swordsman -->
+      <div style="display: grid; place-content: center; padding: 6px 0;">
+        <svg width="112" height="180" viewBox="0 0 112 180" aria-hidden="true">
+          <ellipse cx="56" cy="170" rx="26" ry="6" fill="#0d0d0d" opacity="0.13"/>
+          <path d="M56 22c7 0 12 5 12 12s-5 13-12 13-12-6-12-13 5-12 12-12z" fill="#0d0d0d"/>
+          <path d="M56 12c5 0 8 4 8 8s-3 7-8 7-8-3-8-7 3-8 8-8z" fill="#0d0d0d"/>
+          <path d="M36 50c4-6 12-9 20-9s16 3 20 9c6 10 8 26 8 44 0 22-3 46-6 60H34c-3-14-6-38-6-60 0-18 2-34 8-44z" fill="#0d0d0d"/>
+          <path d="M50 52h12l-6 16z" fill="#e8dcc0"/>
+          <path d="M34 154h44l-4 14H38z" fill="#0d0d0d"/>
+          <path d="M78 62 106 30" stroke="#0d0d0d" stroke-width="3" fill="none"/>
+          <path d="M46 96c-3 22-2 40 2 56" stroke="#c1272d" stroke-width="4" fill="none" opacity="0.85"/>
+        </svg>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- weapon, legendary -->
+        <div style="position: relative; height: 60px; border: 1px solid #8a6d16; border-left: 3px solid #8a6d16; border-radius: 2px; background: rgba(138,109,22,0.1); display: grid; place-content: center; box-shadow: inset 0 0 14px rgba(212,175,55,0.25);">
+          <svg width="26" height="26" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.8" aria-hidden="true"><path d="M448 40 214 274l-16 48 48-16L480 72zM178 310l-52 52 24 24 52-52zm-72 72-34 34a24 24 0 0 0 34 34l34-34z"/></svg>
+          <span style="position: absolute; bottom: 3px; right: 4px; font-size: 8px; color: #8a6d16; font-weight: 700;">神</span>
+        </div>
+        <!-- robe, exquisite -->
+        <div style="position: relative; height: 60px; border: 1px solid #6b3f8a; border-left: 3px solid #6b3f8a; border-radius: 2px; background: rgba(107,63,138,0.07); display: grid; place-content: center;">
+          <svg width="26" height="26" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.75" aria-hidden="true"><path d="M200 40h112l72 48-40 72-24-16v328H184V144l-24 16-40-72z"/></svg>
+          <span style="position: absolute; bottom: 3px; right: 4px; font-size: 8px; color: #6b3f8a; font-weight: 700;">宝</span>
+        </div>
+        <!-- belt, empty -->
+        <div style="height: 60px; border: 1px dashed rgba(13,13,13,0.22); border-radius: 2px; display: grid; place-content: center;">
+          <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.22" aria-hidden="true"><path d="M40 200h432v112H40zm168 20h96v72h-96z"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- boots + charm, under the doll -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+      <div style="position: relative; height: 46px; border: 1px solid rgba(13,13,13,0.2); border-left: 3px solid #6b6459; border-radius: 2px; background: rgba(255,252,244,0.4); display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+        <svg width="20" height="20" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.55" aria-hidden="true"><path d="M120 60h96v180l140 76c30 16 48 47 48 81v55H120z"/></svg>
+        <span style="font-size: 11.5px; color: rgba(13,13,13,0.7);">Straw Sandals</span>
+      </div>
+      <div style="height: 46px; border: 1px dashed rgba(13,13,13,0.22); border-radius: 2px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+        <svg width="20" height="20" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.22" aria-hidden="true"><circle cx="256" cy="330" r="96"/><path d="M226 60h60v150h-60z"/></svg>
+        <span style="font-size: 11.5px; color: rgba(13,13,13,0.3);">Charm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- the bag -->
+  <div style="flex-grow: 1; padding: 4px 16px 0; display: flex; flex-direction: column; min-height: 0;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px;">
+      <span style="font-size: 10px; letter-spacing: 0.24em; color: rgba(13,13,13,0.45);">A MOCHILA</span>
+      <span style="font-size: 11px; color: #8a6d16;">tocar para comparar</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px;">
+      <div style="aspect-ratio: 1; border: 1px solid #8a6d16; border-radius: 2px; background: rgba(138,109,22,0.12); display: grid; place-content: center; box-shadow: inset 0 0 12px rgba(212,175,55,0.3);">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.8" aria-hidden="true"><path d="M448 40 214 274l-16 48 48-16L480 72zM178 310l-52 52 24 24 52-52z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid #6b3f8a; border-radius: 2px; background: rgba(107,63,138,0.09); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.7" aria-hidden="true"><path d="M200 40h112l72 48-40 72-24-16v328H184V144l-24 16-40-72z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid #2f5d8a; border-radius: 2px; background: rgba(47,93,138,0.09); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.7" aria-hidden="true"><path d="M256 32c-18 0-33 15-33 33v16h-30c-53 0-96 43-96 96v14h318v-14c0-53-43-96-96-96h-30V65c0-18-15-33-33-33zM97 223v40h318v-40z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid #3f6b46; border-radius: 2px; background: rgba(63,107,70,0.09); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.7" aria-hidden="true"><path d="M256 40 150 84c-42 18-70 58-70 104v52h96l24-64 56-20 56 20 24 64h96v-52c0-46-28-86-70-104z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid rgba(13,13,13,0.18); border-radius: 2px; background: rgba(255,252,244,0.45); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.45" aria-hidden="true"><path d="M140 60h232l-22 96H162z"/></svg>
+      </div>
+
+      <div style="aspect-ratio: 1; border: 1px solid #c1272d; border-radius: 2px; background: rgba(193,39,45,0.1); display: grid; place-content: center; box-shadow: inset 0 0 12px rgba(193,39,45,0.28);">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.8" aria-hidden="true"><circle cx="256" cy="330" r="86"/><path d="M226 70h60v140h-60z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid #2f5d8a; border-radius: 2px; background: rgba(47,93,138,0.09); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.7" aria-hidden="true"><path d="M120 60h96v180l140 76c30 16 48 47 48 81v55H120z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid rgba(13,13,13,0.18); border-radius: 2px; background: rgba(255,252,244,0.45); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.45" aria-hidden="true"><path d="M40 200h432v112H40z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px solid #3f6b46; border-radius: 2px; background: rgba(63,107,70,0.09); display: grid; place-content: center;">
+        <svg width="24" height="24" viewBox="0 0 512 512" fill="#0d0d0d" opacity="0.7" aria-hidden="true"><path d="M200 40h112l72 48-40 72-24-16v328H184V144l-24 16-40-72z"/></svg>
+      </div>
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+      <div style="aspect-ratio: 1; border: 1px dashed rgba(13,13,13,0.16); border-radius: 2px;"></div>
+    </div>
+  </div>
+
+  <!-- pinned action + tabs, exactly as the hub already does it -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(13,13,13,0.12);">
+    <div>
+      <div style="font-size: 12px; color: #c1272d;">官道</div>
+      <div style="font-size: 15px;">The Post Road</div>
+    </div>
+    <div style="background: #0d0d0d; color: #e8dcc0; padding: 15px 26px; font-size: 14px; letter-spacing: 0.14em; border-radius: 2px;">SET OUT</div>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(13,13,13,0.12);">
+    <div style="text-align: center; padding: 9px 0 11px;">
+      <div style="font-size: 17px; opacity: 0.4;">剑</div>
+      <div style="font-size: 9.5px; letter-spacing: 0.06em; opacity: 0.4;">SWORDSMAN</div>
+    </div>
+    <div style="text-align: center; padding: 9px 0 11px; background: rgba(13,13,13,0.05); border-top: 2px solid #c1272d; margin-top: -1px;">
+      <div style="font-size: 17px;">装</div>
+      <div style="font-size: 9.5px; letter-spacing: 0.06em;">EQUIPMENT</div>
+    </div>
+    <div style="text-align: center; padding: 9px 0 11px;">
+      <div style="font-size: 17px; opacity: 0.4;">法</div>
+      <div style="font-size: 9.5px; letter-spacing: 0.06em; opacity: 0.4;">ARTS</div>
+    </div>
+    <div style="text-align: center; padding: 9px 0 11px;">
+      <div style="font-size: 17px; opacity: 0.4;">界</div>
+      <div style="font-size: 9.5px; letter-spacing: 0.06em; opacity: 0.4;">WORLD</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "Sistema.dc.html", "x": 0, "y": 0, "w": 560, "h": 700, "title": "O sistema, simplificado" },
+    { "file": "Raridades.dc.html", "x": 680, "y": 0, "w": 390, "h": 844, "title": "As raridades" },
+    { "file": "Drop.dc.html", "x": 1150, "y": 0, "w": 390, "h": 844, "title": "Um drop no chão" },
+    { "file": "Main.dc.html", "x": 1620, "y": 0, "w": 390, "h": 844, "title": "O inventário" },
+    { "file": "Comparar.dc.html", "x": 2090, "y": 0, "w": 390, "h": 844, "title": "Comparar e equipar" }
+  ],
+  "annotations": [
+    {
+      "id": "leia-primeiro",
+      "x": 0,
+      "y": -150,
+      "w": 560,
+      "text": "Começa pelo primeiro quadro — é a resposta à tua crítica.\nOs quatro telemóveis a seguir são os ecrãs a sério, pela ordem em que os viverias: vês a raridade, apanhas o drop, abres a mochila, comparas e equipas."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
