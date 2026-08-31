@@ -33,7 +33,7 @@ const esc = (text: string): string =>
 const pct = (n: number, places = 2): string => `${(n * 100).toFixed(places)}%`
 
 // --- the ladder --------------------------------------------------------------
-const attuneLadder = RARITIES.map((tier) => {
+const rarityLadder = RARITIES.map((tier) => {
   const odds = [1, 3, 5].map((d) => rarityOdds(d)[tier.id]!)
   return `<tr>
     <td><b style="color:${tier.css}">${tier.seal} ${tier.name}</b></td>
@@ -110,7 +110,7 @@ const arts = WEAPONS.map((w) => {
 }).join('\n')
 
 // --- the named powers --------------------------------------------------------
-const ladder = RARITIES.map((tier) => {
+const attuneLadder = RARITIES.map((tier) => {
   const rungs = [tier.id, tier.id, tier.id, tier.id]
   return (
     `<tr><td><b style="color:${tier.css}">${tier.seal}</b> ${tier.name}</td>` +
@@ -251,7 +251,7 @@ footer code { font-family: "IBM Plex Mono", monospace; }
   <p class="note">A raridade decide quantas linhas a peça rola e quanto maior cada uma sai. As probabilidades sobem com a profundidade, mas nenhum degrau fecha — a estrada mais fácil pode, raramente, entregar algo extraordinário.</p>
   <div class="tablewrap"><table class="t">
     <thead><tr><th>degrau</th><th class="n">linhas</th><th class="n">potência</th><th class="n">prof 1</th><th class="n">prof 3</th><th class="n">prof 5</th></tr></thead>
-    <tbody>${ladder}</tbody>
+    <tbody>${rarityLadder}</tbody>
   </table></div>
 </section>
 
