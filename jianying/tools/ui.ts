@@ -26,8 +26,10 @@ import { palette } from '../src/render/palette'
 import { portraitSvg } from '../src/render/silhouette'
 import { gearFromIds } from '../src/render/wardrobe'
 import { CONDITION_BY_ID, artsFor, type Art, type EffectKind } from '../src/data/arts'
-import { effectIconSvg } from '../src/render/packIcons'
+import { conditionIconSvg, effectIconSvg } from '../src/render/packIcons'
 import { ITEM_BY_ID, statLine } from '../src/data/items'
+import { REGIONS } from '../src/data/regions'
+import { regionVignette } from '../src/render/regionArt'
 import { W, hex, label } from './sheet'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -156,6 +158,21 @@ const artIcon = (effect: EffectKind, x: number, y: number, size: number, lit: bo
     `<svg width="${size}" height="${size}" x="${x - size / 2}" y="${y - size / 2}" `,
   )
 
+/** Trims to a length without cutting a word in half. */
+const clip = (body: string, max: number): string => {
+  if (body.length <= max) return body
+  const cut = body.slice(0, max)
+  const space = cut.lastIndexOf(' ')
+  return `${space > max * 0.6 ? cut.slice(0, space) : cut}…`
+}
+
+/** The pictogram for a condition — what the player has to DO, drawn. */
+const condIcon = (condition: string, x: number, y: number, size: number, lit: boolean): string =>
+  conditionIconSvg(condition, lit ? palette.cinnabar : palette.ink, lit ? 1 : 0.3, 'c-icon').replace(
+    '<svg class="c-icon" ',
+    `<svg width="${size}" height="${size}" x="${x - size / 2}" y="${y - size / 2}" `,
+  )
+
 /**
  * The art strip — what was asked for as a hotbar.
  *
@@ -196,17 +213,19 @@ function artStrip(
         strokeOp: lit ? 0.9 : 0.14,
         r: 5,
       }),
-      artIcon(art.effect, tx + tile / 2, y + 24, 40, lit),
-      // The condition seal, small and beneath: this is the thing the player has
-      // to DO, so it is on the tile rather than in a menu.
-      seal(
-        tx + tile / 2,
-        y + 52,
-        CONDITION_BY_ID.get(art.condition)!.seal,
-        13,
-        lit ? cinnabar : ink,
-        lit ? 1 : 0.3,
-      ),
+      // 34 and not 40: at 40 the effect icon reached y+44 and the condition
+      // pictogram below it started at y+38, so the two marks overlapped on
+      // every tile — a spearhead with a seated figure inside it.
+      artIcon(art.effect, tx + tile / 2, y + 22, 34, lit),
+      // A PICTURE of what the player has to do, not the seal for it.
+      //
+      // "Muitos caracteres em chinês não pode induzir players em erro?" — yes,
+      // and this tile was the worst case in the game: 静 alone, on the one
+      // element a player must read mid-fight, asking someone who reads no
+      // Chinese to learn a character by dying. The seals stay everywhere they
+      // are identity (names, the scroll, the hub); wherever a mark carries a
+      // MECHANIC it is now a pictogram — see render/packIcons PACK_CONDITION_ICON.
+      condIcon(art.condition, tx + tile / 2, y + 46, 16, lit),
     )
     // Grade pips along the bottom edge.
     if (!pips) return
@@ -747,6 +766,218 @@ function screenWorld(): string {
     box(PH.w - M - 158, PH.h - 138, 158, 50, { fill: palette.ink, fillOp: 0.92, strokeOp: 0 }),
     text(PH.w - M - 79, PH.h - 106, 'SET OUT', 14, paper, 0.95, 'middle', '600'),
     tabs(3),
+  )
+  return o.join('')
+}
+
+// ===========================================================================
+// SCREEN 14 — 界, the world as places rather than as a list
+// ===========================================================================
+/**
+ * "Queria a tab world mais elaborada e não meramente texto."
+ *
+ * The tab was five rows of type, and five rows of type cannot make anywhere
+ * feel like a place — which matters more here than in most games, because the
+ * whole design asks the player to choose WHERE to walk rather than which
+ * difficulty number to pick. If the marsh does not look like a marsh, that
+ * choice is arithmetic again.
+ *
+ * The art is drawn by `render/regionArt.ts`, in code, in the game's own ink
+ * vocabulary. That is not a compromise dressed up as a decision: every image
+ * host, asset site and generation API is unreachable from the machine this is
+ * built on, which is the same constraint that produced the ink direction in the
+ * first place. It also means a region added later arrives with its own picture
+ * instead of waiting on an art order, and the whole set weighs nothing.
+ *
+ * The tab and the rift are ONE screen now. Two screens — a list of places, then
+ * a panel of what is rolled there — made the player navigate to find out what
+ * was on offer, and a roll you have to go looking for is not an offer.
+ */
+function screenWorldMap(): string {
+  const o: string[] = [header('Shen Baoyu', '筑基 Foundation Building', 12)]
+  const M = 12
+  const CW = PH.w - M * 2
+  const VH = 104
+  let y = 104
+
+  o.push(
+    text(M + 4, y, 'AS FENDAS ABERTAS', 10, ink, 0.45, 'start', '600'),
+    text(PH.w - M - 4, y, 'viram em 2h14', 9, goldDeep, 0.75, 'end'),
+  )
+  y += 12
+
+  // Omens, as marks rather than as sentences. Two or three per rift, and the
+  // colour says which way they cut before a single word is read.
+  const OMEN_ROWS: Array<Array<[string, boolean]>> = [
+    [['丰', true], ['沉', false]],
+    [['血雾', false], ['双弓', false], ['丰', true]],
+    [['纸', false], ['疫', false]],
+    [['群', false], ['玉', true]],
+    [['?', false]],
+  ]
+
+  REGIONS.forEach((region, i) => {
+    const open = i < 4
+    const tier = [4, 6, 7, 9, 0][i]!
+    o.push(`<g opacity="${open ? 1 : 0.42}">`)
+    // The vignette, clipped by the card. Drawn first so everything else sits on
+    // top of it, which is also the reading order: place, then name, then terms.
+    o.push(
+      `<svg x="${M}" y="${y}" width="${CW}" height="${VH}" viewBox="0 0 ${CW} ${VH}">` +
+        `<rect width="${CW}" height="${VH}" fill="${paper}"/>` +
+        regionVignette(region.id, { w: CW, h: VH }) +
+        `</svg>`,
+    )
+    // A scrim only under the type, so the picture is not dimmed to make room
+    // for words.
+    o.push(
+      `<rect x="${M}" y="${y + VH - 34}" width="${CW}" height="34" fill="${paper}" ` +
+        `fill-opacity="0.82"/>`,
+      `<rect x="${M}" y="${y}" width="${CW}" height="${VH}" fill="none" stroke="${ink}" ` +
+        `stroke-opacity="0.16"/>`,
+      seal(M + 22, y + VH - 12, region.seal, 14, ink, 0.85),
+      text(M + 40, y + VH - 15, region.name.replace('The ', ''), 12, ink, 0.9, 'start', '600'),
+      // Truncated at a WORD, not at a character. Cutting mid-word ("against
+      // you b") reads as a rendering bug rather than as an abbreviation.
+      text(M + 40, y + VH - 4, clip(region.ruleText, 44), 8, ink, 0.5),
+    )
+    if (open) {
+      o.push(
+        `<rect x="${M + CW - 52}" y="${y + 8}" width="44" height="20" rx="3" fill="${paper}" ` +
+          `fill-opacity="0.85"/>`,
+        text(M + CW - 30, y + 22, `阶 ${tier}`, 11, goldDeep, 0.95, 'middle', '600'),
+      )
+      // The omen chips, top-left over the sky where every vignette is empty.
+      let ox = M + 8
+      for (const [glyph, good] of OMEN_ROWS[i]!) {
+        const w = glyph.length > 1 ? 26 : 18
+        o.push(
+          `<rect x="${ox}" y="${y + 8}" width="${w}" height="20" rx="3" ` +
+            `fill="${good ? gold : cinnabar}" fill-opacity="0.16" stroke="${good ? gold : cinnabar}" ` +
+            `stroke-opacity="0.5"/>`,
+          seal(ox + w / 2, y + 22, glyph, glyph.length > 1 ? 9 : 12, good ? goldDeep : cinnabar, 0.95),
+        )
+        ox += w + 5
+      }
+    } else {
+      o.push(
+        `<rect x="${M + CW - 128}" y="${y + 8}" width="120" height="20" rx="3" fill="${paper}" ` +
+          `fill-opacity="0.85"/>`,
+        text(M + CW - 68, y + 22, 'fechada até 金丹', 9.5, ink, 0.6, 'middle'),
+      )
+    }
+    o.push(`</g>`)
+    y += VH + 10
+  })
+
+  o.push(
+    text(PH.w / 2, y + 18, 'Toca numa fenda para ver o que cai lá.', 9.5, ink, 0.45, 'middle'),
+    tabs(3),
+  )
+  return o.join('')
+}
+
+// ===========================================================================
+// SCREEN 15 — the long press, which is what a phone has instead of a tooltip
+// ===========================================================================
+/**
+ * "Não tem tooltips?"
+ *
+ * Not in combat, and that is deliberate rather than missing: there is nothing
+ * to hover on a phone and nothing to tap during a fight — the thumb is spent on
+ * moving. So the explaining happens in the two places where the player has
+ * time, and the strip stays a readout.
+ *
+ *   LONG PRESS anywhere an art or a piece is shown in the hub, and this panel
+ *   opens. It says what wakes the art, what the art then does, what the next
+ *   grade is worth, and it says it in words, with the pictogram and the seal
+ *   side by side — which is also where a player LEARNS that 静 means the seated
+ *   figure means stop moving.
+ *
+ *   THE FIRST TIME a condition fires in a run, one line crosses the screen and
+ *   never appears again. That is the teaching moment the strip cannot carry.
+ */
+function screenTip(): string {
+  const o: string[] = [header('Shen Baoyu', '筑基 Foundation Building', 12)]
+  const M = 16
+  const art = SCROLL[0]!
+  const cond = CONDITION_BY_ID.get(art.condition)!
+
+  // The tab underneath, dimmed, so the panel reads as something that opened on
+  // top of the scroll rather than as another screen.
+  o.push(
+    `<g opacity="0.25">`,
+    text(M, 120, 'ROLO DO STRAIGHT JIAN', 10, ink, 0.45, 'start', '600'),
+    ...SCROLL.slice(0, 4).map((a, i) =>
+      [
+        box(M, 136 + i * 58, PH.w - M * 2, 50),
+        artIcon(a.effect, M + 34, 161 + i * 58, 30, false),
+        text(M + 60, 166 + i * 58, a.name, 12.5, ink, 0.8),
+      ].join(''),
+    ),
+    `</g>`,
+    `<rect x="0" y="88" width="${PH.w}" height="${PH.h - 88}" fill="${ink}" fill-opacity="0.35"/>`,
+  )
+
+  const py = 232
+  const ph = 384
+  o.push(
+    `<rect x="${M}" y="${py}" width="${PH.w - M * 2}" height="${ph}" rx="6" fill="${paper}"/>`,
+    `<rect x="${M}" y="${py}" width="${PH.w - M * 2}" height="${ph}" rx="6" fill="none" ` +
+      `stroke="${ink}" stroke-opacity="0.3"/>`,
+    // The art itself.
+    artIcon(art.effect, M + 44, py + 44, 44, true),
+    text(M + 78, py + 38, art.name, 17, ink, 0.92, 'start', '600'),
+    // Placed off the NAME's length. A fixed offset put 点 flush against
+    // "Point" — the two ran together into one word.
+    seal(M + 78 + art.name.length * 9.4 + 12, py + 38, art.seal, 15, cinnabar, 0.85),
+    text(M + 78, py + 56, `Grau 3 de 5 · ${art.effect}`, 9.5, goldDeep, 0.9),
+    rule(M + 16, py + 76, PH.w - M * 2 - 32),
+  )
+
+  // WHAT WAKES IT — the pictogram, the seal and the instruction, together. This
+  // is the only place all three appear at once, and it is how the pictogram on
+  // the strip acquires a meaning.
+  let ty = py + 96
+  o.push(
+    text(M + 16, ty, 'O QUE A ACORDA', 9, ink, 0.4, 'start', '600'),
+    `<rect x="${M + 16}" y="${ty + 10}" width="${PH.w - M * 2 - 32}" height="56" rx="4" ` +
+      `fill="${cinnabar}" fill-opacity="0.06" stroke="${cinnabar}" stroke-opacity="0.3"/>`,
+    condIcon(art.condition, M + 46, ty + 38, 30, true),
+    text(M + 74, ty + 32, cond.name, 12.5, ink, 0.9, 'start', '600'),
+    seal(M + 74 + cond.name.length * 7.4 + 12, ty + 32, cond.seal, 13, cinnabar, 0.8),
+    text(M + 74, ty + 48, cond.how, 9.5, ink, 0.55),
+  )
+  ty += 84
+
+  o.push(
+    text(M + 16, ty, 'O QUE FAZ', 9, ink, 0.4, 'start', '600'),
+    text(M + 16, ty + 18, art.blurb, 11, ink, 0.8),
+    text(M + 16, ty + 36, 'Enquanto a condição se mantiver. Deixas de a cumprir,', 9.5, ink, 0.5),
+    text(M + 16, ty + 49, 'e a arte adormece no mesmo instante.', 9.5, ink, 0.5),
+  )
+  ty += 74
+
+  o.push(
+    text(M + 16, ty, 'GRAU', 9, ink, 0.4, 'start', '600'),
+    text(PH.w - M - 16, ty, '3 → 4', 9.5, goldDeep, 0.9, 'end', '600'),
+  )
+  for (let p = 0; p < 5; p++) {
+    o.push(
+      `<rect x="${M + 16 + p * 30}" y="${ty + 12}" width="24" height="5" rx="2.5" ` +
+        `fill="${goldDeep}" fill-opacity="${p < 3 ? 0.85 : 0.16}"/>`,
+    )
+  }
+  o.push(
+    text(M + 16, ty + 36, 'Sobe com 感悟, pela ordem em que puseste as artes.', 9.5, ink, 0.5),
+    text(M + 16, ty + 49, 'Esta é a primeira, por isso é a que sobe primeiro.', 9.5, ink, 0.5),
+  )
+
+  o.push(
+    box(M + 16, py + ph - 56, PH.w - M * 2 - 32, 40, {
+      fill: palette.ink, fillOp: 0.9, strokeOp: 0,
+    }),
+    text(PH.w / 2, py + ph - 30, 'FECHAR', 12, paper, 0.95, 'middle', '600'),
   )
   return o.join('')
 }
@@ -1323,6 +1554,8 @@ const SCREENS: Array<{ file: string; title: string; tag: string; draw: () => str
   { file: '11-play-rift', title: 'A fenda · a encher', tag: 'PROPOSTA', draw: screenPlayRift },
   { file: '12-gate', title: 'A fenda · o portão', tag: 'PROPOSTA', draw: screenGate },
   { file: '13-push', title: 'A fenda · sair ou descer', tag: 'PROPOSTA', draw: screenPush },
+  { file: '14-world', title: 'Hub · 界 Mundo (novo)', tag: 'PROPOSTA', draw: screenWorldMap },
+  { file: '15-tip', title: 'Toque longo · o que isto é', tag: 'PROPOSTA', draw: screenTip },
   { file: '02-arts', title: 'Hub · 法 Artes', tag: 'PROPOSTA', draw: screenArts },
   { file: '03-gear', title: 'Hub · 装 Equipamento', tag: 'HOJE', draw: screenGear },
   { file: '08-doll', title: 'Hub · 装 Paperdoll', tag: 'PROPOSTA', draw: screenDoll },

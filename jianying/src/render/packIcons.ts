@@ -85,6 +85,36 @@ export const PACK_ICON: Record<EffectKind, string> = {
   heal: 'health-potion',
 }
 
+/**
+ * Icons for the five conditions — and the rule that produced them.
+ *
+ * A SEAL MAY NEVER BE THE ONLY THING CARRYING A MECHANIC. The strip used to put
+ * 静 on a tile and nothing else, which asks a player who reads no Chinese to
+ * learn that "静" means "stop moving" by dying a few times. The seals are the
+ * game's identity and they stay — beside the name, on the scroll, in the hub —
+ * but wherever a mark tells the player what to DO, it has to be a picture of
+ * doing it.
+ *
+ * Picked by laying every candidate out at 40px AND at 16px, which is the size
+ * the strip actually draws. Half the shortlist turned to mush at 16 and was
+ * dropped for that alone (running-ninja, surrounded-shield, bleeding-heart).
+ */
+export const PACK_CONDITION_ICON: Record<string, string> = {
+  /** A seated figure. Squat and symmetric — the opposite silhouette to `run`. */
+  still: 'meditation',
+  /** A running figure. Leaning and asymmetric, unmistakable at 16px. */
+  running: 'run',
+  /**
+   * A hooked arrow doubling back. Chosen over the rotation icons, which read as
+   * "spin" — the condition is reversing, not turning on the spot.
+   */
+  turn: 'return-arrow',
+  /** A ring of marks around a centre. It draws the mechanic literally. */
+  surrounded: 'encirclement',
+  /** A split heart. The only heart on a live tile, so nothing collides. */
+  peril: 'broken-heart',
+}
+
 /** Icons for the equipment slots, where "draw the thing" is the right answer. */
 export const PACK_SLOT_ICON: Record<string, string> = {
   head: 'asian-lantern',
@@ -131,3 +161,11 @@ export const effectIconSvg = (
   opacity = 1,
   className = 'pack-icon',
 ): string => packIconSvg(PACK_ICON[effect], colour, opacity, className)
+
+/** The icon for a condition — a picture of what the player has to do. */
+export const conditionIconSvg = (
+  condition: string,
+  colour: number,
+  opacity = 1,
+  className = 'pack-icon',
+): string => packIconSvg(PACK_CONDITION_ICON[condition] ?? '', colour, opacity, className)

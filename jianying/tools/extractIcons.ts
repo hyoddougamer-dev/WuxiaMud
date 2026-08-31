@@ -23,7 +23,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
-import { PACK_ICON, PACK_SLOT_ICON } from '../src/render/packIcons'
+import { PACK_CONDITION_ICON, PACK_ICON, PACK_SLOT_ICON } from '../src/render/packIcons'
 
 interface IconEntry {
   body: string
@@ -40,7 +40,13 @@ const SET = iconSet as unknown as {
 
 const OUT = join(fileURLToPath(new URL('..', import.meta.url)), 'src', 'render', 'packIconData.ts')
 
-const wanted = [...new Set([...Object.values(PACK_ICON), ...Object.values(PACK_SLOT_ICON)])].sort()
+const wanted = [
+  ...new Set([
+    ...Object.values(PACK_ICON),
+    ...Object.values(PACK_SLOT_ICON),
+    ...Object.values(PACK_CONDITION_ICON),
+  ]),
+].sort()
 
 const missing = wanted.filter((name) => !SET.icons[name])
 if (missing.length) {

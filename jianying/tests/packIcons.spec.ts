@@ -14,12 +14,14 @@ import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
 import {
   PACK_ICON,
   PACK_SLOT_ICON,
+  PACK_CONDITION_ICON,
   PACK_CREDIT,
   packIconSvg,
   effectIconSvg,
+  conditionIconSvg,
 } from '../src/render/packIcons'
 import { PACK_ICON_DATA } from '../src/render/packIconData'
-import { ARTS } from '../src/data/arts'
+import { ARTS, CONDITIONS } from '../src/data/arts'
 
 const icons = (iconSet as unknown as { icons: Record<string, unknown> }).icons
 
@@ -36,6 +38,29 @@ describe('pack icons', () => {
     }
     for (const [slot, name] of Object.entries(PACK_SLOT_ICON)) {
       expect(icons[name], `slot ${slot} points at "${name}", which is not in the set`).toBeDefined()
+    }
+    for (const [id, name] of Object.entries(PACK_CONDITION_ICON)) {
+      expect(icons[name], `condition ${id} points at "${name}", which is not in the set`).toBeDefined()
+    }
+  })
+
+  it('draws a picture for every condition, so no seal carries a mechanic alone', () => {
+    // The rule this pins: a player who reads no Chinese must still be able to
+    // learn what wakes an art. A missing entry here does not throw — the tile
+    // silently falls back to being nothing but 静, which is the exact failure
+    // the condition icons were added to remove.
+    for (const cond of CONDITIONS) {
+      const name = PACK_CONDITION_ICON[cond.id]
+      expect(name, `${cond.id} (${cond.seal}) has no picture`).toBeTruthy()
+      expect(PACK_ICON_DATA[name!], `${cond.id} ("${name}") is not extracted`).toBeDefined()
+      expect(conditionIconSvg(cond.id, 0x000000)).toContain('<svg')
+    }
+    // And a condition icon must never be an effect icon: the strip shows both on
+    // one tile, and the same mark twice reads as a duplicate rather than as two
+    // facts.
+    const effects = new Set(Object.values(PACK_ICON))
+    for (const [id, name] of Object.entries(PACK_CONDITION_ICON)) {
+      expect(effects.has(name), `${id} reuses the effect icon "${name}"`).toBe(false)
     }
   })
 

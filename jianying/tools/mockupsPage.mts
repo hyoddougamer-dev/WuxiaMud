@@ -34,22 +34,34 @@ interface Shot {
 
 const COMBAT: Shot[] = [
   {
-    file: 'ui/01a-play-nada.svg',
-    name: 'A — 无字',
-    seal: '无',
-    note: 'Zero dígitos. A vida é o círculo de chão que seguras, e o 感悟 é o fio por baixo da barra. Nada para ler, tudo para ver.',
-  },
-  {
-    file: 'ui/01b-play-margem.svg',
-    name: 'B — 裱',
-    seal: '裱',
-    note: 'A HUD como a montagem de um rolo suspenso: duas colunas nas margens, que enchem de baixo para cima. O centro fica limpo.',
-  },
-  {
     file: 'ui/01c-play-base.svg',
-    name: 'C — 底',
+    name: 'C 底 — escolhida',
     seal: '底',
-    note: 'Uma só consola em baixo: vida por cima da barra das artes, 感悟 por baixo, tudo à mesma largura. Metade de cima do telemóvel vazia.',
+    note: 'Uma só consola em baixo: vida por cima da barra das artes, 感悟 por baixo, tudo à mesma largura. Metade de cima do telemóvel vazia. Os selos das condições saíram das casas — agora são pictogramas.',
+  },
+  {
+    file: 'ui/11-play-rift.svg',
+    name: 'C, com a fenda',
+    seal: '杀',
+    note: 'A mesma consola, mais a aresta de 3px no topo: a fenda a encher. É a única coisa que sobrevive a apagar a HUD de cima.',
+  },
+]
+
+const LEARN: Shot[] = [
+  {
+    file: 'ui/15-tip.svg',
+    name: 'Toque longo',
+    seal: '解',
+    note: 'Não há tooltips em combate porque não há hover num telemóvel e o polegar está ocupado a andar. O explicar acontece aqui, onde há tempo: o que acorda a arte, o que ela faz, e quanto vale o grau seguinte. É também onde 静 e o boneco sentado aparecem lado a lado — é assim que o pictograma ganha um nome.',
+  },
+]
+
+const WORLD: Shot[] = [
+  {
+    file: 'ui/14-world.svg',
+    name: 'A tab 界, com arte',
+    seal: '界',
+    note: 'Cada região tem a sua vinheta, desenhada por código no mesmo vocabulário de tinta do jogo. A tab e a fenda passaram a ser um só ecrã: o andar e os presságios estão na própria carta do sítio.',
   },
 ]
 
@@ -58,13 +70,7 @@ const RIFT: Shot[] = [
     file: 'ui/10-rift.svg',
     name: 'Antes de entrar',
     seal: '隙',
-    note: 'Região, andar e presságios, sorteados e visíveis antes de decidires. Três fendas abertas ao mesmo tempo; ressortear custa.',
-  },
-  {
-    file: 'ui/11-play-rift.svg',
-    name: 'A barra a encher',
-    seal: '杀',
-    note: 'A aresta de 3px no topo é a fenda. Enche a matar, não a sobreviver — é o que tira o prémio a quem foge.',
+    note: 'O detalhe de uma fenda: o que cai lá, e o preço de ressortear.',
   },
   {
     file: 'ui/12-gate.svg',
@@ -91,6 +97,8 @@ const shot = async (s: Shot): Promise<string> =>
    </figure>`
 
 const combat = (await Promise.all(COMBAT.map(shot))).join('\n')
+const learn = (await Promise.all(LEARN.map(shot))).join('\n')
+const world = (await Promise.all(WORLD.map(shot))).join('\n')
 const rift = (await Promise.all(RIFT.map(shot))).join('\n')
 const sheet = await svg('corridas.svg')
 
@@ -297,6 +305,30 @@ table.data {
 .links a:hover { color: var(--cinnabar); }
 .links a:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 3px; }
 
+.conds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 0 0 30px;
+}
+.conds div {
+  background: var(--raised);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.conds b {
+  font-family: "Zen Old Mincho", serif;
+  font-size: 19px;
+  font-weight: 400;
+  color: var(--cinnabar);
+  line-height: 1;
+}
+.conds span { font-size: 12.5px; color: var(--muted); }
+
 footer {
   margin-top: 70px;
   padding-top: 22px;
@@ -314,24 +346,48 @@ footer {
   </header>
 
   <div class="ask">
-    <h2>O que preciso de ti</h2>
-    <p>Escolhe <strong>uma letra</strong> para a UI de combate: A, B ou C. Nas três, a barra das artes fica exatamente onde aprovaste.</p>
-    <p>Depois disso começo pela barra da fenda e pelo chefe no fim dela.</p>
+    <h2>O que mudou nesta versão</h2>
+    <p><strong>C 底 é a UI.</strong> Os selos chineses saíram de todo o lado onde carregavam uma regra — na barra das artes são agora pictogramas. E a tab 界 deixou de ser texto: cada região tem a sua pintura.</p>
+    <p>As três propostas A / B / C continuam no GitHub, no fim da página.</p>
   </div>
 
   <section>
-    <div class="eyebrow"><span>Decisão</span> <b>3 propostas</b></div>
+    <div class="eyebrow"><span>Escolhida</span> <b>C 底</b></div>
     <h2 class="head">UI de combate</h2>
-    <p class="lede">As três apagam a mesma coisa: a barra de largura total no topo, que é o objeto mais genérico que há em jogos mobile. <strong>Arrasta para o lado</strong> para comparar.</p>
-    <p class="swipe">A → B → C</p>
+    <p class="lede">Vida, 感悟 e a barra das artes num só bloco em baixo. A metade de cima do telemóvel — onde nada é lido durante uma luta — fica vazia.</p>
     <div class="rail">
 ${combat}
     </div>
   </section>
 
   <section>
+    <div class="eyebrow"><span>Legibilidade</span> <b>sem chinês obrigatório</b></div>
+    <h2 class="head">O selo nunca é a única pista</h2>
+    <p class="lede">A crítica estava certa e o pior caso era a barra das artes: <strong>静</strong> sozinho, na única coisa que se lê a meio de uma luta, a pedir a quem não lê chinês que aprenda um carácter a morrer. A regra agora é uma só — <strong>onde uma marca carrega uma mecânica, é um desenho do que fazer</strong>. Os selos ficam onde são identidade: nos nomes, no rolo, no hub.</p>
+    <div class="conds">
+      <div><b>静</b><span>parar</span></div>
+      <div><b>疾</b><span>correr</span></div>
+      <div><b>转</b><span>inverter</span></div>
+      <div><b>围</b><span>ser cercado</span></div>
+      <div><b>危</b><span>vida baixa</span></div>
+    </div>
+    <div class="stack">
+${learn}
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow"><span>Arte</span> <b>desenhada por código</b></div>
+    <h2 class="head">O mundo, não uma lista</h2>
+    <p class="lede">Nenhum site de assets nem API de geração de imagem é alcançável da máquina onde isto é construído — foi essa a razão de existir a direção a tinta. Por isso as vinhetas são <strong>compostas em código</strong>, com os mesmos traços que o jogo já usa: cada sítio tem uma silhueta só sua — verticais no pântano, diagonais na falésia, círculos no mercado, uma faixa horizontal no passo, e a estrada é a única com ponto de fuga.</p>
+    <div class="stack">
+${world}
+    </div>
+  </section>
+
+  <section>
     <div class="eyebrow"><span>Corrida</span> <b>裂隙</b></div>
-    <h2 class="head">A fenda, por ordem</h2>
+    <h2 class="head">O resto da fenda</h2>
     <p class="lede">A barra enche <strong>a matar</strong>, não a sobreviver. Com corridas de 38 s a 227 s conforme a região, um portão ao relógio fazia com que quatro regiões nunca vissem o próprio chefe — uma barra é uma distância e ajusta-se sozinha.</p>
     <div class="stack">
 ${rift}
@@ -366,6 +422,8 @@ ${rift}
     <div class="eyebrow"><span>Ficheiros</span> <b>GitHub</b></div>
     <h2 class="head">Onde isto vive</h2>
     <div class="links">
+      <a href="${REPO}/ui/14-world.png">A tab 界, com arte <span>png</span></a>
+      <a href="${REPO}/ui/15-tip.png">Toque longo <span>png</span></a>
       <a href="${REPO}/ui/01a-play-nada.png">UI A — 无字 <span>png</span></a>
       <a href="${REPO}/ui/01b-play-margem.png">UI B — 裱 <span>png</span></a>
       <a href="${REPO}/ui/01c-play-base.png">UI C — 底 <span>png</span></a>
