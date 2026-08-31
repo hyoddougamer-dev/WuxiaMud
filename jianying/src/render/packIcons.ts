@@ -128,6 +128,25 @@ export const PACK_SLOT_ICON: Record<string, string> = {
 }
 
 /**
+ * A pack icon per WEAPON style, so a weapon card shows the weapon.
+ *
+ * The equipment tab was a column of text cards with a single icon at the top of
+ * each slot heading — reported from a device as "no icons". A slot icon alone
+ * cannot help, because every card under one heading shares it; what a player
+ * scanning for their sabre needs is the card itself to look like a sabre. The
+ * six styles map onto six shapes already in the bundle, so this costs no new
+ * icon data.
+ */
+export const PACK_WEAPON_ICON: Record<string, string> = {
+  jian: 'katana',
+  dao: 'crescent-blade',
+  great: 'broadsword',
+  twin: 'triple-scratches',
+  spear: 'barbed-spear',
+  fan: 'concentric-crescents',
+}
+
+/**
  * One pack icon as a complete `<svg>` string, sized by the CSS around it.
  *
  * The bodies use `currentColor`, so a single `color` on the wrapper tints the
@@ -169,3 +188,23 @@ export const conditionIconSvg = (
   opacity = 1,
   className = 'pack-icon',
 ): string => packIconSvg(PACK_CONDITION_ICON[condition] ?? '', colour, opacity, className)
+
+/**
+ * The icon for one item: its weapon's shape, or failing that its slot's.
+ *
+ * A single place to ask, so the equipment tab, a reward screen and anything
+ * later cannot disagree about what a given item looks like.
+ */
+export const itemIconSvg = (
+  slot: string,
+  styleId: string,
+  colour: number,
+  opacity = 1,
+  className = 'pack-icon',
+): string =>
+  packIconSvg(
+    (slot === 'weapon' ? PACK_WEAPON_ICON[styleId] : PACK_SLOT_ICON[slot]) ?? '',
+    colour,
+    opacity,
+    className,
+  )

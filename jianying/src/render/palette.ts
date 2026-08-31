@@ -21,6 +21,16 @@ export const palette = {
   goldPale: 0xf0d98a,
   /** Gold dark enough to read as text on paper. Matches the art chips in CSS. */
   goldDeep: 0x8a6d16,
+  /**
+   * Pine green, for health mended by an art.
+   *
+   * The fourth and last meaning this palette carries, added only because 血
+   * had no way to say anything at all: gold already means qi and a kill,
+   * cinnabar already means damage taken, and re-using either would have made
+   * one of them ambiguous. Dark and desaturated so it still reads as ink wash
+   * on paper rather than as a health pack from another game.
+   */
+  jade: 0x3f6b46,
 } as const
 
 export const paletteCss = {

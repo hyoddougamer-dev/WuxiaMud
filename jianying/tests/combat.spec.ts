@@ -468,3 +468,79 @@ describe('the rift', () => {
     expect(sim.run.gateCleared).toBe(true)
   })
 })
+
+
+describe('an art that only changes a number still has to be visible', () => {
+  it('reports a doubled blow AS doubled, not just as a bigger number', () => {
+    // 断 lands every Nth sweep at twice the damage, and until now the only
+    // thing that reached the screen was a larger figure — which a player
+    // cannot tell apart from having hit a tougher enemy. The flag is what lets
+    // the floater render it as an event rather than as arithmetic.
+    const sim = newSim()
+    const crits: boolean[] = []
+    const events: CombatEvents = {
+      hit: (_x, _y, _amount, _killed, crit) => crits.push(crit === true),
+      hurt: () => {},
+    }
+    const stats = { ...OVERWHELMING_STATS, critEvery: 2 }
+    for (let i = 0; i < Math.round(60 / TICK_S); i++) {
+      if (sim.run.over) break
+      updatePlayer(sim.player, 1, 0, TICK_S)
+      sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S, sim.hazards)
+      sim.run.pendingLevelUps = 0
+      updateCombat(
+        {
+          run: sim.run,
+          player: sim.player,
+          swarm: sim.swarm,
+          motes: sim.motes,
+          bolts: sim.bolts,
+          hazards: sim.hazards,
+          stats,
+          rng: sim.rng,
+          events,
+        },
+        TICK_S,
+      )
+    }
+    expect(crits.length).toBeGreaterThan(0)
+    expect(crits.some((c) => c)).toBe(true)
+    expect(crits.some((c) => !c)).toBe(true)
+  })
+
+  it('announces a mend instead of moving the bar in silence', () => {
+    // 血 was the one art whose entire effect happened with nothing on screen
+    // to say it had happened at all.
+    const sim = newSim()
+    const mends: number[] = []
+    const events: CombatEvents = {
+      hit: () => {},
+      hurt: () => {},
+      mend: (_x, _y, amount) => mends.push(amount),
+    }
+    const stats = { ...OVERWHELMING_STATS, healPerKill: 5 }
+    sim.run.hp = 10
+    for (let i = 0; i < Math.round(60 / TICK_S); i++) {
+      if (sim.run.over) break
+      updatePlayer(sim.player, 1, 0, TICK_S)
+      sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S, sim.hazards)
+      sim.run.pendingLevelUps = 0
+      updateCombat(
+        {
+          run: sim.run,
+          player: sim.player,
+          swarm: sim.swarm,
+          motes: sim.motes,
+          bolts: sim.bolts,
+          hazards: sim.hazards,
+          stats,
+          rng: sim.rng,
+          events,
+        },
+        TICK_S,
+      )
+    }
+    expect(mends.length).toBeGreaterThan(0)
+    expect(mends.every((m) => m > 0)).toBe(true)
+  })
+})

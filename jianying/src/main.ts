@@ -589,8 +589,11 @@ async function boot(): Promise<void> {
   }
 
   const events = {
-    hit(x: number, y: number, amount: number, killed: boolean): void {
-      floaters.hit(x, y, amount, killed)
+    hit(x: number, y: number, amount: number, killed: boolean, crit?: boolean): void {
+      floaters.hit(x, y, amount, killed, crit)
+    },
+    mend(x: number, y: number, amount: number): void {
+      floaters.mend(x, y, amount)
     },
     hurt(amount: number, source: string): void {
       floaters.hurt(player.x, player.y, amount)

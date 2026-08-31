@@ -38,11 +38,13 @@ const RISE = 46
 
 export interface Floaters {
   /** Damage dealt to an enemy at a world position. */
-  hit(x: number, y: number, amount: number, killed: boolean): void
+  hit(x: number, y: number, amount: number, killed: boolean, crit?: boolean): void
   /** Damage taken by the player. Always finds a slot. */
   hurt(x: number, y: number, amount: number): void
   /** A mark where equipment dropped. Always finds a slot. */
   found(x: number, y: number): void
+  /** Health mended by an art. Always finds a slot — see `mend` below. */
+  mend(x: number, y: number, amount: number): void
   update(dt: number): void
   clear(): void
   readonly view: Container
@@ -140,7 +142,7 @@ export function createFloaters(): Floaters {
   return {
     view,
 
-    hit(x, y, amount, killed) {
+    hit(x, y, amount, killed, crit) {
       const slot = take(false)
       if (!slot) return
       // Rounded, because a player reading "13" learns the same thing as one
@@ -163,7 +165,14 @@ export function createFloaters(): Floaters {
         // wrong one — the same red would then mean both "you won" and "you are
         // losing", which is precisely the ambiguity this system removes.
         killed ? palette.goldDeep : palette.ink,
-        killed ? 0.42 : 0.32,
+        // A doubled blow has to LOOK doubled. 锐 crit fires on a counted sweep
+        // rather than a roll, so it is a reliable, readable beat — and until
+        // now the only thing that changed on screen was a larger number, which
+        // a player cannot tell apart from having hit a tougher enemy. Size is
+        // the channel, not colour: the palette's three meanings already carry
+        // "dealing", "killed" and "taking", and a fourth hue would blunt all
+        // of them.
+        (crit ? 1.55 : 1) * (killed ? 0.42 : 0.32),
         LIFE,
       )
     },
@@ -172,6 +181,16 @@ export function createFloaters(): Floaters {
       const slot = take(true)
       if (!slot) return
       start(slot, `-${Math.round(amount)}`, x, y - 40, palette.cinnabar, 0.5, HURT_LIFE)
+    },
+
+    mend(x, y, amount) {
+      // 血 mends a sliver on a kill, and did it completely silently — the bar
+      // simply moved while the player was watching the fight, not the HUD. It
+      // may always evict a damage number: knowing you are being kept alive is
+      // worth more than one more figure in a stream of them.
+      const slot = take(true)
+      if (!slot) return
+      start(slot, `+${Math.round(amount)}`, x, y - 46, palette.jade, 0.46, HURT_LIFE)
     },
 
     found(x, y) {

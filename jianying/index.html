@@ -804,7 +804,10 @@
            layout that had failed. */
         flex: 1 0 158px;
         min-height: 58px;
-        padding: 9px 11px;
+        position: relative;
+        /* Left padding makes room for the item's own icon, which is absolutely
+           positioned into it. */
+        padding: 9px 11px 9px 40px;
         text-align: left;
         font: inherit;
         color: var(--ink);
@@ -813,6 +816,21 @@
         border-left: 3px solid rgba(13, 13, 13, 0.14);
         border-radius: 2px;
         cursor: pointer;
+      }
+      /* The item's own shape, so a card is findable without reading it. It sits
+         in the padding at the left rather than above the name: a 158px card has
+         no vertical room to give away, and the name must stay the loudest thing
+         on it. */
+      .item-icon {
+        position: absolute;
+        left: 9px;
+        top: 50%;
+        width: 22px;
+        height: 22px;
+        transform: translateY(-50%);
+      }
+      .item-worn .item-icon {
+        color: var(--paper);
       }
       .item-r1 {
         border-left-color: var(--gold);

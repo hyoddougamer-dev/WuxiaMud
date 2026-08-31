@@ -220,7 +220,9 @@ export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
  */
 export interface CombatEvents {
   /** An enemy took `amount` at (x, y). `killed` when that was the last of it. */
-  hit(x: number, y: number, amount: number, killed: boolean): void
+  hit(x: number, y: number, amount: number, killed: boolean, crit?: boolean): void
+  /** An art mended `amount` of the player's health at (x, y). */
+  mend?(x: number, y: number, amount: number): void
   /** The player took `amount` from something named `source`. */
   hurt(amount: number, source: string): void
   /** Something dropped equipment at (x, y). */
@@ -343,7 +345,7 @@ export interface CombatContext {
 const EMPTY_OWNED: ReadonlySet<string> = new Set()
 
 /** Applies damage to the enemy at `index`, dropping qi and scoring if it dies. */
-function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean {
+function damageEnemy(ctx: CombatContext, index: number, amount: number, crit = false): boolean {
   const e = ctx.swarm.pool.at(index)
   e.hp -= amount
   e.hitFlash = 0.12
@@ -353,7 +355,7 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   // Reported at the body's position before the pool recycles it, so a killing
   // blow's number appears where the enemy died rather than where the next
   // spawn happens to land.
-  ctx.events?.hit(e.x, e.y, amount, e.hp <= 0)
+  ctx.events?.hit(e.x, e.y, amount, e.hp <= 0, crit)
   if (e.hp > 0) return false
 
   // 血 — a felled enemy mends a sliver, at most once per HEAL_INTERVAL. Capped
@@ -363,7 +365,14 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   if (ctx.stats.healPerKill > 0 && ctx.run.healCooldown <= 0 && ctx.run.healBudget > 0) {
     ctx.run.healCooldown = HEAL_INTERVAL
     ctx.run.healBudget--
+    const before = ctx.run.hp
     ctx.run.hp = Math.min(ctx.stats.maxHp, ctx.run.hp + ctx.stats.healPerKill)
+    // Announced at the PLAYER, not at the corpse that paid for it: the number
+    // is about the swordsman's health, and 血 was previously the only art in
+    // the game whose entire effect happened with nothing on screen to say so.
+    // Suppressed at full health, where the art genuinely did nothing.
+    const mended = ctx.run.hp - before
+    if (mended > 0) ctx.events?.mend?.(ctx.player.x, ctx.player.y, mended)
   }
 
   // A boss is worth a scattering of qi rather than one mote, so clearing it
@@ -461,7 +470,7 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   // One cut, used twice: the blow itself and, when 影 is awake, its echo a
   // fraction of a second later. Both go through `cut` so the two can never
   // disagree about what an arc is.
-  const cut = (ax: number, ay: number, damage: number): void => {
+  const cut = (ax: number, ay: number, damage: number, crit = false): void => {
     // Iterating backwards lets a dead enemy be released without disturbing the
     // indices still to be visited.
     for (let i = swarm.pool.size - 1; i >= 0; i--) {
@@ -479,7 +488,7 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
         e.x += (dx / distance) * stats.pushForce
         e.y += (dy / distance) * stats.pushForce
       }
-      damageEnemy(ctx, i, damage)
+      damageEnemy(ctx, i, damage, crit)
     }
   }
 
@@ -498,7 +507,7 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
     // 断 — every Nth sweep lands doubled. Counted, never rolled: see
     // Stats.critEvery for why a chance would have cost the run its seed.
     const crit = stats.critEvery > 0 && run.slashCount % stats.critEvery === 0
-    cut(aimX, aimY, crit ? stats.slashDamage * 2 : stats.slashDamage)
+    cut(aimX, aimY, crit ? stats.slashDamage * 2 : stats.slashDamage, crit)
 
     // 影 — the cut leaves a copy of itself where you were aiming. Queued rather
     // than struck twice at once, or it would read as one bigger number instead

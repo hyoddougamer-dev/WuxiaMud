@@ -57,7 +57,7 @@ import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } fr
 import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
-import { packIconSvg, effectIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
+import { packIconSvg, effectIconSvg, itemIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
 import {
   CONDITIONS,
   CONDITION_BY_ID,
@@ -246,6 +246,7 @@ export function createHub(
         ? `<span class="item-rank">${'·'.repeat(entry.rank)}</span>`
         : ''
     card.innerHTML = `
+      ${itemIconSvg(slot, item.styleId, palette.ink, worn ? 0.9 : 0.5, 'item-icon')}
       <div class="item-name">${item.name}${pips}</div>
       <div class="item-line">${line}</div>
     `
