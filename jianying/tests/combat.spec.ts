@@ -121,13 +121,20 @@ describe('swarm', () => {
   it('never exceeds the pool ceiling, even deep into a run', () => {
     const sim = newSim()
     sim.run.elapsed = 600 // jump to a brutal spawn rate
-    // The peak is tracked and asserted ONCE rather than asserting inside the
-    // loop. Sixty seconds of frames meant 3600 trips through vitest's
-    // assertion machinery, which cost more than the simulation being measured
-    // and timed the test out on CI the moment the roster got faster (a quicker
-    // field means more of it arrives and stays clustered, so each frame does
-    // more separation work). The property checked is identical: across every
-    // frame, the pool never went over its ceiling.
+    // The peak is tracked and asserted ONCE rather than inside the loop, which
+    // spared 3600 trips through vitest's assertion machinery. That alone did
+    // not save it, so the cost was measured rather than guessed at again: a
+    // full pool of 420 packed onto a single point runs at 1.23ms per frame
+    // against a 16.7ms budget at 60Hz. The simulation is fine — it is SIXTY
+    // SECONDS of worst-case frames that costs 4.4 seconds of wall clock, and
+    // the default 5s limit left no headroom for a slower CI runner once the
+    // roster got faster (a quicker field means more of it arrives and stays
+    // clustered, so each frame does more separation work).
+    //
+    // So the test keeps every one of its frames and is given a limit that
+    // suits a deliberate stress test. Shortening the run would have traded
+    // away the thing it exists to prove: that the ceiling holds under
+    // SUSTAINED pressure, not for a moment.
     let peak = 0
     for (let i = 0; i < 3600; i++) {
       sim.swarm.update(0, 0, 600, TICK_S, sim.hazards)
@@ -135,7 +142,7 @@ describe('swarm', () => {
     }
     expect(peak).toBeLessThanOrEqual(MAX_ENEMIES)
     expect(peak).toBeGreaterThan(0)
-  })
+  }, 30000)
 
   it('moves enemies toward the player', () => {
     const sim = newSim()
