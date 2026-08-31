@@ -7,7 +7,7 @@
  * IS, which is the exact failure these documents exist to prevent.
  */
 import { DEFAULT_GEAR, gearFromIds } from '../src/render/wardrobe'
-import { ITEMS, statAt, type Slot } from '../src/data/items'
+import { ITEMS, type Slot } from '../src/data/items'
 
 // --- the four stats -------------------------------------------------------
 
@@ -47,7 +47,7 @@ export const STATS: Record<string, StatKind> = {
  * two curves would drift, and this sheet exists to be checked against.
  */
 export const valueAt = (kind: StatKind, rank: number, amount = 3): string =>
-  `+${statAt({ kind: 'body', amount }, rank)} ${kind.unit}`
+  `+${legacyStatAt({ kind: 'body', amount }, rank)} ${kind.unit}`
 
 // --- the sets -------------------------------------------------------------
 
@@ -129,3 +129,13 @@ export function gearWith(slot: Slot, style: string) {
   })
 }
 
+
+
+/**
+ * What a piece's line was worth at a rank, for the sheets written before the
+ * loot rework. Rank is gone; this reproduces the number those sheets quote so
+ * the committed docs stay readable rather than being silently re-scaled.
+ */
+function legacyStatAt(stat: { amount: number; kind?: string }, rank: number): number {
+  return Math.max(1, Math.round(stat.amount * (1 + rank * 0.3)))
+}

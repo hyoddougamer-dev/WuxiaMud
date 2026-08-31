@@ -20,7 +20,7 @@
  * effect of a technique impossible to read without hunting through the code.
  */
 import type { Loadout } from '../data/techniques'
-import { statAt, type Item } from '../data/items'
+import type { OwnedItem } from '../meta/inventory'
 import { DEFAULT_WEAPON, type WeaponClass } from '../data/weapons'
 import { type Attributes, emptyAttributes } from '../meta/character'
 import { BASE_PICKUP_RADIUS } from './pickups'
@@ -108,17 +108,20 @@ export function attributeBonuses(spent: Attributes): {
   }
 }
 
-/** Everything the character permanently brings to an expedition. */
-/** A worn piece, and how good a copy of it this is. */
-export interface Worn {
-  item: Item
-  rank: number
-}
+/**
+ * A worn piece: the rolled instance itself.
+ *
+ * It used to be `{ item, rank }` — a table row plus a number — because a piece
+ * had one fixed stat and rank was the only thing that varied. A piece now
+ * carries its own rolled lines, so the instance IS the thing worn, and there is
+ * no second field that could disagree with it.
+ */
+export type Worn = OwnedItem
 
 export interface Kit {
   spent: Attributes
   weapon: WeaponClass
-  /** Worn armour. Each contributes at most one stat line, scaled by its rank. */
+  /** Worn pieces. Each contributes every line it rolled. */
   worn: readonly Worn[]
 }
 
@@ -127,25 +130,60 @@ export function emptyKit(): Kit {
 }
 
 /**
- * Sums what the worn armour grants, at the rank each piece is held at.
+ * Sums the ATTRIBUTE lines the worn pieces rolled.
  *
- * One channel now, not seven. Item-granted attributes go through exactly the
- * same maths as bought ones, so "+3 Body" on a robe means what "+3 Body" means
- * on the hub's spend screen — including reaching the same diminishing return,
- * which the six raw channels bypassed entirely.
+ * Item-granted attributes go through exactly the same maths as bought ones, so
+ * "+3 Body" on a robe means what "+3 Body" means on the hub's spend screen —
+ * including reaching the same diminishing return, which an earlier design's raw
+ * per-stat channels bypassed entirely.
+ *
+ * The three lines that are NOT attributes — health, reach and sweep speed —
+ * are summed separately by `wornShape`, because they act on the sweep rather
+ * than on the character.
  */
 export function wornAttributes(worn: readonly Worn[]): Attributes {
   const out = emptyAttributes()
-  for (const { item, rank } of worn) {
-    if (!item.stat) continue
-    out[item.stat.kind] += statAt(item.stat, rank)
+  for (const entry of worn) {
+    for (const affix of entry.affixes) {
+      if (affix.kind === 'body' || affix.kind === 'edge' || affix.kind === 'swift' || affix.kind === 'spirit') {
+        out[affix.kind] += affix.amount
+      }
+    }
   }
+  return out
+}
+
+/** What the worn pieces do to the SHAPE of the sweep, and to raw health. */
+export interface WornShape {
+  /** Flat health, added after the Body curve. */
+  vigour: number
+  /** Fraction added to the sweep's reach — 0.08 is +8%. */
+  reach: number
+  /** Fraction taken OFF the interval between sweeps. */
+  haste: number
+}
+
+export function wornShape(worn: readonly Worn[]): WornShape {
+  const out: WornShape = { vigour: 0, reach: 0, haste: 0 }
+  for (const entry of worn) {
+    for (const affix of entry.affixes) {
+      if (affix.kind === 'vigour') out.vigour += affix.amount
+      else if (affix.kind === 'reach') out.reach += affix.amount / 100
+      else if (affix.kind === 'haste') out.haste += affix.amount / 100
+    }
+  }
+  // Capped so a bag full of one line cannot delete the weapon's identity: at
+  // 90% off the interval every class becomes the same blur, and the shape of
+  // the sweep IS the class here.
+  out.haste = Math.min(0.6, out.haste)
+  out.reach = Math.min(1.5, out.reach)
   return out
 }
 
 export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   const lv = (id: string): number => loadout.get(id) ?? 0
   const gear = wornAttributes(kit.worn)
+  const shape = wornShape(kit.worn)
 
   // Attributes bought with points and attributes granted by items are the same
   // currency, added before the curve so both reach the same diminishing return.
@@ -170,14 +208,14 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     slashDamage: weapon.damage + attr.slashDamage + lv('keen') * 4,
     // Multiplicative, so each level is worth the same proportion rather than
     // the first one being nearly everything.
-    slashInterval: weapon.interval * attr.slashIntervalScale * Math.pow(0.86, lv('swift')),
-    slashRange: weapon.range + lv('reach') * 16,
+    slashInterval: weapon.interval * attr.slashIntervalScale * Math.pow(0.86, lv('swift')) * (1 - shape.haste),
+    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach),
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
     slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),
     moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09),
     pickupRadius: BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85),
-    maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25,
+    maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25 + shape.vigour,
 
     orbitBlades: orbit === 0 ? 0 : 1 + orbit,
     orbitDamage: (5 + orbit * 3) * art,

@@ -27,7 +27,8 @@ import { portraitSvg } from '../src/render/silhouette'
 import { gearFromIds } from '../src/render/wardrobe'
 import { CONDITION_BY_ID, artsFor, type Art, type EffectKind } from '../src/data/arts'
 import { conditionIconSvg, effectIconSvg } from '../src/render/packIcons'
-import { ITEM_BY_ID, statLine } from '../src/data/items'
+import { ITEM_BY_ID } from '../src/data/items'
+import { affixLine, rollAmount } from '../src/data/affixes'
 import { REGIONS } from '../src/data/regions'
 import { regionVignette } from '../src/render/regionArt'
 import { W, hex, label } from './sheet'
@@ -588,7 +589,7 @@ function screenGear(): string {
       `<text x="32" y="${y + 30}" font-family="system-ui, sans-serif" font-size="13" ` +
         `fill="${paper}" fill-opacity="0"><tspan>${esc(item.name)}</tspan>` +
         `<tspan fill="${gold}" fill-opacity="0.9" dx="8">${'·'.repeat(rank)}</tspan></text>`,
-      text(32, y + 47, statLine(item.stat, rank) || 'Fast and short.', 9.5, paper, 0.5),
+      text(32, y + 47, affixLine({ kind: 'edge', amount: rollAmount('edge', 1 + rank, 0.5) }), 9.5, paper, 0.5),
     )
     y += 70
   }

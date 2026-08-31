@@ -1,156 +1,227 @@
 /**
  * What the swordsman owns and what they are wearing.
  *
- * Stored as ids rather than as item objects, which is the whole reason a save
- * from an old build still opens: an id that no longer exists is dropped on
- * load, and an item added in a later build simply becomes findable. Storing
- * inflated objects would freeze the item table into every save ever written.
+ * ONE ROW PER PIECE WAS THE OLD RULE, AND IT HAD TO GO. It existed for a real
+ * reason — this game drops the same Hemp Robe a hundred times over a long
+ * evening, and a bag that grew by a row each time would be unusable on a phone.
+ * But it only worked because two copies of a piece were genuinely identical:
+ * one fixed stat, and a `rank` that the better copy simply overwrote.
  *
- * Ownership is still ONE ROW PER PIECE, not a list of every copy ever found.
- * This game drops the same Hemp Robe a hundred times over a long enough run,
- * and an inventory that grew by one row each time would be unusable on a phone
- * within an evening.
+ * Now that a piece rolls its own lines (see data/affixes.ts), two Hemp Robes
+ * are two different objects, and collapsing them would throw away the whole
+ * point of rolling. So the bag holds INSTANCES, and the phone problem is solved
+ * the way every ARPG solves it instead: a hard capacity, and the player throws
+ * things away. That is not a compromise — deciding what to keep IS the game
+ * between expeditions.
  *
- * What changed is what a second copy is worth. A row is no longer a bare id but
- * an INSTANCE — `{ id, rank, rites }` — so a robe found deep is a better robe
- * than the same robe found on the post road, and finding it again at a higher
- * rank raises the one already in the chest. That keeps duplicates meaningful
- * without keeping duplicates.
- *
- * `rites` is empty in every save this build writes. It exists now because the
- * forge is coming and a piece will carry what has been worked into it; adding
- * the field later would mean a second migration over every player's save, and
- * this file is the one place where that cost is paid by somebody real.
+ * Every row carries its own `uid` because a base id no longer identifies
+ * anything: `equipped` points at a uid, not at an item, and two rows can share
+ * a baseId forever without either being the other.
  */
-import { ITEM_BY_ID, MAX_RANK, type Item, type Slot } from '../data/items'
+import { ITEM_BY_ID, type Item, type Slot } from '../data/items'
+import { type Affix, affixWeight } from '../data/affixes'
+import { MAX_RARITY, type Rarity } from '../data/rarity'
 
-/** One piece the swordsman owns. */
+/**
+ * How many pieces the pack holds.
+ *
+ * Chosen against the drop rate rather than picked round: at roughly three or
+ * four finds an expedition, this is six or seven runs of hoarding before the
+ * player has to make a decision, which is long enough to not feel nagged and
+ * short enough that the decision arrives while they still remember what the
+ * pieces are.
+ */
+export const BAG_CAPACITY = 24
+
+/** One piece the swordsman owns — a rolled instance, not a table row. */
 export interface OwnedItem {
-  /** Which piece from the item table. Unique within `owned`. */
-  readonly id: string
-  /** 0 to MAX_RANK. Where a piece was found decides how good a piece it is. */
-  rank: number
-  /** What the forge has worked into it. Always empty in this build. */
-  rites: string[]
+  /** Unique per instance. `equipped` points at this, never at a base id. */
+  readonly uid: string
+  /** Which base from the item table. Two rows may share one. */
+  readonly baseId: string
+  readonly rarity: Rarity
+  /** The lines this copy rolled. Never empty. */
+  readonly affixes: Affix[]
+  /** Named power id, on 神 and 仙 pieces only. See data/affixes.ts. */
+  readonly power: string | null
+  /** Expedition depth it was found at. Shown on the sheet, never in maths. */
+  readonly depth: number
 }
 
-/** Equipped item id per slot. A slot may be empty. */
+/** Equipped instance uid per slot. A slot may be empty. */
 export type Equipped = Partial<Record<Slot, string>>
 
 export interface Inventory {
-  /** One row per piece ever found, best rank kept. */
   owned: OwnedItem[]
   equipped: Equipped
 }
-
-/** What acquiring a piece actually did. The reward screen says which. */
-export type Acquired = 'new' | 'raised' | 'duplicate'
 
 export function emptyInventory(): Inventory {
   return { owned: [], equipped: {} }
 }
 
-export function held(inv: Inventory, id: string): OwnedItem | null {
-  return inv.owned.find((entry) => entry.id === id) ?? null
+/**
+ * Mints an instance uid.
+ *
+ * Not random: a seeded expedition has to replay to the same bag, and a
+ * `Math.random()` here would have quietly broken that the first time anyone
+ * used the replay harness. The counter is per-session and the baseId prefix
+ * keeps a uid readable in a save file when something has gone wrong.
+ */
+let minted = 0
+export function mintUid(baseId: string): string {
+  minted++
+  return `${baseId}#${minted.toString(36)}`
 }
 
-export function owns(inv: Inventory, id: string): boolean {
-  return held(inv, id) !== null
+/** Resets the uid counter. Tests only — a fresh session starts at zero anyway. */
+export function resetUids(): void {
+  minted = 0
 }
 
-/** The rank of a held piece, or 0 for one not held. */
-export function rankOf(inv: Inventory, id: string): number {
-  return held(inv, id)?.rank ?? 0
+export function byUid(inv: Inventory, uid: string): OwnedItem | null {
+  return inv.owned.find((entry) => entry.uid === uid) ?? null
+}
+
+/** The base an instance was rolled from, or null when the build dropped it. */
+export function baseOf(entry: OwnedItem): Item | null {
+  return ITEM_BY_ID.get(entry.baseId) ?? null
+}
+
+/** True when the pack has no room for another find. */
+export function bagFull(inv: Inventory): boolean {
+  return carried(inv).length >= BAG_CAPACITY
 }
 
 /**
- * Records a piece as found, at `rank`.
+ * Everything owned that is NOT currently worn.
  *
- * Three outcomes rather than a boolean, because the reward screen has three
- * honest things to say. A duplicate is still a duplicate — but a duplicate that
- * is BETTER than what is held raises it, and reporting that as "already yours"
- * would hide the only interesting thing that happened.
- *
- * Rites survive a raise: a piece the forge has worked on is still that piece,
- * and losing that work to a lucky drop would make the forge feel like a trap.
+ * Worn pieces do not occupy the pack: a player who fills the bag and then
+ * cannot equip anything because the piece they want to take off has nowhere to
+ * go is a player fighting the interface rather than the game.
  */
-export function acquire(inv: Inventory, id: string, rank = 0): Acquired {
-  if (!ITEM_BY_ID.has(id)) return 'duplicate'
-  const clamped = Math.max(0, Math.min(MAX_RANK, Math.floor(rank)))
-  const entry = held(inv, id)
-  if (!entry) {
-    inv.owned.push({ id, rank: clamped, rites: [] })
-    return 'new'
-  }
-  if (clamped > entry.rank) {
-    entry.rank = clamped
-    return 'raised'
-  }
-  return 'duplicate'
+export function carried(inv: Inventory): OwnedItem[] {
+  const worn = new Set(Object.values(inv.equipped).filter(Boolean) as string[])
+  return inv.owned.filter((entry) => !worn.has(entry.uid))
 }
 
-/** Equips an owned item into its own slot. Returns false if not owned. */
-export function equip(inv: Inventory, id: string): boolean {
-  const item = ITEM_BY_ID.get(id)
-  if (!item || !owns(inv, id)) return false
-  inv.equipped[item.slot] = id
+/** What acquiring a piece actually did. The reward screen says which. */
+export type Acquired = 'kept' | 'full'
+
+/**
+ * Puts a rolled instance in the pack.
+ *
+ * Returns 'full' rather than silently dropping it, so the caller can tell the
+ * player their pack is full instead of quietly eating a find — which is the
+ * loot equivalent of a level-up that grants nothing, and this project has
+ * shipped one of those before.
+ */
+export function acquire(inv: Inventory, entry: OwnedItem): Acquired {
+  if (bagFull(inv)) return 'full'
+  inv.owned.push(entry)
+  return 'kept'
+}
+
+/** Throws a piece away for good. Refuses to discard something being worn. */
+export function discard(inv: Inventory, uid: string): boolean {
+  const worn = Object.values(inv.equipped).includes(uid)
+  if (worn) return false
+  const before = inv.owned.length
+  inv.owned = inv.owned.filter((entry) => entry.uid !== uid)
+  return inv.owned.length < before
+}
+
+/** Equips an owned instance into its base's slot. Returns false if not owned. */
+export function equip(inv: Inventory, uid: string): boolean {
+  const entry = byUid(inv, uid)
+  if (!entry) return false
+  const base = baseOf(entry)
+  if (!base) return false
+  inv.equipped[base.slot] = uid
   return true
 }
 
-export function equippedIn(inv: Inventory, slot: Slot): Item | null {
-  const id = inv.equipped[slot]
-  return id ? (ITEM_BY_ID.get(id) ?? null) : null
+/** Takes off whatever is in `slot`. The piece returns to the pack. */
+export function unequip(inv: Inventory, slot: Slot): void {
+  delete inv.equipped[slot]
 }
 
-/** Everything owned that fits `slot`, in table order, with its instance. */
-export function ownedInSlot(inv: Inventory, slot: Slot): Array<{ item: Item; entry: OwnedItem }> {
-  const out: Array<{ item: Item; entry: OwnedItem }> = []
-  for (const entry of inv.owned) {
-    const item = ITEM_BY_ID.get(entry.id)
-    if (item && item.slot === slot) out.push({ item, entry })
+export function equippedIn(inv: Inventory, slot: Slot): OwnedItem | null {
+  const uid = inv.equipped[slot]
+  return uid ? byUid(inv, uid) : null
+}
+
+/** Every worn instance, in slot order. */
+export function equippedItems(inv: Inventory): OwnedItem[] {
+  const out: OwnedItem[] = []
+  for (const uid of Object.values(inv.equipped)) {
+    const entry = uid ? byUid(inv, uid) : null
+    if (entry) out.push(entry)
   }
   return out
 }
 
-/** Every equipped item, in slot order. */
-export function equippedItems(inv: Inventory): Item[] {
-  const out: Item[] = []
-  for (const id of Object.values(inv.equipped)) {
-    const item = id ? ITEM_BY_ID.get(id) : undefined
-    if (item) out.push(item)
-  }
-  return out
+/** Everything in the pack that fits `slot`, best first. */
+export function carriedInSlot(inv: Inventory, slot: Slot): OwnedItem[] {
+  return carried(inv)
+    .filter((entry) => baseOf(entry)?.slot === slot)
+    .sort((a, b) => b.rarity - a.rarity || affixWeight(b.affixes) - affixWeight(a.affixes))
 }
 
 /**
- * Drops ids this build does not know, and unequips anything left dangling.
+ * True when `entry` is the better of the two by the game's own crude measure.
  *
- * Called on load. Without it, a save written by a build with an item that was
- * later renamed would leave a slot pointing at nothing, and the figure would
- * quietly lose a piece of itself with no explanation.
+ * Used only to sort and to mark a likely upgrade; the player decides by reading
+ * the lines. See affixWeight for why no score is ever printed.
+ */
+export function isUpgrade(entry: OwnedItem, over: OwnedItem | null): boolean {
+  if (!over) return true
+  return affixWeight(entry.affixes) > affixWeight(over.affixes)
+}
+
+/**
+ * Drops instances this build cannot make sense of, and unequips the dangling.
+ *
+ * Called on load. A save is a text file on a device: it can name a base that no
+ * longer exists, carry a rarity outside the ladder, or point a slot at a uid
+ * that is not in the bag. None of those may cost the player their swordsman.
  */
 export function sanitise(inv: Inventory): Inventory {
   const seen = new Set<string>()
   const owned: OwnedItem[] = []
   for (const entry of inv.owned) {
-    // A hand-edited save can carry the same id twice, and two rows for one
-    // piece would show as two cards that equip over each other.
-    if (!ITEM_BY_ID.has(entry.id) || seen.has(entry.id)) continue
-    seen.add(entry.id)
+    const base = ITEM_BY_ID.get(entry.baseId)
+    if (!base) continue
+    // A hand-edited save can repeat a uid, and two rows sharing one would make
+    // `equipped` ambiguous about which piece is actually on.
+    if (seen.has(entry.uid)) continue
+    if (!Array.isArray(entry.affixes) || entry.affixes.length === 0) continue
+    seen.add(entry.uid)
     owned.push({
-      id: entry.id,
-      rank: Math.max(0, Math.min(MAX_RANK, Math.floor(entry.rank) || 0)),
-      rites: Array.isArray(entry.rites) ? entry.rites.filter((r) => typeof r === 'string') : [],
+      uid: entry.uid,
+      baseId: entry.baseId,
+      rarity: Math.max(0, Math.min(MAX_RARITY, Math.floor(entry.rarity) || 0)) as Rarity,
+      affixes: entry.affixes,
+      power: typeof entry.power === 'string' ? entry.power : null,
+      depth: Math.max(1, Math.floor(entry.depth) || 1),
     })
   }
-
+  // Over capacity — a save from a build with a bigger pack, or a hand edit.
+  // Trimmed from the end rather than refused, and worn pieces are safe because
+  // they do not count against it.
   const equipped: Equipped = {}
-  for (const [slot, id] of Object.entries(inv.equipped)) {
-    if (!id) continue
-    const item = ITEM_BY_ID.get(id)
-    // Equipped-but-not-owned is not a state the game can produce, but a
-    // hand-edited save can, and silently honouring it would be a free item.
-    if (item && item.slot === slot && seen.has(id)) equipped[item.slot] = id
+  for (const [slot, uid] of Object.entries(inv.equipped)) {
+    if (!uid || !seen.has(uid)) continue
+    const entry = owned.find((e) => e.uid === uid)!
+    const base = ITEM_BY_ID.get(entry.baseId)
+    if (base && base.slot === slot) equipped[base.slot] = uid
   }
-  return { owned, equipped }
+  const wornUids = new Set(Object.values(equipped) as string[])
+  const kept = owned.filter((e) => wornUids.has(e.uid))
+  for (const entry of owned) {
+    if (wornUids.has(entry.uid)) continue
+    if (kept.length - wornUids.size >= BAG_CAPACITY) break
+    kept.push(entry)
+  }
+  return { owned: kept, equipped }
 }

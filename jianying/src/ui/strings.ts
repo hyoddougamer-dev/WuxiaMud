@@ -136,6 +136,8 @@ export const strings = {
   found: 'Found',
   alreadyYours: 'already yours',
   raised: 'sharpened',
+  /** Shown when a find had nowhere to go. See BAG_CAPACITY in meta/inventory. */
+  packWasFull: 'No room in your pack',
   /** Shown only after a death — never after banking. See settleFound. */
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',

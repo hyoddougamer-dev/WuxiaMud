@@ -20,7 +20,7 @@ import {
   createCharacter,
   emptyAttributes,
 } from './character'
-import { ITEMS, MAX_RANK } from '../data/items'
+import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
 import { ARTS, EQUIPPED_ARTS, MAX_MANUAL_RANK } from '../data/arts'
 import { WEAPONS } from '../data/weapons'
@@ -28,10 +28,13 @@ import {
   acquire,
   emptyInventory,
   equip,
+  mintUid,
   sanitise,
   type Inventory,
   type OwnedItem,
 } from './inventory'
+import { AFFIX_BY_KIND, rollAmount, type AffixKind } from '../data/affixes'
+import { MAX_RARITY, type Rarity } from '../data/rarity'
 import { parseLook } from './look'
 import { SCHOOL_BY_ID, schoolById } from './schools'
 
@@ -75,6 +78,25 @@ function parseAttributes(value: unknown): Attributes {
 }
 
 /**
+ * Rolls the plain starting instance of a base — one modest line, no rarity.
+ *
+ * A starting piece is not a find, so it does not roll: everyone's first robe is
+ * the same robe, and the first genuinely rolled thing a player sees is the
+ * first thing that drops. That is the moment the ladder is supposed to teach
+ * itself, and it lands harder against a flat baseline.
+ */
+function starterInstance(baseId: string, kind: AffixKind): OwnedItem {
+  return {
+    uid: mintUid(baseId),
+    baseId,
+    rarity: 0,
+    affixes: [{ kind, amount: rollAmount(kind, 1, 0.5) }],
+    power: null,
+    depth: 1,
+  }
+}
+
+/**
  * Reads an inventory, repairing whatever it finds.
  *
  * A save written before equipment existed has no inventory at all, so it is
@@ -86,28 +108,85 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
   const school = schoolById(schoolId)
   const starter = (): Inventory => {
     const inv = emptyInventory()
-    for (const id of school.kit) acquire(inv, id)
+    const kinds: AffixKind[] = ['body', 'swift', 'edge']
+    school.kit.forEach((id, i) => {
+      acquire(inv, starterInstance(id, kinds[i % kinds.length]!))
+    })
     const weapon = ITEMS.find((i) => i.slot === 'weapon' && i.styleId === school.weaponId)
-    if (weapon) acquire(inv, weapon.id)
-    for (const entry of inv.owned) equip(inv, entry.id)
+    if (weapon) acquire(inv, starterInstance(weapon.id, 'edge'))
+    for (const entry of inv.owned) equip(inv, entry.uid)
     return inv
   }
 
   if (typeof value !== 'object' || value === null) return starter()
   const record = value as Record<string, unknown>
-  // Two shapes are accepted: v2's instances, and v1's bare id strings, which
-  // come forward at rank 0. A v1 player keeps every piece they found; they
-  // simply start the new axis at the bottom, which is where a piece found
-  // before ranks existed honestly sits.
+
+  /**
+   * Three shapes are accepted, and the two old ones are why this function is
+   * long rather than clever.
+   *
+   * v3 is the instance a build after the loot rework writes. v2 was
+   * `{ id, rank }` and v1 was a bare id string, and BOTH of those describe a
+   * piece whose single line was fixed by the item table — a table that no
+   * longer carries one. So an old row is brought forward as an instance with
+   * one rolled line whose SIZE comes from the rank it was held at: a rank 4
+   * robe stays a better robe than a rank 0 one, which is the promise those
+   * ranks made to the player who earned them.
+   *
+   * The kind is derived from the base id so it is stable across loads — a
+   * player's Hemp Robe does not become a different robe each time the game
+   * opens.
+   */
   const owned: OwnedItem[] = []
+  const legacyKind = (baseId: string): AffixKind => {
+    const kinds: AffixKind[] = ['body', 'edge', 'swift', 'spirit']
+    let hash = 0
+    for (let i = 0; i < baseId.length; i++) hash = (hash * 31 + baseId.charCodeAt(i)) >>> 0
+    return kinds[hash % kinds.length]!
+  }
+  const fromLegacy = (baseId: string, rank: number): OwnedItem => {
+    const kind = legacyKind(baseId)
+    // The old rank ran 0..5 and multiplied a fixed stat by up to 2.5x. Mapping
+    // it onto depth reproduces roughly the same number through the new curve,
+    // so nobody's gear quietly gets worse across the migration.
+    const asDepth = 1 + rank
+    return {
+      uid: mintUid(baseId),
+      baseId,
+      rarity: Math.min(2, Math.floor(rank / 2)) as Rarity,
+      affixes: [{ kind, amount: rollAmount(kind, asDepth, 0.5) }],
+      power: null,
+      depth: asDepth,
+    }
+  }
+
+  const legacyByBase = new Map<string, string>()
   if (Array.isArray(record.owned)) {
     for (const raw of record.owned) {
       if (typeof raw === 'string') {
-        owned.push({ id: raw, rank: 0, rites: [] })
+        const entry = fromLegacy(raw, 0)
+        legacyByBase.set(raw, entry.uid)
+        owned.push(entry)
       } else if (typeof raw === 'object' && raw !== null) {
-        const entry = raw as Record<string, unknown>
-        if (typeof entry.id === 'string') {
-          owned.push({ id: entry.id, rank: int(entry.rank, 0, 0, MAX_RANK), rites: [] })
+        const e = raw as Record<string, unknown>
+        if (typeof e.uid === 'string' && typeof e.baseId === 'string' && Array.isArray(e.affixes)) {
+          owned.push({
+            uid: e.uid,
+            baseId: e.baseId,
+            rarity: int(e.rarity, 0, 0, MAX_RARITY) as Rarity,
+            affixes: (e.affixes as unknown[]).flatMap((a) => {
+              if (typeof a !== 'object' || a === null) return []
+              const affix = a as Record<string, unknown>
+              if (typeof affix.kind !== 'string' || !AFFIX_BY_KIND.has(affix.kind as AffixKind)) return []
+              return [{ kind: affix.kind as AffixKind, amount: int(affix.amount, 1, 1) }]
+            }),
+            power: typeof e.power === 'string' ? e.power : null,
+            depth: int(e.depth, 1, 1),
+          })
+        } else if (typeof e.id === 'string') {
+          const entry = fromLegacy(e.id, int(e.rank, 0, 0, 5))
+          legacyByBase.set(e.id, entry.uid)
+          owned.push(entry)
         }
       }
     }
@@ -116,12 +195,15 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
 
   const equipped: Record<string, string> = {}
   if (typeof record.equipped === 'object' && record.equipped !== null) {
-    for (const [slot, id] of Object.entries(record.equipped as Record<string, unknown>)) {
-      if (typeof id === 'string') equipped[slot] = id
+    for (const [slot, ref] of Object.entries(record.equipped as Record<string, unknown>)) {
+      if (typeof ref !== 'string') continue
+      // A v3 save points at a uid; v1 and v2 point at a base id, which is
+      // translated through the row that base became.
+      equipped[slot] = legacyByBase.get(ref) ?? ref
     }
   }
-  // `sanitise` drops ids this build no longer knows and unequips anything left
-  // dangling, so an item renamed between builds cannot make a slot vanish.
+  // `sanitise` drops bases this build no longer knows and unequips anything
+  // left dangling, so an item renamed between builds cannot make a slot vanish.
   return sanitise({ owned, equipped })
 }
 

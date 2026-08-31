@@ -832,6 +832,24 @@
       .item-worn .item-icon {
         color: var(--paper);
       }
+      /* The rung's colour is set inline, and the worn card is near-black — so a
+         grey 凡 name landed almost invisible against it. Lifting it keeps the
+         hue (the ladder still reads) while making the name legible on the dark
+         card, which is the one card a player looks at most. */
+      .item-worn .item-name {
+        filter: brightness(2.1) saturate(0.85);
+      }
+      .item-seal {
+        font-size: 0.85em;
+        opacity: 0.85;
+      }
+      /* The named power, on 神 and 仙 pieces only. */
+      .item-power {
+        margin-top: 3px;
+        font-size: 10.5px;
+        letter-spacing: 0.04em;
+        color: var(--gold);
+      }
       .item-r1 {
         border-left-color: var(--gold);
       }

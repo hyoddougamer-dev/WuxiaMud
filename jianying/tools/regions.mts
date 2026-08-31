@@ -29,7 +29,10 @@ import { REGIONS, type Region } from '../src/data/regions'
 import { DEFAULT_WEAPON } from '../src/data/weapons'
 import { LEVELS_PER_REALM } from '../src/meta/realms'
 import { emptyAttributes, pointsForLevel, type Attributes } from '../src/meta/character'
-import { ITEM_BY_ID, rollRank, type Item, type Slot } from '../src/data/items'
+import { ITEM_BY_ID, type Item, type Slot } from '../src/data/items'
+import { rollAffixes } from '../src/data/affixes'
+import { rollRarity } from '../src/data/rarity'
+import { mintUid, type OwnedItem } from '../src/meta/inventory'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
@@ -75,7 +78,7 @@ function wornFor(region: Region): Item[] {
       const item = ITEM_BY_ID.get(id)
       if (!item || item.slot === 'weapon') continue
       const held = best.get(item.slot)
-      if (!held || item.rarity > held.rarity) best.set(item.slot, item)
+      if (!held || item.depth > held.depth) best.set(item.slot, item)
     }
   }
   return [...best.values()]
@@ -102,7 +105,9 @@ for (const region of REGIONS) {
   let secs = 0
   let kills = 0
   let peak = 0
-  const SEEDS = [4242, 90210, 31337]
+  const gearRng = new Rng(0x9e3779b9)
+
+const SEEDS = [4242, 90210, 31337]
 
   for (const seed of SEEDS) {
     const player = createPlayer(0, 0)
@@ -118,7 +123,19 @@ for (const region of REGIONS) {
       // just unlocked The Pass is not wearing post-road copies of their gear,
       // and measuring them as if they were would report every deep region as
       // harder than it actually plays.
-      worn: worn.map((item) => ({ item, rank: rollRank(Math.max(1, region.depth - 1), 0.99) })),
+      worn: worn.map((item): OwnedItem => {
+        // Its own stream, so rolling gear never shifts the enemy sequence.
+        const at = Math.max(1, region.depth - 1)
+        const rarity = rollRarity(at, 0.8)
+        return {
+          uid: mintUid(item.id),
+          baseId: item.id,
+          rarity,
+          affixes: rollAffixes(rarity, at, gearRng),
+          power: null,
+          depth: at,
+        }
+      }),
     })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp

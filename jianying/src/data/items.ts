@@ -18,48 +18,8 @@
  * carries a whole WeaponClass, because changing how the blade sweeps is the
  * point of picking one up. See data/weapons.ts.
  */
-import type { AttributeId } from '../meta/character'
 
 export type Slot = 'weapon' | 'robe' | 'shoulders' | 'head'
-
-/**
- * What an item's single line can say: one of the four attributes, and nothing
- * else.
- *
- * There used to be ten kinds — the four attributes plus maxHp, damage, rate,
- * range, pickup and artPower — and that was ten currencies across sixteen
- * pieces, which is sixteen exceptions. Worse, half of them said the same thing
- * twice: `body` already grants max health and `maxHp` granted max health, so a
- * player comparing a robe that gave "+3 Body" against one that gave "+28 max
- * health" had no way to know which was bigger without reading the source.
- *
- * Four kinds, and every one of them is a row the hub ALREADY shows with its
- * effect spelled out in the player's own units. "Is this better?" becomes a
- * comparison of two numbers in the same currency, which is the only kind of
- * comparison that survives being read one-handed with things chasing you.
- */
-export type StatKind = AttributeId
-
-export interface ItemStat {
-  readonly kind: StatKind
-  readonly amount: number
-}
-
-/**
- * What a piece's line is worth at `rank`.
- *
- * This is where rank stops being a decoration. A piece found deep is the same
- * piece with a bigger number, and 30% per step means a rank 5 is worth two and
- * a half of a rank 0 — enough that walking harder ground is the way to improve
- * what you already wear, and not so much that a lucky rank makes the piece
- * itself irrelevant.
- *
- * One rule for all four kinds, deliberately. A per-kind curve would be four
- * rules nobody can hold in their head while deciding whether to swap a hat.
- */
-export function statAt(stat: ItemStat, rank: number): number {
-  return Math.max(1, Math.round(stat.amount * (1 + rank * 0.3)))
-}
 
 export interface Item {
   readonly id: string
@@ -70,30 +30,8 @@ export interface Item {
    * the item the player actually sees.
    */
   readonly styleId: string
-  /** The single line. Weapons may have none — the weapon itself is the line. */
-  readonly stat?: ItemStat
   /** Lowest expedition depth this can drop from. */
   readonly depth: number
-  /** 0 common, 1 uncommon, 2 rare. Drives the accent colour and the drop odds. */
-  readonly rarity: 0 | 1 | 2
-}
-
-/** Renders a stat as the sentence shown on the card, at the rank held. */
-export function statLine(stat: ItemStat | undefined, rank = 0): string {
-  if (!stat) return ''
-  const n = statAt(stat, rank)
-  switch (stat.kind) {
-    case 'body':
-      return `+${n} Body`
-    case 'edge':
-      return `+${n} Edge`
-    case 'swift':
-      return `+${n} Swiftness`
-    case 'spirit':
-      return `+${n}% art power`
-    default:
-      return ''
-  }
 }
 
 /**
@@ -107,12 +45,12 @@ export const ITEMS: readonly Item[] = [
   // --- weapons ---------------------------------------------------------
   // No stat line: the weapon IS the change, and adding a number on top would
   // bury the thing the player is meant to notice.
-  { id: 'w-jian', name: 'Straight Jian', slot: 'weapon', styleId: 'jian', depth: 1, rarity: 0 },
-  { id: 'w-dao', name: 'Curved Dao', slot: 'weapon', styleId: 'dao', depth: 1, rarity: 0 },
-  { id: 'w-twin', name: 'Twin Blades', slot: 'weapon', styleId: 'twin', depth: 2, rarity: 1 },
-  { id: 'w-fan', name: 'Iron Fan', slot: 'weapon', styleId: 'fan', depth: 2, rarity: 1 },
-  { id: 'w-spear', name: 'Long Spear', slot: 'weapon', styleId: 'spear', depth: 3, rarity: 1 },
-  { id: 'w-great', name: 'Heavy Zhanmadao', slot: 'weapon', styleId: 'great', depth: 4, rarity: 2 },
+  { id: 'w-jian', name: 'Straight Jian', slot: 'weapon', styleId: 'jian', depth: 1 },
+  { id: 'w-dao', name: 'Curved Dao', slot: 'weapon', styleId: 'dao', depth: 1 },
+  { id: 'w-twin', name: 'Twin Blades', slot: 'weapon', styleId: 'twin', depth: 2 },
+  { id: 'w-fan', name: 'Iron Fan', slot: 'weapon', styleId: 'fan', depth: 2 },
+  { id: 'w-spear', name: 'Long Spear', slot: 'weapon', styleId: 'spear', depth: 3 },
+  { id: 'w-great', name: 'Heavy Zhanmadao', slot: 'weapon', styleId: 'great', depth: 4 },
 
   // --- robes -------------------------------------------------------------
   {
@@ -120,54 +58,42 @@ export const ITEMS: readonly Item[] = [
     name: 'Hemp Robe',
     slot: 'robe',
     styleId: 'plain',
-    stat: { kind: 'body', amount: 2 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 'r-travelling',
     name: 'Travelling Coat',
     slot: 'robe',
     styleId: 'travelling',
-    stat: { kind: 'swift', amount: 2 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 'r-lamellar',
     name: 'Lamellar Skirt',
     slot: 'robe',
     styleId: 'lamellar',
-    stat: { kind: 'body', amount: 4 },
     depth: 2,
-    rarity: 1,
   },
   {
     id: 'r-layered',
     name: 'Layered Vestment',
     slot: 'robe',
     styleId: 'layered',
-    stat: { kind: 'body', amount: 5 },
     depth: 3,
-    rarity: 1,
   },
   {
     id: 'r-tattered',
     name: 'Tattered Shroud',
     slot: 'robe',
     styleId: 'tattered',
-    stat: { kind: 'swift', amount: 5 },
     depth: 4,
-    rarity: 1,
   },
   {
     id: 'r-court',
     name: 'Court Silks',
     slot: 'robe',
     styleId: 'court',
-    stat: { kind: 'spirit', amount: 6 },
     depth: 5,
-    rarity: 2,
   },
 
   // --- shoulders ---------------------------------------------------------
@@ -176,45 +102,35 @@ export const ITEMS: readonly Item[] = [
     name: 'Bound Sleeves',
     slot: 'shoulders',
     styleId: 'plain',
-    stat: { kind: 'swift', amount: 2 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 's-bare',
     name: 'Bare Arms',
     slot: 'shoulders',
     styleId: 'bare',
-    stat: { kind: 'edge', amount: 2 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 's-pauldron',
     name: 'Iron Pauldrons',
     slot: 'shoulders',
     styleId: 'pauldron',
-    stat: { kind: 'body', amount: 3 },
     depth: 2,
-    rarity: 1,
   },
   {
     id: 's-wide',
     name: 'Wide Sleeves',
     slot: 'shoulders',
     styleId: 'wide',
-    stat: { kind: 'spirit', amount: 4 },
     depth: 3,
-    rarity: 1,
   },
   {
     id: 's-mantle',
     name: 'Feather Mantle',
     slot: 'shoulders',
     styleId: 'mantle',
-    stat: { kind: 'spirit', amount: 5 },
     depth: 5,
-    rarity: 2,
   },
 
   // --- headwear ----------------------------------------------------------
@@ -223,45 +139,35 @@ export const ITEMS: readonly Item[] = [
     name: 'Bound Topknot',
     slot: 'head',
     styleId: 'topknot',
-    stat: { kind: 'edge', amount: 1 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 'h-bare',
     name: 'Loose Hair',
     slot: 'head',
     styleId: 'bare',
-    stat: { kind: 'swift', amount: 1 },
     depth: 1,
-    rarity: 0,
   },
   {
     id: 'h-hat',
     name: 'Bamboo Hat',
     slot: 'head',
     styleId: 'hat',
-    stat: { kind: 'edge', amount: 3 },
     depth: 2,
-    rarity: 1,
   },
   {
     id: 'h-crown',
     name: 'Jade Crown',
     slot: 'head',
     styleId: 'crown',
-    stat: { kind: 'spirit', amount: 4 },
     depth: 4,
-    rarity: 1,
   },
   {
     id: 'h-veiled',
     name: 'Veiled Hat',
     slot: 'head',
     styleId: 'veiled',
-    stat: { kind: 'edge', amount: 5 },
     depth: 6,
-    rarity: 2,
   },
 ] as const
 
@@ -276,76 +182,50 @@ export const SLOT_NAMES: Record<Slot, string> = {
   robe: 'Robe',
 }
 
-/**
- * How far a single piece can be raised.
- *
- * Five and not more: rank has to be readable as a mark on a silhouette drawn
- * about fifty units tall (see tools/sheet.ts rankMarksFor), and a scale with
- * more steps than that cannot be told apart at the size the game actually
- * draws. A number the player cannot see is a number that is not in the game.
- */
-export const MAX_RANK = 5
-
-/**
- * The rank a piece drops at, from the depth it dropped at.
- *
- * Where you found it decides how good it is. That is the whole vertical axis
- * for now: the same Hemp Robe is a better robe off the mountain than off the
- * post road, so walking harder ground improves what you already wear rather
- * than only widening what you own.
- *
- * `pick` is a seeded roll, so a replay of the same expedition finds the same
- * pieces at the same ranks.
- */
-export function rollRank(depth: number, pick: number): number {
-  const floorRank = Math.min(MAX_RANK, Math.max(0, Math.floor((depth - 1) * 0.9)))
-  // Roughly a quarter of finds come out one step above the ground they were
-  // found on, which is what makes a deep run worth repeating.
-  return pick < 0.26 ? Math.min(MAX_RANK, floorRank + 1) : floorRank
-}
-
 /** What a new swordsman is handed. A school swaps the weapon; see meta/schools. */
 export const STARTING_ITEMS: readonly string[] = ['r-plain', 's-plain', 'h-topknot']
 
 /**
  * Chance that felling an enemy drops something, at a given depth.
  *
- * Low, and only slightly depth-scaled. A survivors-like kills hundreds of
- * things per expedition, so anything generous turns the reward screen into a
- * wall of duplicates and the drop stops being an event. Measured against a real
- * expedition: 177 kills at this rate is between one and two drops.
+ * RAISED, and the reason is a design change rather than generosity. While the
+ * arts grew during a run, loot was a reward you read on the way out — a drop or
+ * two an expedition was plenty, and more only made the end screen a wall. Loot
+ * is now the progression DURING the run as well: the purple sword you find at
+ * the halfway mark is what makes minute eight play differently from minute one,
+ * and at two finds an expedition that beat almost never lands.
+ *
+ * Measured against a real expedition of ~200 kills: roughly six or seven finds,
+ * most of them grey. The ladder does the work of keeping a find special — see
+ * data/rarity.ts — rather than the drop rate doing it by starving the player.
  */
 export function dropChance(depth: number): number {
-  return 0.009 + Math.max(0, depth - 1) * 0.0015
+  return 0.03 + Math.max(0, depth - 1) * 0.004
 }
 
-/** Items that can drop at `depth`, weighted by rarity (rarer is scarcer). */
+/** The bases that can drop at `depth`. */
 export function dropTable(depth: number): Item[] {
   return ITEMS.filter((item) => item.depth <= depth)
 }
 
-/** How much likelier an unowned item is than one already in the chest. */
-const NEW_ITEM_BIAS = 5
+/** How much likelier a base the player has never seen is than a familiar one. */
+const NEW_BASE_BIAS = 3
 
 /**
- * Picks a drop, strongly favouring something the player does not have.
+ * Picks the BASE a drop is rolled from. Its rarity and lines are rolled
+ * separately — see data/rarity.ts and data/affixes.ts.
  *
- * Without the bias the shallow table is small enough — eight items at depth 1,
- * four of which the school already handed over — that roughly half of all
- * drops come back "already yours". That is not a loot game, it is a slot
- * machine that mostly pays nothing, and the first expedition is exactly when a
- * player most needs the loop to show them something.
- *
- * Duplicates stay possible rather than being eliminated: once everything at a
- * depth is owned, a drop has to be something, and "already yours" is at least
- * honest about it.
+ * The bias toward unseen bases is gentler than it was. It existed because a
+ * repeat used to be worthless: the same Hemp Robe was the same +2 Body forever,
+ * so half the drops coming back "already yours" made the loop a slot machine
+ * that mostly paid nothing. A repeat is now a fresh roll of the lines, so a
+ * second Hemp Robe is a real find — the bias only keeps the silhouettes varied,
+ * which is a much smaller job.
  */
-export function rollDrop(depth: number, pick: number, owned: ReadonlySet<string>): Item | null {
+export function rollDrop(depth: number, pick: number, seen: ReadonlySet<string>): Item | null {
   const table = dropTable(depth)
   if (table.length === 0) return null
-  const weights = table.map(
-    (item) => [4, 2, 1][item.rarity]! * (owned.has(item.id) ? 1 : NEW_ITEM_BIAS),
-  )
+  const weights = table.map((item) => (seen.has(item.id) ? 1 : NEW_BASE_BIAS))
   const total = weights.reduce((a, b) => a + b, 0)
   let target = pick * total
   for (let i = 0; i < table.length; i++) {

@@ -307,7 +307,7 @@ export function gearOf(ids: readonly string[]): Gear {
     const item = ITEM_BY_ID.get(id)
     if (!item) continue
     const held = best.get(item.slot)
-    if (!held || item.rarity > held.rarity) best.set(item.slot, item)
+    if (!held || item.depth > held.depth) best.set(item.slot, item)
   }
   return gearFromIds({
     robe: best.get('robe')?.styleId,

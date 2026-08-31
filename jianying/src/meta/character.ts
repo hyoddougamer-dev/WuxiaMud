@@ -314,11 +314,6 @@ export function grantXp(character: Character, amount: number): LevelGain {
 /** Anything with a slot and a rank — deliberately structural, not imported
  * from ui/hud.ts's `Found`, so this file does not reach into the UI layer for
  * a shape this generic. */
-export interface SettledFind {
-  readonly item: { readonly slot: string }
-  readonly rank: number
-}
-
 /**
  * Which of an expedition's finds a DEATH actually keeps — the "semi hardcore"
  * stake that makes pushing a rift's gate a real decision rather than a free
@@ -344,11 +339,20 @@ export interface SettledFind {
  * function then treats as "everything is secured", matching the gate
  * screen's own promise that leaving risks nothing).
  */
-export function settleFound<T extends SettledFind>(
+export function settleFound<T>(
   found: readonly T[],
   securedCount: number,
   emptyAtStart: ReadonlySet<string>,
   banked: boolean,
+  /**
+   * Which slot a find belongs to, for the empty-slot exemption below.
+   *
+   * Passed in rather than read off the find, because a find is now a rolled
+   * instance whose slot lives on its BASE — and looking that up would drag the
+   * item table into this file, which knows about levels and rewards and
+   * nothing else.
+   */
+  slotOf: (found: T) => string,
 ): T[] {
   if (banked) return [...found]
   const claimed = new Set<string>()
@@ -358,7 +362,7 @@ export function settleFound<T extends SettledFind>(
       kept.push(f)
       return
     }
-    const slot = f.item.slot
+    const slot = slotOf(f)
     if (emptyAtStart.has(slot) && !claimed.has(slot)) {
       claimed.add(slot)
       kept.push(f)

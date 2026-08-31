@@ -35,7 +35,6 @@ import {
   ATTRIBUTES,
   type Attributes,
   type Character,
-  emptyAttributes,
   manualRank,
   spendPoint,
   xpForCultivation,
@@ -43,17 +42,26 @@ import {
 import { MAX_DEPTH, REGIONS, depthReward, regionAt } from '../data/regions'
 import { schoolById } from '../meta/schools'
 import {
+  baseOf,
+  carriedInSlot,
   equip,
   equippedIn,
   equippedItems,
-  ownedInSlot,
-  rankOf,
   type OwnedItem,
 } from '../meta/inventory'
-import { ITEM_BY_ID, SLOTS, SLOT_NAMES, statLine, type Item, type Slot } from '../data/items'
+import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
+import { POWER_BY_ID, affixLine } from '../data/affixes'
+import { rarityOf } from '../data/rarity'
 import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
-import { BODY_HP, EDGE_DAMAGE, SPIRIT_ART, SWIFT_INTERVAL, attributeBonuses } from '../sim/loadout'
+import {
+  BODY_HP,
+  EDGE_DAMAGE,
+  SPIRIT_ART,
+  SWIFT_INTERVAL,
+  attributeBonuses,
+  wornAttributes,
+} from '../sim/loadout'
 import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
@@ -199,12 +207,17 @@ export function createHub(
   /** The swordsman as they currently stand, gear and rank and all. */
   const portrait = (c: Character, box: number): string => {
     const worn = equippedItems(c.inventory)
-    const styleFor = (slot: Slot): string | undefined =>
-      worn.find((item) => item.slot === slot)?.styleId
-    // Rank is worn, not merely listed. Without this the whole vertical axis
-    // lives in a number on a card, which is the one place a player is not
-    // looking while deciding what to put on.
-    const ranked = worn.map((item) => ({ slot: item.slot, rank: rankOf(c.inventory, item.id) }))
+    const styleFor = (slot: Slot): string | undefined => {
+      const entry = worn.find((e) => baseOf(e)?.slot === slot)
+      return entry ? (baseOf(entry)?.styleId ?? undefined) : undefined
+    }
+    // Rarity is WORN, not merely listed. Without this the whole ladder lives in
+    // a colour on a card, which is the one place a player is not looking while
+    // deciding what to put on.
+    const ranked = worn.flatMap((entry) => {
+      const base = baseOf(entry)
+      return base ? [{ slot: base.slot, rank: entry.rarity }] : []
+    })
     return portraitSvg(
       gearFromIds({
         robe: styleFor('robe'),
@@ -230,29 +243,32 @@ export function createHub(
     worn: boolean,
     slot: Slot,
   ): HTMLButtonElement => {
+    const tier = rarityOf(entry.rarity)
     const card = document.createElement('button')
     card.type = 'button'
-    card.className =
-      'item' + (worn ? ' item-worn' : '') + (item.rarity > 0 ? ` item-r${item.rarity}` : '')
-    // At the rank held, not the base: a rank 4 robe that still advertises its
-    // rank 0 line would make the whole axis invisible where it is compared.
+    card.className = 'item' + (worn ? ' item-worn' : '')
+    // The rung is the loudest thing on the card, because it is what a player
+    // reads first and what tells them whether to read the rest at all.
+    card.style.borderLeftColor = tier.css
+    // A weapon shows how it PLAYS rather than a line, because that is what
+    // changes when you equip it — a number on a spear describes the least
+    // interesting thing about picking up a spear.
     const line =
-      slot === 'weapon' ? weaponById(item.styleId).blurb : statLine(item.stat, entry.rank)
-    // Rank as pips rather than a number: the card is 158px wide on a phone and
-    // already carries a name and a line of effect, and "rank 3" would need a
-    // word of explanation that four dots does not.
-    const pips =
-      entry.rank > 0
-        ? `<span class="item-rank">${'·'.repeat(entry.rank)}</span>`
-        : ''
+      slot === 'weapon'
+        ? weaponById(item.styleId).blurb
+        : entry.affixes.map(affixLine).join(' · ')
+    const power = entry.power ? POWER_BY_ID.get(entry.power) : null
     card.innerHTML = `
       ${itemIconSvg(slot, item.styleId, palette.ink, worn ? 0.9 : 0.5, 'item-icon')}
-      <div class="item-name">${item.name}${pips}</div>
-      <div class="item-line">${line}</div>
+      <div class="item-name" style="color:${tier.css}">
+        <span class="item-seal">${tier.seal}</span> ${escapeHtml(item.name)}
+      </div>
+      <div class="item-line">${escapeHtml(line)}</div>
+      ${power ? `<div class="item-power">${power.seal} ${escapeHtml(power.name)}</div>` : ''}
     `
     card.addEventListener('click', () => {
       if (!character || worn) return
-      if (!equip(character.inventory, item.id)) return
+      if (!equip(character.inventory, entry.uid)) return
       onSave()
       render()
     })
@@ -429,8 +445,12 @@ export function createHub(
     pane.appendChild(stage)
 
     for (const slot of SLOTS) {
-      const owned = ownedInSlot(c.inventory, slot)
-      const wornId = c.inventory.equipped[slot]
+      // Worn first, then the pack's pieces for this slot, best rung first —
+      // so the comparison a player actually makes is the two cards side by
+      // side rather than a scroll and a memory.
+      const wornUid = c.inventory.equipped[slot]
+      const wornEntry = equippedIn(c.inventory, slot)
+      const owned = [...(wornEntry ? [wornEntry] : []), ...carriedInSlot(c.inventory, slot)]
 
       const group = document.createElement('div')
       group.className = 'slot'
@@ -457,8 +477,10 @@ export function createHub(
         // Scrolls sideways rather than stacking. A slot with six finds used to
         // add six full-width cards to a page that was already too long.
         row.className = 'slot-items'
-        for (const { item, entry } of owned) {
-          row.appendChild(itemCard(item, entry, item.id === wornId, slot))
+        for (const entry of owned) {
+          const base = baseOf(entry)
+          if (!base) continue
+          row.appendChild(itemCard(base, entry, entry.uid === wornUid, slot))
         }
         group.appendChild(row)
       }
@@ -655,25 +677,16 @@ export function createHub(
 
     const school = schoolById(c.origin)
     const weaponItem = equippedIn(c.inventory, 'weapon')
-    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
+    const weapon = weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId)
 
     // Attributes granted by worn equipment count exactly like bought ones in
     // combat, so the hub must quote the combined figure. Quoting only the
     // bought half was a straightforward lie: it read "0.26s per sweep" while
     // the game ran at 0.24s, and this screen exists to be believed.
-    const fromGear = emptyAttributes()
-    for (const item of equippedItems(c.inventory)) {
-      const stat = item.stat
-      if (!stat) continue
-      if (
-        stat.kind === 'body' ||
-        stat.kind === 'edge' ||
-        stat.kind === 'swift' ||
-        stat.kind === 'spirit'
-      ) {
-        fromGear[stat.kind] += stat.amount
-      }
-    }
+    // One call rather than a second copy of the summing rule: the hub and the
+    // simulation must never disagree about what the gear grants, and they did
+    // once — the screen read "0.26s per sweep" while the game ran at 0.24s.
+    const fromGear = wornAttributes(equippedItems(c.inventory))
     const total: Attributes = {
       body: c.spent.body + fromGear.body,
       edge: c.spent.edge + fromGear.edge,

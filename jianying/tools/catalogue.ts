@@ -35,7 +35,11 @@ import { writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
-import { ITEMS, MAX_RANK, statAt } from '../src/data/items'
+import { ITEMS } from '../src/data/items'
+import { RARITIES } from '../src/data/rarity'
+const MAX_RANK = RARITIES.length - 1
+const statAt = (stat: { amount: number; kind?: string }, rank: number): number =>
+  Math.max(1, Math.round(stat.amount * (1 + rank * 0.3)))
 import { SETS, SLOT_ORDER, SLOT_SEAL, STATS, gearWith, nameOf, valueAt } from './setdata'
 import { W, columns, figure, heading, hex, label } from './sheet'
 

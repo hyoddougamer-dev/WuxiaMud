@@ -124,7 +124,7 @@ function piecesOf(line: SetLine): Map<Slot, Item> {
     const held = out.get(item.slot)
     // Where a region drops two of a slot the rarer one is the set piece; the
     // other is a loose find. The Pass is the only region this applies to.
-    if (!held || item.rarity > held.rarity) out.set(item.slot, item)
+    if (!held || item.depth > held.depth) out.set(item.slot, item)
   }
   return out
 }

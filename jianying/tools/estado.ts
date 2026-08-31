@@ -19,7 +19,8 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { palette } from '../src/render/palette'
-import { ITEMS, MAX_RANK, type Slot } from '../src/data/items'
+import { ITEMS, type Slot } from '../src/data/items'
+import { RARITIES } from '../src/data/rarity'
 import { ARTS, CONDITIONS, MAX_ART_LEVEL, EQUIPPED_ARTS, NEW_EFFECTS } from '../src/data/arts'
 import { artActs, LIVE_EFFECTS } from '../src/sim/arts'
 import { WEAPONS } from '../src/data/weapons'
@@ -119,10 +120,10 @@ row(
   `${slots.map((s) => `${s} ${bySlot[s] ?? 0}`).join(' · ')}`,
 )
 row(
-  'Linhas de stat',
-  `${ITEMS.filter((i) => i.stat).length}`,
+  'Raridades',
+  `${RARITIES.length}`,
   true,
-  `um atributo cada · graus 0–${MAX_RANK}, +30% por grau`,
+  RARITIES.map((r) => r.seal).join(' '),
 )
 row('Atributos', `${ATTRIBUTES.length}`, true, ATTRIBUTES.map((a) => a.name).join(' · '))
 row('Armas', `${WEAPONS.length}`, true, 'cada uma muda como o golpe varre')

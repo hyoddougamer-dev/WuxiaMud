@@ -55,7 +55,7 @@ import {
   singleTargetDps,
   sweptAreaPerSecond,
 } from '../src/data/weapons'
-import { BLADE_BY_ID, HEADS, ROBES, SHOULDERS } from '../src/render/wardrobe'
+import { BLADE_BY_ID } from '../src/render/wardrobe'
 import {
   activeSeals,
   createSense,
@@ -73,27 +73,29 @@ import {
 } from '../src/data/arts'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
-import { deriveStats, wornAttributes, type Kit, type Worn } from '../src/sim/loadout'
 import {
-  ITEMS,
-  ITEM_BY_ID,
-  MAX_RANK,
-  SLOTS,
-  dropChance,
-  statAt,
-  rollDrop,
-  rollRank,
-  statLine,
-  type Item,
-} from '../src/data/items'
+  deriveStats,
+  emptyKit,
+  wornAttributes,
+  wornShape,
+  type Kit,
+  type Worn,
+} from '../src/sim/loadout'
+import { ITEMS, ITEM_BY_ID, SLOTS, dropChance, dropTable } from '../src/data/items'
+import { rollAmount, type Affix } from '../src/data/affixes'
+import type { Rarity } from '../src/data/rarity'
 import {
+  BAG_CAPACITY,
   acquire,
+  carried,
+  carriedInSlot,
+  discard,
   emptyInventory,
   equip,
   equippedIn,
-  ownedInSlot,
-  rankOf,
+  mintUid,
   sanitise,
+  type OwnedItem,
 } from '../src/meta/inventory'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
@@ -101,16 +103,11 @@ import { createPlayer, updatePlayer } from '../src/sim/player'
 
 const attrs = (partial: Partial<Attributes>): Attributes => ({ ...emptyAttributes(), ...partial })
 
-/**
- * A Kit carrying only bought attributes — the default weapon, nothing worn.
- *
- * `worn` takes plain Items and holds them at rank 0, which is what a piece
- * found on the post road is; tests that care about rank pass Worn directly.
- */
-const kit = (spent: Attributes = emptyAttributes(), worn: Array<Item | Worn> = []): Kit => ({
+/** A Kit carrying only bought attributes — the default weapon, nothing worn. */
+const kit = (spent: Attributes = emptyAttributes(), worn: Worn[] = []): Kit => ({
   spent,
   weapon: DEFAULT_WEAPON,
-  worn: worn.map((w) => ('item' in w ? w : { item: w, rank: 0 })),
+  worn,
 })
 
 describe('realms', () => {
@@ -522,207 +519,144 @@ describe('weapons', () => {
   })
 })
 
-describe('items', () => {
-  it('gives every item a distinct id and a real style', () => {
-    expect(new Set(ITEMS.map((i) => i.id)).size).toBe(ITEMS.length)
+describe('the item table, as bases', () => {
+  it('gives every base a unique id', () => {
+    const ids = ITEMS.map((i) => i.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('gives every base a wardrobe style, so nothing is invisible', () => {
+    // The figures have no interior detail, so a piece that does not alter the
+    // outline cannot be seen at all. Every base points at a silhouette.
+    for (const item of ITEMS) expect(item.styleId).toBeTruthy()
+  })
+
+  it('never puts two bases of one slot on the same silhouette', () => {
+    const bySlot = new Map<string, Set<string>>()
     for (const item of ITEMS) {
-      expect(ITEM_BY_ID.get(item.id)).toBe(item)
-      if (item.slot === 'weapon') {
-        expect(WEAPON_BY_ID.has(item.styleId), item.name).toBe(true)
-      } else {
-        const table =
-          item.slot === 'robe' ? ROBES : item.slot === 'shoulders' ? SHOULDERS : HEADS
-        expect(table.some((s) => s.id === item.styleId), item.name).toBe(true)
-      }
+      const seen = bySlot.get(item.slot) ?? new Set<string>()
+      expect(seen.has(item.styleId), `${item.slot}/${item.styleId}`).toBe(false)
+      seen.add(item.styleId)
+      bySlot.set(item.slot, seen)
     }
   })
 
-  it('never gives two items in a slot the same silhouette', () => {
-    // An item that does not change the outline is invisible in this art
-    // direction, so two items sharing a style would be the same item twice.
-    for (const slot of ['robe', 'shoulders', 'head', 'weapon'] as const) {
-      const styles = ITEMS.filter((i) => i.slot === slot).map((i) => i.styleId)
-      expect(new Set(styles).size, slot).toBe(styles.length)
+  it('opens the shallowest ground with something for every slot', () => {
+    // A first expedition that cannot drop a hat has a dead slot in its bag.
+    for (const slot of SLOTS) {
+      expect(dropTable(1).some((i) => i.slot === slot), slot).toBe(true)
     }
   })
 
-  it('gives every non-weapon exactly one readable line', () => {
-    for (const item of ITEMS) {
-      if (item.slot === 'weapon') {
-        // The weapon IS the line; a stat on top would bury it.
-        expect(item.stat).toBeUndefined()
-        continue
-      }
-      expect(item.stat, item.name).toBeDefined()
-      expect(statLine(item.stat).trim().length).toBeGreaterThan(0)
+  it('widens the table as the ground gets deeper, never narrows it', () => {
+    for (let depth = 2; depth <= MAX_DEPTH; depth++) {
+      expect(dropTable(depth).length).toBeGreaterThanOrEqual(dropTable(depth - 1).length)
     }
   })
 
-  it('keeps drops rare enough to stay an event', () => {
-    // A survivors-like fells hundreds of things per expedition. At 5% a run
-    // would end in a wall of duplicates and a drop would stop meaning anything.
-    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
-      expect(dropChance(depth)).toBeLessThan(0.02)
-      expect(dropChance(depth)).toBeGreaterThan(0)
-    }
-  })
-
-  it('never rolls something the road has not unlocked', () => {
-    const rng = new Rng(31)
-    const nothing = new Set<string>()
-    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
-      for (let i = 0; i < 400; i++) {
-        const item = rollDrop(depth, rng.next(), nothing)!
-        expect(item.depth).toBeLessThanOrEqual(depth)
-      }
-    }
-  })
-
-  it('favours something the player does not already have', () => {
-    // Without this the shallow table is small enough that roughly half of all
-    // drops come back "already yours", which is a slot machine that mostly
-    // pays nothing rather than a loot game.
-    const rng = new Rng(9001)
-    const owned = new Set(['r-plain', 's-plain', 'h-topknot', 'w-jian'])
-    let fresh = 0
-    const runs = 3000
-    for (let i = 0; i < runs; i++) {
-      if (!owned.has(rollDrop(1, rng.next(), owned)!.id)) fresh++
-    }
-    expect(fresh / runs).toBeGreaterThan(0.75)
-  })
-
-  it('still returns something once everything is owned', () => {
-    // A drop has to be something. Once the table is exhausted, a duplicate is
-    // the honest answer rather than silence.
-    const everything = new Set(ITEMS.map((i) => i.id))
-    const rng = new Rng(5)
-    for (let i = 0; i < 100; i++) {
-      expect(rollDrop(MAX_DEPTH, rng.next(), everything)).not.toBeNull()
-    }
-  })
-
-  it('feeds worn stats into the same maths as bought ones', () => {
-    // The reason there are only four kinds. A worn "+N Body" must land on the
-    // same curve, at the same diminishing return, as N points spent in the hub;
-    // the raw channels this replaced bypassed the curve entirely, so a robe and
-    // a spend screen disagreed about what the same words were worth.
-    const robe = ITEM_BY_ID.get('r-layered')!
-    const points = robe.stat!.amount
-    const bare = deriveStats(new Map(), kit())
-    const worn = deriveStats(new Map(), kit(emptyAttributes(), [robe]))
-    expect(worn.maxHp).toBeCloseTo(deriveStats(new Map(), kit(attrs({ body: points }))).maxHp, 9)
-    expect(worn.maxHp).toBeGreaterThan(bare.maxHp)
-  })
-
-  it('stays finite and positive under an absurd pile of gear', () => {
-    // Not reachable in play — four slots — but the attribute curve is the only
-    // thing standing between a swift stack and an interval of zero, which would
-    // be an infinite sweep rate rather than a fast one.
-    const absurd: Worn[] = Array.from({ length: 40 }, () => ({
-      item: ITEM_BY_ID.get('r-tattered')!,
-      rank: MAX_RANK,
-    }))
-    const stats = deriveStats(new Map(), kit(emptyAttributes(), absurd))
-    expect(stats.slashInterval).toBeGreaterThan(0)
-    expect(Number.isFinite(stats.slashInterval)).toBe(true)
-    expect(Number.isFinite(stats.maxHp)).toBe(true)
+  it('drops often enough that loot can BE the in-run progression', () => {
+    // The rate was raised deliberately when loot replaced the in-run art ramp:
+    // at two finds an expedition, "the purple sword you find at the halfway
+    // mark" almost never happens, and that beat is the whole design.
+    const perRun = dropChance(3) * 200
+    expect(perRun).toBeGreaterThan(4)
+    expect(perRun).toBeLessThan(12)
   })
 })
 
-describe('inventory', () => {
-  it('records an item once and reports the duplicate', () => {
-    const inv = emptyInventory()
-    expect(acquire(inv, 'r-plain')).toBe('new')
-    // Owning is a fact, not a quantity: the hundredth Hemp Robe is worth
-    // nothing, and a list that grew each time would be unusable by evening.
-    expect(acquire(inv, 'r-plain')).toBe('duplicate')
-    expect(inv.owned.map((e) => e.id)).toEqual(['r-plain'])
+describe('the pack', () => {
+  const roll = (baseId: string, rarity: Rarity = 0, depth = 1): OwnedItem => ({
+    uid: mintUid(baseId),
+    baseId,
+    rarity,
+    affixes: [{ kind: 'body', amount: rollAmount('body', depth, 0.5) }],
+    power: null,
+    depth,
   })
 
-  it('refuses an id this build does not know', () => {
+  it('holds two copies of one base as two different pieces', () => {
+    // The point of the whole rework. The old bag collapsed them into one row,
+    // which is why a second Hemp Robe used to be worth nothing.
     const inv = emptyInventory()
-    expect(acquire(inv, 'not-a-real-item')).toBe('duplicate')
-    expect(inv.owned).toEqual([])
+    expect(acquire(inv, roll('r-plain'))).toBe('kept')
+    expect(acquire(inv, roll('r-plain'))).toBe('kept')
+    expect(inv.owned).toHaveLength(2)
+    expect(inv.owned[0]!.uid).not.toBe(inv.owned[1]!.uid)
   })
 
-  it('refuses to equip what is not owned', () => {
+  it('refuses a find when the pack is full, rather than eating it', () => {
     const inv = emptyInventory()
-    expect(equip(inv, 'r-plain')).toBe(false)
-    acquire(inv, 'r-plain')
-    expect(equip(inv, 'r-plain')).toBe(true)
-    expect(equippedIn(inv, 'robe')?.id).toBe('r-plain')
+    for (let i = 0; i < BAG_CAPACITY; i++) expect(acquire(inv, roll('r-plain'))).toBe('kept')
+    expect(acquire(inv, roll('r-plain'))).toBe('full')
   })
 
-  it('replaces rather than stacks within a slot', () => {
+  it('does not count worn pieces against the pack', () => {
+    // A player who fills the bag and then cannot equip anything, because the
+    // piece they want to take off has nowhere to go, is fighting the interface.
     const inv = emptyInventory()
-    acquire(inv, 'r-plain')
-    acquire(inv, 'r-travelling')
-    equip(inv, 'r-plain')
-    equip(inv, 'r-travelling')
-    expect(equippedIn(inv, 'robe')?.id).toBe('r-travelling')
-    expect(ownedInSlot(inv, 'robe')).toHaveLength(2)
+    const first = roll('r-plain')
+    acquire(inv, first)
+    equip(inv, first.uid)
+    for (let i = 0; i < BAG_CAPACITY; i++) acquire(inv, roll('r-plain'))
+    expect(carried(inv)).toHaveLength(BAG_CAPACITY)
+    expect(inv.owned).toHaveLength(BAG_CAPACITY + 1)
   })
 
-  it('raises a held piece when the same one is found better', () => {
-    // The point of instances. A second Hemp Robe used to be worth nothing; a
-    // second Hemp Robe found two regions deeper is now a better Hemp Robe.
+  it('equips by instance, so one copy can be worn and the other kept', () => {
     const inv = emptyInventory()
-    expect(acquire(inv, 'r-plain', 1)).toBe('new')
-    expect(acquire(inv, 'r-plain', 3)).toBe('raised')
-    expect(rankOf(inv, 'r-plain')).toBe(3)
-    // Worse or equal is still just a duplicate, and must not lower what is held.
-    expect(acquire(inv, 'r-plain', 2)).toBe('duplicate')
-    expect(acquire(inv, 'r-plain', 3)).toBe('duplicate')
-    expect(rankOf(inv, 'r-plain')).toBe(3)
-    // One row per piece, however many copies were found.
+    const a = roll('r-plain')
+    const b = roll('r-plain')
+    acquire(inv, a)
+    acquire(inv, b)
+    expect(equip(inv, b.uid)).toBe(true)
+    expect(equippedIn(inv, 'robe')!.uid).toBe(b.uid)
+    expect(carried(inv).map((e) => e.uid)).toEqual([a.uid])
+  })
+
+  it('refuses to throw away something being worn', () => {
+    const inv = emptyInventory()
+    const a = roll('r-plain')
+    acquire(inv, a)
+    equip(inv, a.uid)
+    expect(discard(inv, a.uid)).toBe(false)
     expect(inv.owned).toHaveLength(1)
   })
 
-  it('keeps rites when a piece is raised', () => {
-    // A piece the forge has worked on is still that piece. Losing that work to
-    // a lucky drop would make the forge feel like a trap.
+  it('throws away a carried piece for good', () => {
     const inv = emptyInventory()
-    acquire(inv, 'r-plain', 0)
-    inv.owned[0]!.rites = ['temper']
-    acquire(inv, 'r-plain', 4)
-    expect(inv.owned[0]).toEqual({ id: 'r-plain', rank: 4, rites: ['temper'] })
+    const a = roll('r-plain')
+    acquire(inv, a)
+    expect(discard(inv, a.uid)).toBe(true)
+    expect(inv.owned).toHaveLength(0)
   })
 
-  it('clamps a rank out of range rather than storing it', () => {
+  it('sorts a slot best rung first', () => {
     const inv = emptyInventory()
-    acquire(inv, 'r-plain', 99)
-    expect(rankOf(inv, 'r-plain')).toBe(MAX_RANK)
+    acquire(inv, roll('r-plain', 0))
+    acquire(inv, roll('r-travelling', 3))
+    acquire(inv, roll('r-plain', 1))
+    expect(carriedInSlot(inv, 'robe').map((e) => e.rarity)).toEqual([3, 1, 0])
   })
 
-  it('collapses a hand-edited save that lists one piece twice', () => {
-    // Two rows for one piece would show as two cards equipping over each other.
-    const repaired = sanitise({
-      owned: [
-        { id: 'r-plain', rank: 3, rites: [] },
-        { id: 'r-plain', rank: 1, rites: [] },
-      ],
-      equipped: {},
-    })
-    expect(repaired.owned).toHaveLength(1)
-    expect(repaired.owned[0]!.rank).toBe(3)
+  it('drops a piece whose base this build no longer knows', () => {
+    const inv = emptyInventory()
+    acquire(inv, roll('r-plain'))
+    acquire(inv, roll('no-such-base'))
+    expect(sanitise(inv).owned).toHaveLength(1)
   })
 
-  it('drops ids a later build removed, and unequips the dangling slot', () => {
-    // The migration that matters: an item renamed between builds must not make
-    // a piece of the figure silently vanish.
-    const repaired = sanitise({
-      owned: [
-        { id: 'r-plain', rank: 2, rites: [] },
-        { id: 'an-item-that-was-deleted', rank: 0, rites: [] },
-      ],
-      equipped: { robe: 'an-item-that-was-deleted', head: 'h-hat' },
-    })
-    expect(repaired.owned).toEqual([{ id: 'r-plain', rank: 2, rites: [] }])
-    expect(repaired.equipped.robe).toBeUndefined()
+  it('unequips a slot pointing at a uid that is not in the bag', () => {
     // Equipped-but-not-owned is not a state the game can produce, but a
     // hand-edited save can, and honouring it would be a free item.
-    expect(repaired.equipped.head).toBeUndefined()
+    const inv = emptyInventory()
+    const a = roll('r-plain')
+    acquire(inv, a)
+    inv.equipped.robe = 'ghost#1'
+    expect(sanitise(inv).equipped.robe).toBeUndefined()
+  })
+
+  it('mints a fresh uid per instance rather than reusing the base id', () => {
+    expect(mintUid('r-plain')).not.toBe(mintUid('r-plain'))
   })
 })
 
@@ -731,10 +665,8 @@ describe('the v1 -> v2 migration', () => {
   // shape changed twice at once — ownership became instances, and the file
   // became a roster — precisely so it would only ever change once.
 
-  it('reads a v1 file, which was the bare character', () => {
+  it('reads a v1 file, which was the bare character with bare item ids', () => {
     const c = createCharacter('Bai', 'temple')
-    acquire(c.inventory, 'r-plain')
-    equip(c.inventory, 'r-plain')
     grantXp(c, 900)
 
     // Exactly what a v1 build wrote: the character, with owned as bare ids.
@@ -749,26 +681,66 @@ describe('the v1 -> v2 migration', () => {
     const back = roster.swordsmen[0]!
     expect(back.name).toBe('Bai')
     expect(back.level).toBe(c.level)
-    // Every piece survives, at the bottom of the new axis — which is honestly
-    // where a piece found before ranks existed sits.
-    expect(back.inventory.owned.map((e) => e.id).sort()).toEqual(['r-plain', 'w-jian'])
-    expect(back.inventory.owned.every((e) => e.rank === 0 && e.rites.length === 0)).toBe(true)
-    expect(back.inventory.equipped.robe).toBe('r-plain')
+    // Every piece survives, as a rolled instance carrying one line — a bare id
+    // described a piece whose line came from a table that no longer holds one.
+    expect(back.inventory.owned.map((e) => e.baseId).sort()).toEqual(['r-plain', 'w-jian'])
+    expect(back.inventory.owned.every((e) => e.affixes.length === 1)).toBe(true)
+    // The equipped slot pointed at a BASE id; it must come forward pointing at
+    // the instance that base became, or the swordsman loads undressed.
+    const robe = back.inventory.owned.find((e) => e.baseId === 'r-plain')!
+    expect(back.inventory.equipped.robe).toBe(robe.uid)
+  })
+
+  it('carries a v2 rank forward as a bigger line, not a lost one', () => {
+    // The promise those ranks made to the player who earned them: a rank 4 robe
+    // stays a better robe than a rank 0 one across the migration.
+    const c = createCharacter('Bai', 'temple')
+    const withRank = (rank: number): number => {
+      const raw = JSON.stringify({
+        ...c,
+        inventory: { owned: [{ id: 'r-plain', rank, rites: [] }], equipped: {} },
+      })
+      return parseCharacter(raw)!.inventory.owned[0]!.affixes[0]!.amount
+    }
+    expect(withRank(4)).toBeGreaterThan(withRank(0))
   })
 
   it('round-trips a v2 roster', () => {
     const a = createCharacter('Bai', 'temple')
     const b = createCharacter('Qin', 'mountain')
-    acquire(a.inventory, 'r-plain', 4)
-    equip(a.inventory, 'r-plain')
-    acquire(b.inventory, 'w-spear', 2)
+    const robe: OwnedItem = {
+      uid: mintUid('r-plain'),
+      baseId: 'r-plain',
+      rarity: 3,
+      affixes: [{ kind: 'body', amount: 9 }],
+      power: null,
+      depth: 4,
+    }
+    const spear: OwnedItem = {
+      uid: mintUid('w-spear'),
+      baseId: 'w-spear',
+      rarity: 4,
+      affixes: [{ kind: 'edge', amount: 12 }],
+      power: 'frost',
+      depth: 5,
+    }
+    acquire(a.inventory, robe)
+    equip(a.inventory, robe.uid)
+    acquire(b.inventory, spear)
     grantXp(b, 4000)
 
     const back = parseRoster(serialiseRoster({ active: 1, swordsmen: [a, b] }))!
     expect(back.swordsmen.map((s) => s.name)).toEqual(['Bai', 'Qin'])
     expect(back.active).toBe(1)
-    expect(rankOf(back.swordsmen[0]!.inventory, 'r-plain')).toBe(4)
-    expect(rankOf(back.swordsmen[1]!.inventory, 'w-spear')).toBe(2)
+    // The rolled instance survives whole: rung, lines and named power. Losing
+    // any of the three would silently change a piece the player earned.
+    const backRobe = back.swordsmen[0]!.inventory.owned[0]!
+    expect(backRobe.rarity).toBe(3)
+    expect(backRobe.affixes).toEqual([{ kind: 'body', amount: 9 }])
+    expect(back.swordsmen[0]!.inventory.equipped.robe).toBe(backRobe.uid)
+    const backSpear = back.swordsmen[1]!.inventory.owned[0]!
+    expect(backSpear.rarity).toBe(4)
+    expect(backSpear.power).toBe('frost')
     expect(back.swordsmen[1]!.level).toBe(b.level)
   })
 
@@ -804,65 +776,90 @@ describe('the v1 -> v2 migration', () => {
 })
 
 describe('what a piece grants', () => {
-  it('speaks only in the four attributes the hub already explains', () => {
-    // Ten kinds across sixteen pieces was sixteen exceptions, and half of them
-    // said the same thing twice — `body` grants max health and `maxHp` granted
-    // max health, so two robes could not be compared without reading source.
-    const kinds = new Set(ITEMS.map((i) => i.stat?.kind).filter(Boolean))
-    expect([...kinds].sort()).toEqual(['body', 'edge', 'spirit', 'swift'])
+  const wearing = (affixes: Affix[]): OwnedItem => ({
+    uid: mintUid('r-plain'),
+    baseId: 'r-plain',
+    rarity: 2,
+    affixes,
+    power: null,
+    depth: 1,
   })
 
-  it('gives every armour piece a line, and no weapon one', () => {
-    for (const item of ITEMS) {
-      // A weapon IS its line: what changes is how the blade sweeps.
-      if (item.slot === 'weapon') expect(item.stat).toBeUndefined()
-      else expect(item.stat).toBeDefined()
+  it('adds its attribute lines into the same currency as bought points', () => {
+    // An item point and a spent point must be worth exactly the same thing,
+    // including reaching the same diminishing return.
+    const worn = wearing([
+      { kind: 'body', amount: 5 },
+      { kind: 'edge', amount: 3 },
+    ])
+    const attrs = wornAttributes([worn])
+    expect(attrs.body).toBe(5)
+    expect(attrs.edge).toBe(3)
+    expect(attrs.swift).toBe(0)
+  })
+
+  it('sums the same kind across several worn pieces', () => {
+    const attrs = wornAttributes([
+      wearing([{ kind: 'body', amount: 4 }]),
+      wearing([{ kind: 'body', amount: 6 }]),
+    ])
+    expect(attrs.body).toBe(10)
+  })
+
+  it('keeps the sweep-shape lines out of the attributes', () => {
+    const worn = wearing([
+      { kind: 'reach', amount: 10 },
+      { kind: 'haste', amount: 5 },
+      { kind: 'vigour', amount: 20 },
+    ])
+    const attrs = wornAttributes([worn])
+    expect(attrs.body + attrs.edge + attrs.swift + attrs.spirit).toBe(0)
+    const shape = wornShape([worn])
+    expect(shape.reach).toBeCloseTo(0.1)
+    expect(shape.haste).toBeCloseTo(0.05)
+    expect(shape.vigour).toBe(20)
+  })
+
+  it('lengthens the sweep and quickens it, through deriveStats', () => {
+    const bare = deriveStats(new Map(), emptyKit())
+    const kitted = deriveStats(new Map(), {
+      ...emptyKit(),
+      worn: [wearing([{ kind: 'reach', amount: 20 }, { kind: 'haste', amount: 20 }])],
+    })
+    expect(kitted.slashRange).toBeGreaterThan(bare.slashRange)
+    expect(kitted.slashInterval).toBeLessThan(bare.slashInterval)
+  })
+
+  it('stays finite and positive under an absurd pile of gear', () => {
+    // A save can carry more than the game will ever hand out, and NaN reaching
+    // the simulation is a black screen on a phone.
+    const absurd = Array.from({ length: 40 }, () =>
+      wearing([
+        { kind: 'body', amount: 999 },
+        { kind: 'reach', amount: 999 },
+        { kind: 'haste', amount: 999 },
+        { kind: 'vigour', amount: 999 },
+      ]),
+    )
+    const stats = deriveStats(new Map(), { ...emptyKit(), worn: absurd })
+    for (const value of Object.values(stats)) {
+      if (typeof value !== 'number') continue
+      expect(Number.isFinite(value)).toBe(true)
     }
+    expect(stats.slashInterval).toBeGreaterThan(0)
+    expect(stats.maxHp).toBeGreaterThan(0)
   })
 
-  it('is worth more at a higher rank, and never less', () => {
-    for (const item of ITEMS) {
-      if (!item.stat) continue
-      let previous = 0
-      for (let rank = 0; rank <= MAX_RANK; rank++) {
-        const value = statAt(item.stat, rank)
-        expect(value).toBeGreaterThanOrEqual(previous)
-        expect(Number.isFinite(value)).toBe(true)
-        previous = value
-      }
-      // The top of the scale has to be worth walking for.
-      expect(statAt(item.stat, MAX_RANK)).toBeGreaterThan(statAt(item.stat, 0))
-    }
-  })
-
-  it('carries the rank all the way into the stats the run uses', () => {
-    // The whole point of step 1 followed by step 2. If this passes at rank 0
-    // and rank 5 alike, rank is a decoration on a card.
-    const robe = ITEM_BY_ID.get('r-lamellar')!
-    const low = deriveStats(new Map(), kit(emptyAttributes(), [{ item: robe, rank: 0 }]))
-    const high = deriveStats(new Map(), kit(emptyAttributes(), [{ item: robe, rank: MAX_RANK }]))
-    expect(high.maxHp).toBeGreaterThan(low.maxHp)
-  })
-
-  it('sums worn attributes at their own ranks', () => {
-    const worn: Worn[] = [
-      { item: ITEM_BY_ID.get('r-lamellar')!, rank: 2 },
-      { item: ITEM_BY_ID.get('h-veiled')!, rank: 0 },
-    ]
-    const total = wornAttributes(worn)
-    expect(total.body).toBe(statAt(ITEM_BY_ID.get('r-lamellar')!.stat!, 2))
-    expect(total.edge).toBe(statAt(ITEM_BY_ID.get('h-veiled')!.stat!, 0))
-    expect(total.swift).toBe(0)
-  })
-
-  it('says on the card what the piece is actually worth', () => {
-    // A rank 4 robe still advertising its rank 0 line would hide the whole axis
-    // exactly where the player compares two pieces.
-    const robe = ITEM_BY_ID.get('r-lamellar')!
-    expect(statLine(robe.stat, 0)).not.toBe(statLine(robe.stat, 4))
-    expect(statLine(robe.stat, 4)).toContain(String(statAt(robe.stat!, 4)))
+  it('caps the shape lines so a bag of one kind cannot delete the weapon', () => {
+    // At 90% off the interval every class becomes the same blur, and the shape
+    // of the sweep IS the class here.
+    const many = Array.from({ length: 12 }, () => wearing([{ kind: 'haste', amount: 20 }]))
+    expect(wornShape(many).haste).toBeLessThanOrEqual(0.6)
+    expect(wornShape(many.map(() => wearing([{ kind: 'reach', amount: 40 }]))).reach)
+      .toBeLessThanOrEqual(1.5)
   })
 })
+
 
 describe('the five conditions', () => {
   const step = (
@@ -1077,100 +1074,30 @@ describe('arts', () => {
   })
 })
 
-describe('rank, worn', () => {
-  const figureOf = () => buildSwordsmanTopDown(7, 1, gearFromIds({}), 1)
-
-  it('draws nothing at rank zero, which is most of what anybody wears', () => {
-    for (const slot of SLOTS) expect(rankMarks(slot, 0, figureOf())).toHaveLength(0)
+describe('the ladder, worn', () => {
+  // The ladder has to be visible on the SWORDSMAN, not only on a card — the one
+  // place a player is not looking while deciding what to put on. These marks
+  // used to read `rank`; they read `rarity` now, over the same 0..5 domain,
+  // which is why the render side needed no change at all.
+  it('leaves the bottom rungs unmarked', () => {
+    expect(socketsAt(0)).toBe(0)
+    expect(socketsAt(1)).toBe(0)
   })
 
-  it('gives every slot its own marks', () => {
-    // The hole found by drawing each item separately rather than only the robe:
-    // hems at the skirt and cords at the belt are ROBE marks. A hat cannot grow
-    // a hem, so reusing one mark everywhere would mean tempering a hat visibly
-    // changed the robe — worse than showing nothing.
-    const figure = figureOf()
-    const shapes = SLOTS.map((slot) =>
-      JSON.stringify(rankMarks(slot, 3, figure).map((m) => m.poly.map((n) => n.toFixed(1)))),
-    )
-    expect(new Set(shapes).size).toBe(SLOTS.length)
-  })
-
-  it('adds a mark for every rank, so no two ranks look alike', () => {
-    const figure = figureOf()
-    for (const slot of SLOTS) {
-      let previous = -1
-      for (let rank = 0; rank <= MAX_RANK; rank++) {
-        const count = rankMarks(slot, rank, figure).length
-        // The weapon is one lengthening cord rather than a stack, so its count
-        // holds; what changes there is the geometry, checked below.
-        expect(count).toBeGreaterThanOrEqual(previous === -1 ? 0 : slot === 'weapon' ? 0 : previous)
-        previous = count
-      }
-      expect(rankMarks(slot, MAX_RANK, figure).length).toBeGreaterThan(0)
+  it('marks a better rung more loudly than a worse one', () => {
+    for (let rung = 1; rung <= 5; rung++) {
+      expect(socketsAt(rung)).toBeGreaterThanOrEqual(socketsAt(rung - 1))
     }
-    // The weapon's cord must still lengthen, or its ranks are invisible.
-    const lowest = rankMarks('weapon', 1, figure)
-    const highest = rankMarks('weapon', MAX_RANK, figure)
-    const depth = (marks: ReturnType<typeof rankMarks>): number =>
-      Math.max(...marks.flatMap((m) => m.poly.filter((_, i) => i % 2 === 1)))
-    expect(depth(highest)).toBeGreaterThan(depth(lowest))
+    expect(socketsAt(5)).toBeGreaterThan(socketsAt(2))
   })
 
-  it('hangs marks off the figure it was given, not off constants', () => {
-    // Wide sleeves put the cuffs somewhere quite different from bound ones. The
-    // contact sheets hard-coded these positions for a while and drew tassels in
-    // mid-air on every wide-sleeved set.
-    const narrow = buildSwordsmanTopDown(7, 1, gearFromIds({ shoulders: 'bare' }), 1)
-    const wide = buildSwordsmanTopDown(7, 1, gearFromIds({ shoulders: 'wide' }), 1)
-    expect(narrow.anchors.cuffs[1]!.x).not.toBeCloseTo(wide.anchors.cuffs[1]!.x, 1)
-    const a = rankMarks('shoulders', 2, narrow)[0]!.poly[0]!
-    const b = rankMarks('shoulders', 2, wide)[0]!.poly[0]!
-    expect(a).not.toBeCloseTo(b, 1)
-  })
-
-  it('never stacks past the top of the scale', () => {
-    const figure = figureOf()
-    for (const slot of SLOTS) {
-      expect(rankMarks(slot, 99, figure)).toEqual(rankMarks(slot, MAX_RANK, figure))
-    }
-  })
-
-  it('opens sockets only as rank climbs', () => {
-    let previous = 0
-    for (let rank = 0; rank <= MAX_RANK; rank++) {
-      const open = socketsAt(rank)
-      expect(open).toBeGreaterThanOrEqual(previous)
-      previous = open
-    }
-    expect(socketsAt(MAX_RANK)).toBe(3)
+  it('draws something on the figure for a good piece, and nothing for a plain one', () => {
+    const figure = buildSwordsmanTopDown(1, 1, gearFromIds({}))
+    expect(rankMarks('robe', 0, figure)).toHaveLength(0)
+    expect(rankMarks('robe', 5, figure).length).toBeGreaterThan(0)
   })
 })
 
-describe('rank from depth', () => {
-  it('never leaves the scale, at any depth', () => {
-    const rng = new Rng(11)
-    for (let depth = 1; depth <= MAX_DEPTH + 4; depth++) {
-      for (let i = 0; i < 200; i++) {
-        const rank = rollRank(depth, rng.next())
-        expect(rank).toBeGreaterThanOrEqual(0)
-        expect(rank).toBeLessThanOrEqual(MAX_RANK)
-      }
-    }
-  })
-
-  it('rises with depth, which is the whole reason it exists', () => {
-    const mean = (depth: number): number => {
-      const rng = new Rng(depth * 7 + 1)
-      let total = 0
-      for (let i = 0; i < 2000; i++) total += rollRank(depth, rng.next())
-      return total / 2000
-    }
-    // Not merely non-decreasing: a curve that is flat between the first and the
-    // last region would make walking harder ground pointless for equipment.
-    expect(mean(MAX_DEPTH)).toBeGreaterThan(mean(1) + 1)
-  })
-})
 
 describe('save', () => {
   it('round-trips a character', () => {
@@ -1178,9 +1105,17 @@ describe('save', () => {
     // Creation hands over the school's kit, so a real character always owns
     // something. An empty inventory means "written before equipment existed",
     // which parsing deliberately repairs — see the migration test below.
-    for (const id of ['r-plain', 's-wide', 'h-crown', 'w-fan']) {
-      acquire(c.inventory, id)
-      equip(c.inventory, id)
+    for (const baseId of ['r-plain', 's-wide', 'h-crown', 'w-fan']) {
+      const entry: OwnedItem = {
+        uid: mintUid(baseId),
+        baseId,
+        rarity: 1,
+        affixes: [{ kind: 'body', amount: 4 }],
+        power: null,
+        depth: 1,
+      }
+      acquire(c.inventory, entry)
+      equip(c.inventory, entry.uid)
     }
     grantXp(c, 900)
     spendPoint(c, 'body')
@@ -1202,7 +1137,10 @@ describe('save', () => {
     )!
     expect(back.inventory.owned.length).toBeGreaterThan(0)
     expect(back.inventory.equipped.weapon).toBeDefined()
-    const weapon = ITEM_BY_ID.get(back.inventory.equipped.weapon!)!
+    // `equipped` points at an INSTANCE uid now, not at a base id, so the base
+    // is reached through the row rather than looked up directly.
+    const wornWeapon = back.inventory.owned.find((e) => e.uid === back.inventory.equipped.weapon)!
+    const weapon = ITEM_BY_ID.get(wornWeapon.baseId)!
     // And the weapon it hands over is the one their school actually uses.
     expect(weapon.styleId).toBe(SCHOOL_BY_ID.get('watch')!.weaponId)
   })
@@ -1382,17 +1320,17 @@ describe('appearance', () => {
 })
 
 describe('what a death actually keeps', () => {
-  const find = (slot: string, rank = 1) => ({ item: { slot }, rank })
+  const find = (slot: string, rank = 1) => ({ slot, rank })
 
   it('keeps everything on a bank, regardless of where it was found', () => {
     const finds = [find('weapon'), find('robe'), find('robe', 3)]
-    const out = settleFound(finds, 0, new Set(), true)
+    const out = settleFound(finds, 0, new Set(), true, (f) => f.slot)
     expect(out).toEqual(finds)
   })
 
   it('loses everything on a death when nothing was secured and every slot was already filled', () => {
     const finds = [find('weapon'), find('robe')]
-    const out = settleFound(finds, 0, new Set(), false)
+    const out = settleFound(finds, 0, new Set(), false, (f) => f.slot)
     expect(out).toEqual([])
   })
 
@@ -1400,13 +1338,13 @@ describe('what a death actually keeps', () => {
     const finds = [find('weapon'), find('robe'), find('head')]
     // Two were found before the checkpoint (securedCount = 2); the third was
     // found afterward, pushing into the tier that killed the run.
-    const out = settleFound(finds, 2, new Set(), false)
+    const out = settleFound(finds, 2, new Set(), false, (f) => f.slot)
     expect(out).toEqual([finds[0], finds[1]])
   })
 
   it('keeps the first find for a slot that started the expedition empty', () => {
     const finds = [find('weapon')]
-    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    const out = settleFound(finds, 0, new Set(['weapon']), false, (f) => f.slot)
     expect(out).toEqual(finds)
   })
 
@@ -1414,13 +1352,13 @@ describe('what a death actually keeps', () => {
     // A death should never be able to erase a run's only find — but it is
     // still a death, so a second piece for the same slot is not free.
     const finds = [find('weapon', 1), find('weapon', 4)]
-    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    const out = settleFound(finds, 0, new Set(['weapon']), false, (f) => f.slot)
     expect(out).toEqual([finds[0]])
   })
 
   it('does not exempt a slot that was already filled at the start', () => {
     const finds = [find('robe')]
-    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    const out = settleFound(finds, 0, new Set(['weapon']), false, (f) => f.slot)
     expect(out).toEqual([])
   })
 
@@ -1428,7 +1366,7 @@ describe('what a death actually keeps', () => {
     const finds = [find('weapon'), find('robe'), find('head'), find('shoulders')]
     for (const secured of [0, 1, 2, 4]) {
       for (const banked of [true, false]) {
-        const out = settleFound(finds, secured, new Set(['weapon', 'head']), banked)
+        const out = settleFound(finds, secured, new Set(['weapon', 'head']), banked, (f) => f.slot)
         expect(out.length).toBeLessThanOrEqual(finds.length)
         for (const f of out) expect(finds).toContain(f)
       }

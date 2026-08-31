@@ -56,8 +56,18 @@ import {
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
-import { acquire, equip, equippedIn, equippedItems, rankOf } from './meta/inventory'
-import { ITEMS, ITEM_BY_ID, SLOTS, rollRank } from './data/items'
+import {
+  acquire,
+  baseOf,
+  equip,
+  equippedIn,
+  equippedItems,
+  mintUid,
+  type OwnedItem,
+} from './meta/inventory'
+import { ITEMS, ITEM_BY_ID, SLOTS, type Slot } from './data/items'
+import { rollAffixes, rollAmount, rollPower, type AffixKind } from './data/affixes'
+import { rarityOf, rollRarity } from './data/rarity'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
 import type { Kit, Stats } from './sim/loadout'
@@ -183,12 +193,12 @@ async function boot(): Promise<void> {
     const weaponItem = equippedIn(character.inventory, 'weapon')
     return {
       spent: character.spent,
-      weapon: weaponById(weaponItem?.styleId ?? school.weaponId),
-      // Carried with its rank, because a piece found deep grants more than the
-      // same piece found on the post road — see data/items.ts statAt.
-      worn: equippedItems(character.inventory)
-        .filter((item) => item.slot !== 'weapon')
-        .map((item) => ({ item, rank: rankOf(character.inventory, item.id) })),
+      weapon: weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId),
+      // Every worn piece, instance and all: the lines it rolled are what it
+      // grants, so the instance IS the thing that goes into the kit. The
+      // weapon is excluded because its contribution is the WeaponClass above,
+      // not a set of lines.
+      worn: equippedItems(character.inventory).filter((entry) => baseOf(entry)?.slot !== 'weapon'),
     }
   }
 
@@ -196,11 +206,15 @@ async function boot(): Promise<void> {
   const currentGear = () => {
     const school = schoolById(character.origin)
     const weaponItem = equippedIn(character.inventory, 'weapon')
-    const weapon = weaponById(weaponItem?.styleId ?? school.weaponId)
+    const weapon = weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId)
+    const styleIn = (slot: 'robe' | 'shoulders' | 'head'): string | undefined => {
+      const entry = equippedIn(character.inventory, slot)
+      return entry ? (baseOf(entry)?.styleId ?? undefined) : undefined
+    }
     return gearFromIds({
-      robe: equippedIn(character.inventory, 'robe')?.styleId,
-      shoulders: equippedIn(character.inventory, 'shoulders')?.styleId,
-      head: equippedIn(character.inventory, 'head')?.styleId,
+      robe: styleIn('robe'),
+      shoulders: styleIn('shoulders'),
+      head: styleIn('head'),
       blade: bladeOf(weapon).id,
     })
   }
@@ -470,10 +484,10 @@ async function boot(): Promise<void> {
     // Rank marks last, over the body, in gold — see render/rankMarks.ts. The
     // figure has to exist before they can hang off it, so they are collected
     // here and drawn after the loop below.
-    const ranked = equippedItems(character.inventory).map((item) => ({
-      slot: item.slot,
-      rank: rankOf(character.inventory, item.id),
-    }))
+    const ranked = equippedItems(character.inventory).flatMap((entry) => {
+      const base = baseOf(entry)
+      return base ? [{ slot: base.slot, rank: entry.rarity }] : []
+    })
     for (const strokes of [figure.bleed, figure.body]) {
       for (const stroke of strokes) {
         // Robe marks carry the dye; the rest stay ink, so the silhouette still
@@ -602,14 +616,24 @@ async function boot(): Promise<void> {
     drop(x: number, y: number, itemId: string): void {
       const item = ITEM_BY_ID.get(itemId)
       if (!item) return
-      // Kept immediately rather than needing to be walked over. A drop the
-      // player can fail to collect while being chased is a punishment dressed
-      // as a reward, and this genre never gives them a safe moment to go back.
-      // Where it was found decides how good it is, on its own seeded stream
-      // so that adding ranks did not shift the technique offers a replay expects.
-      foundThisRun.push({ item, rank: rollRank(effectiveDepth(), dropRng.next()) })
+      // The whole roll happens here, on its own seeded stream so that adding
+      // the ladder did not shift the enemy sequence a replay expects: which
+      // rung, then the lines, then — on 神 and 仙 only — the named power.
+      const depth = effectiveDepth()
+      const rarity = rollRarity(depth, dropRng.next())
+      const found: OwnedItem = {
+        uid: mintUid(item.id),
+        baseId: item.id,
+        rarity,
+        affixes: rollAffixes(rarity, depth, dropRng),
+        power: rollPower(rarity, item.slot, dropRng.next()),
+        depth: Math.round(depth),
+      }
+      foundThisRun.push(found)
       ownedThisRun.add(item.id)
-      banners.show(item.name, 'gold', strings.found)
+      // The banner is coloured by the rung, so the thing the player reads first
+      // is how excited to be — which is the entire job of a rarity ladder.
+      banners.show(item.name, rarity >= 3 ? 'gold' : 'plain', rarityOf(rarity).name)
       floaters.found(x, y)
     },
     manual(x: number, y: number, artId: string): void {
@@ -646,7 +670,7 @@ async function boot(): Promise<void> {
     foundThisRun = []
     manualsThisRun = []
     securedManualCount = 0
-    ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
+    ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
     securedFindCount = 0
     bankedThisEnd = false
     // Slots empty right now, before this expedition finds anything for them —
@@ -738,46 +762,49 @@ async function boot(): Promise<void> {
     // What a death forfeits — see settleFound in meta/character.ts for the
     // whole rule. `bankedThisEnd` is only ever true when the run ended by
     // choosing "leave" at a gate, never by dying.
-    const eligible = settleFound(foundThisRun, securedFindCount, emptySlotsAtStart, bankedThisEnd)
+    const slotOfFind = (entry: Found): string => baseOf(entry)?.slot ?? ''
+    const eligible = settleFound(
+      foundThisRun,
+      securedFindCount,
+      emptySlotsAtStart,
+      bankedThisEnd,
+      slotOfFind,
+    )
     const forfeited = foundThisRun.filter((f) => !eligible.includes(f))
 
-    // Duplicates are reported honestly rather than silently swallowed: owning
-    // a second Hemp Robe is worth nothing here, and a reward screen that
-    // pretended otherwise would be lying about the only loot the player got.
+    // One list where there were three. "Raised" and "duplicate" were states
+    // only the old one-row-per-piece bag could produce; every find is now its
+    // own rolled instance, so every find that fits is simply kept — and one
+    // that does not fit is counted rather than silently dropped.
     const kept: Found[] = []
-    const raised: Found[] = []
-    const duplicates: Found[] = []
+    let noRoom = 0
     for (const found of eligible) {
-      const outcome = acquire(character.inventory, found.item.id, found.rank)
-      if (outcome === 'new') {
-        kept.push(found)
-        // Anything for an empty slot goes straight on. Making a player visit
-        // the hub to equip their very first weapon would be ceremony for its
-        // own sake.
-        if (!character.inventory.equipped[found.item.slot]) {
-          equip(character.inventory, found.item.id)
-        }
-      } else if (outcome === 'raised') {
-        raised.push(found)
-      } else {
-        duplicates.push(found)
+      if (acquire(character.inventory, found) === 'full') {
+        noRoom++
+        continue
       }
+      kept.push(found)
+      // Anything for an empty slot goes straight on. Making a player visit the
+      // hub to equip their very first weapon would be ceremony for its own sake.
+      const slot = slotOfFind(found) as Slot
+      if (slot && !character.inventory.equipped[slot]) equip(character.inventory, found.uid)
     }
+    kept.sort((a, b) => b.rarity - a.rarity)
     // The 秘笈, under exactly the same rule as the loot — the manual you found
     // after the last gate is yours only if you chose to leave with it. Reusing
     // settleFound rather than writing a second rule is deliberate: two
     // implementations of "what a death keeps" would drift, and the day they
     // drifted the player would be told one thing and dealt another.
-    const manualSlot = (art: Art): { slot: string } => ({ slot: art.id })
     const eligibleManuals = settleFound(
-      manualsThisRun.map((art) => ({ item: manualSlot(art), rank: 0, art })),
+      manualsThisRun,
       securedManualCount,
       EMPTY_SLOTS,
       bankedThisEnd,
+      (art) => art.id,
     )
     const studied: StudiedManual[] = []
     const manualsLost = manualsThisRun.length - eligibleManuals.length
-    for (const { art } of eligibleManuals) {
+    for (const art of eligibleManuals) {
       // A manual for an art already at the cap is reported rather than eaten,
       // so the screen never shows a find that changed nothing.
       const took = studyManual(character, art.id)
@@ -798,8 +825,7 @@ async function boot(): Promise<void> {
       gain,
       level: character.level,
       kept,
-      raised,
-      duplicates,
+      noRoom,
       forfeited,
       studied,
       manualsLost,
@@ -1366,11 +1392,22 @@ async function boot(): Promise<void> {
         // first expedition is fought with the weapon that was chosen rather
         // than with a default the player never picked.
         const weaponItem = ITEMS.find((i) => i.slot === 'weapon' && i.styleId === school.weaponId)
-        for (const id of [...school.kit, weaponItem?.id]) {
-          if (!id) continue
-          acquire(character.inventory, id)
-          equip(character.inventory, id)
-        }
+        // A starting piece does not roll — see starterInstance in meta/save.ts
+        // for why the first genuinely rolled thing should be the first DROP.
+        const kinds: AffixKind[] = ['body', 'swift', 'edge', 'edge']
+        ;[...school.kit, weaponItem?.id].forEach((id, i) => {
+          if (!id) return
+          const entry: OwnedItem = {
+            uid: mintUid(id),
+            baseId: id,
+            rarity: 0,
+            affixes: [{ kind: kinds[i]!, amount: rollAmount(kinds[i]!, 1, 0.5) }],
+            power: null,
+            depth: 1,
+          }
+          acquire(character.inventory, entry)
+          equip(character.inventory, entry.uid)
+        })
         kit = currentKit()
         refreshKit()
         rebuildFigure()

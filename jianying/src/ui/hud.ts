@@ -17,7 +17,10 @@ import type { CarriedArt } from '../sim/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
 import { conditionIconSvg, effectIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
-import { statLine, type Item } from '../data/items'
+import { ITEM_BY_ID } from '../data/items'
+import type { OwnedItem } from '../meta/inventory'
+import { affixLine } from '../data/affixes'
+import { rarityOf } from '../data/rarity'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
 import { regionAt } from '../data/regions'
@@ -34,12 +37,17 @@ export interface RunSummary {
   gain: LevelGain
   /** Level after the reward was applied. */
   level: number
-  /** Equipment found for the first time, with the rank it dropped at. */
+  /**
+   * Everything found this expedition and kept, best rung first.
+   *
+   * One list where there were three. "Raised" and "duplicate" were states only
+   * the old one-row-per-piece bag could produce: a second copy either
+   * overwrote the first or was worth nothing. Every find is now its own rolled
+   * instance, so every find is simply a find.
+   */
   kept: readonly Found[]
-  /** Already owned, but found BETTER — the held piece was raised to this rank. */
-  raised: readonly Found[]
-  /** Equipment found that was already owned. Reported, not hidden. */
-  duplicates: readonly Found[]
+  /** Finds that would not fit in the pack. Counted, so the loss is visible. */
+  noRoom: number
   /**
    * Found this expedition, but lost — a death forfeits anything found after
    * the last gate cleared, except a first piece for a slot that was empty
@@ -60,11 +68,13 @@ export interface RunSummary {
   manualsLost: number
 }
 
-/** A piece as it came off the ground: which piece, and how good a one. */
-export interface Found {
-  item: Item
-  rank: number
-}
+/**
+ * A piece as it came off the ground.
+ *
+ * The rolled instance itself, not a table row plus a number: what makes a find
+ * a find now is the lines it rolled, and those live on the instance.
+ */
+export type Found = OwnedItem
 
 /** A manual, and the permanent grade the art reached by studying it. */
 export interface StudiedManual {
@@ -368,26 +378,29 @@ export function createHud(root: HTMLElement): Hud {
         }</div>`
       }
 
-      // Loot last, because it is the part worth scrolling for.
-      if (summary.kept.length + summary.raised.length + summary.duplicates.length > 0) {
+      // Loot last, because it is the part worth scrolling for. Each row is
+      // coloured by its rung and carries its best line, so the screen can be
+      // skimmed for the one thing worth opening the pack for.
+      if (summary.kept.length > 0) {
         html += `<div class="rw-head rw-found">${strings.found}</div>`
-        const rank = (n: number): string => (n > 0 ? ` <i class="loot-rank">${'·'.repeat(n)}</i>` : '')
-        for (const { item, rank: r } of summary.kept) {
-          const line =
-            item.slot === 'weapon' ? weaponById(item.styleId).name : statLine(item.stat, r)
-          html += `<div class="loot"><span>${item.name}${rank(r)}</span><b>${line}</b></div>`
+        for (const entry of summary.kept) {
+          const base = ITEM_BY_ID.get(entry.baseId)
+          if (!base) continue
+          const tier = rarityOf(entry.rarity)
+          const name =
+            base.slot === 'weapon' ? weaponById(base.styleId).name : base.name
+          const line = entry.affixes[0] ? affixLine(entry.affixes[0]) : ''
+          const more = entry.affixes.length > 1 ? ` +${entry.affixes.length - 1}` : ''
+          html +=
+            `<div class="loot" style="border-left-color:${tier.css}">` +
+            `<span style="color:${tier.css}">${tier.seal} ${name}</span>` +
+            `<b>${line}${more}</b></div>`
         }
-        for (const { item, rank: r } of summary.raised) {
-          // The interesting middle case: a piece already owned, found better.
-          // Reporting this as "already yours" would hide the only thing that
-          // actually happened to the player's equipment this run.
-          html += `<div class="loot loot-raised"><span>${item.name}${rank(r)}</span><b>${strings.raised}</b></div>`
-        }
-        for (const { item } of summary.duplicates) {
-          // Named rather than hidden: pretending a duplicate was a discovery
-          // would be lying about the only loot the player actually got.
-          html += `<div class="loot loot-dupe"><span>${item.name}</span><b>${strings.alreadyYours}</b></div>`
-        }
+      }
+      if (summary.noRoom > 0) {
+        // A find the pack could not hold is still a find that happened, and
+        // saying nothing would look like the game had simply not dropped it.
+        html += `<div class="loot loot-dupe"><span>${strings.packWasFull}</span><b>×${summary.noRoom}</b></div>`
       }
       // The 秘笈 get their own block, ABOVE the loot's losses and below the
       // gear, because this is the row that answers "did this expedition make
@@ -413,9 +426,13 @@ export function createHud(root: HTMLElement): Hud {
       // leaves it empty.
       if (summary.forfeited.length > 0) {
         html += `<div class="rw-head rw-lost">${strings.lostToDeath}</div>`
-        for (const { item, rank: r } of summary.forfeited) {
-          const rankMark = r > 0 ? ` <i class="loot-rank">${'·'.repeat(r)}</i>` : ''
-          html += `<div class="loot loot-lost"><span>${item.name}${rankMark}</span><b>${strings.wasNotBanked}</b></div>`
+        for (const entry of summary.forfeited) {
+          const base = ITEM_BY_ID.get(entry.baseId)
+          if (!base) continue
+          const tier = rarityOf(entry.rarity)
+          html +=
+            `<div class="loot loot-lost"><span>${tier.seal} ${base.name}</span>` +
+            `<b>${strings.wasNotBanked}</b></div>`
         }
       }
       if (summary.manualsLost > 0) {
