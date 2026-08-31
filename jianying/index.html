@@ -65,7 +65,14 @@
         color: rgba(232, 220, 192, 0.72);
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       }
-      /* --- run HUD ------------------------------------------------- */
+      /* --- run HUD -----------------------------------------------------
+         剑影's combat screen — "C 底", the console. Everything a player
+         needs to read mid-fight sits in one block at the FOOT of the phone,
+         above the thumb: HP over its bar, the art strip, 感悟 under it. The
+         top half of the screen is deliberately empty — nothing is ever read
+         there while something is chasing you, so nothing lives there. The
+         region's name and rule are announced once, as a banner, at the start
+         of the expedition, rather than sitting in a corner for the whole run. */
       #ui {
         position: fixed;
         inset: 0;
@@ -73,77 +80,41 @@
       }
       .hud-bar {
         position: absolute;
-        top: calc(env(safe-area-inset-top, 0) + 30px);
-        left: 14px;
-        right: 14px;
+        left: 16px;
+        right: 16px;
+        bottom: calc(env(safe-area-inset-bottom, 0) + 96px);
+      }
+      .hud-console {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .hud-hp {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .hud-time {
+        font-size: 12px;
+        color: rgba(13, 13, 13, 0.45);
       }
       .hud-health {
-        height: 5px;
-        background: rgba(13, 13, 13, 0.12);
+        height: 6px;
+        background: rgba(13, 13, 13, 0.1);
         border-radius: 3px;
         overflow: hidden;
       }
       .hud-health-fill {
         height: 100%;
+        /* Ink at full health; the script switches this to cinnabar below 30% —
+           see ui/hud.ts. A bar that is always red stops being a warning. */
         background: var(--ink);
         transform-origin: left center;
         transition:
           transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
           background 300ms ease;
-      }
-      .hud-stats {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 6px;
-        font-size: 13px;
-        font-variant-numeric: tabular-nums;
-        color: rgba(13, 13, 13, 0.55);
-        letter-spacing: 0.04em;
-      }
-      .hud-kills::before {
-        content: '⚔ ';
-        opacity: 0.6;
-      }
-      .hud-insight {
-        color: var(--gold);
-      }
-      /* Which road you are on, always visible: depth changes the fight and a
-         player who cannot see it has no way to connect difficulty to choice. */
-      .hud-road {
-        margin-top: 5px;
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        color: rgba(13, 13, 13, 0.42);
-      }
-      /* The rule, in play. A player who has to work out that they are being
-         slowed has been given a puzzle instead of a place. */
-      .hud-rule {
-        margin-top: 1px;
-        font-size: 9.5px;
-        letter-spacing: 0.04em;
-        color: rgba(13, 13, 13, 0.34);
-      }
-
-      /* Owned techniques, so what you have picked is always readable. */
-      .hud-loadout {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        margin-top: 7px;
-      }
-      .chip {
-        font-size: 10px;
-        letter-spacing: 0.04em;
-        padding: 2px 6px;
-        border-radius: 2px;
-        color: rgba(13, 13, 13, 0.62);
-        background: rgba(13, 13, 13, 0.07);
-        border-left: 2px solid rgba(13, 13, 13, 0.28);
-      }
-      .chip-art {
-        color: #8a6d16;
-        background: rgba(212, 175, 55, 0.14);
-        border-left-color: var(--gold);
       }
 
       /* --- end of run ----------------------------------------------- */
@@ -296,8 +267,11 @@
         transform: scale(0.97);
       }
 
-      /* --- level up -------------------------------------------------- */
-      .levelup {
+      /* --- the rift's gate --------------------------------------------
+         Shown once a floor's boss falls. Two choices, both large and
+         thumb-height for the same reason the level-up cards it replaces were:
+         one hand, just out of a fight. */
+      .gate {
         position: absolute;
         inset: 0;
         display: flex;
@@ -305,38 +279,35 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 0 16px calc(env(safe-area-inset-bottom, 0) + 26px);
-        /* Raised from 0.93 and the blur dropped — see .over above for why. This
-           panel appears about five times an expedition, and each appearance was
-           asking the compositor to filter the whole canvas. */
         background: rgba(232, 220, 192, 0.97);
         pointer-events: auto;
         opacity: 0;
         transition: opacity 200ms ease;
       }
-      .levelup[hidden] {
+      .gate[hidden] {
         display: none;
       }
-      .levelup.shown {
+      .gate.shown {
         opacity: 1;
       }
-      .levelup-title {
+      .gate-title {
         text-align: center;
         font-size: 13px;
         letter-spacing: 0.32em;
         text-transform: uppercase;
-        color: var(--gold);
+        color: var(--cinnabar);
       }
-      .levelup-sub {
+      .gate-sub {
         text-align: center;
-        font-size: 19px;
-        color: var(--ink);
-        margin-bottom: 8px;
+        font-size: 14px;
+        color: rgba(13, 13, 13, 0.55);
+        margin-bottom: 10px;
       }
-      .levelup-cards {
+      .gate-choices {
         display: grid;
         gap: 10px;
       }
-      .card {
+      .gate-choice {
         display: block;
         width: 100%;
         text-align: left;
@@ -348,40 +319,33 @@
         background: rgba(255, 252, 244, 0.72);
         cursor: pointer;
       }
-      /* Arts get the gold edge: they change what the run looks like, and that
-         is the choice most worth noticing at a glance. */
-      .card-art {
+      /* Pushing deeper gets the gold edge — it is the choice that changes
+         what happens next, same as an art used to on the card it replaces. */
+      .gate-push {
         border-left-color: var(--gold);
         background: rgba(255, 250, 232, 0.85);
       }
-      .card:active {
+      .gate-choice:active {
         transform: scale(0.985);
       }
-      .card-name {
+      .gate-choice-name {
         font-size: 16px;
         color: var(--ink);
         margin-bottom: 3px;
       }
-      .card-blurb {
+      .gate-choice-note {
         font-size: 13px;
         color: rgba(13, 13, 13, 0.62);
         line-height: 1.35;
       }
-      .card-rank {
-        margin-top: 7px;
-        font-size: 11px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: rgba(13, 13, 13, 0.4);
-      }
-      .card-art .card-rank {
-        color: var(--gold);
-      }
 
-      /* XP bar sits directly under health, thinner and gold. */
+      /* 感悟, thinner and gold, directly under the strip — the last thing the
+         console shows because it is the one the thumb never has to act on,
+         only glance at. No number: the only question worth an exact answer is
+         "how close", and a bar says that on its own. */
       .hud-xp {
         height: 3px;
-        margin-top: 3px;
+        margin-top: 11px;
         background: rgba(13, 13, 13, 0.1);
         border-radius: 2px;
         overflow: hidden;
@@ -921,22 +885,26 @@
 
          Top-left, under the bars: a thumb lives at the bottom of a phone, so
          anything it must READ belongs where a hand is not. */
+      /* Centred, above the thumb — the one element a player must glance at
+         constantly, placed where the eye already is because that is where the
+         swordsman is. */
       .hud-arts {
         display: flex;
-        gap: 6px;
-        margin-top: 10px;
+        justify-content: center;
+        gap: 9px;
+        margin-top: 12px;
         pointer-events: none;
       }
       .art {
-        width: 46px;
-        height: 48px;
+        width: 58px;
+        height: 58px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1px;
+        gap: 3px;
         border: 1px solid rgba(13, 13, 13, 0.14);
-        border-radius: 5px;
+        border-radius: 6px;
         background: rgba(13, 13, 13, 0.04);
         transition:
           border-color 90ms ease-out,
@@ -946,33 +914,76 @@
          of similar stroke count were four identical grey squares at this size,
          glanced at with a thumb busy. */
       .art-icon {
-        width: 26px;
-        height: 26px;
+        width: 28px;
+        height: 28px;
         display: block;
-        opacity: 0.34;
+        opacity: 0.36;
         transition: opacity 90ms ease-out;
       }
-      .art-cond {
-        font-family: serif;
-        font-size: 10px;
-        line-height: 1;
-        color: var(--ink);
-        opacity: 0.28;
-        transition:
-          color 90ms ease-out,
-          opacity 90ms ease-out;
+      /* A PICTOGRAM of the condition, not its seal — see PACK_CONDITION_ICON
+         in render/packIcons.ts. A seal alone asked a player who reads no
+         Chinese to learn that 静 means "stop moving" by dying a few times;
+         the strip is the one place a mechanic must never rest on a character
+         alone. The seal itself keeps its place in the hub, where there is
+         time to read a name. */
+      .art-cond-icon {
+        width: 15px;
+        height: 15px;
+        display: block;
+        opacity: 0.32;
+        transition: opacity 90ms ease-out;
+      }
+      /* Grade, as pips rather than a number — the same rule as an item's rank.
+         Off (all dim) until the grade actually moves, so an art nobody has
+         raised yet reads as exactly that. */
+      .art-pips {
+        display: flex;
+        gap: 2px;
+        margin-top: 1px;
+      }
+      .art-pip {
+        width: 5px;
+        height: 3px;
+        border-radius: 1.5px;
+        background: rgba(138, 109, 22, 0.18);
+      }
+      .art-pip-on {
+        background: var(--gold);
       }
       /* Lit. Cinnabar, because in this game cinnabar means "now". */
       .art-on {
         border-color: var(--cinnabar);
         background: rgba(193, 39, 45, 0.09);
       }
-      .art-on .art-icon {
+      .art-on .art-icon,
+      .art-on .art-cond-icon {
         opacity: 1;
       }
-      .art-on .art-cond {
+      .art-on .art-cond-icon {
         color: var(--cinnabar);
-        opacity: 1;
+      }
+
+      /* --- the rift's bar ------------------------------------------------
+         A hairline across the very top edge — the one element that survives
+         everything else this layout deletes from up there. Read peripherally,
+         "how much is left", never looked at directly; see docs/CORRIDAS.md for
+         why it fills by killing rather than by a clock. */
+      .hud-rift {
+        position: absolute;
+        top: env(safe-area-inset-top, 0);
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(13, 13, 13, 0.08);
+      }
+      .hud-rift[hidden] {
+        display: none;
+      }
+      .hud-rift-fill {
+        height: 100%;
+        background: var(--cinnabar);
+        transform-origin: left center;
+        transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
       }
 
       /* --- 法 the arts ----------------------------------------------------

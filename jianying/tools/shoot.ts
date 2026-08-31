@@ -574,7 +574,7 @@ async function main(): Promise<void> {
       // Levelling pauses the game behind a choice. Left unanswered, every
       // later stride would push against a frozen simulation and the harness
       // would report input as broken.
-      const card = page.locator('.levelup .card').first()
+      const card = page.locator('.gate .gate-push').first()
       if (await card.isVisible().catch(() => false)) {
         await card.click()
         await page.waitForTimeout(150)
@@ -639,7 +639,7 @@ async function main(): Promise<void> {
         // A pending level-up freezes the simulation, so a posture that must be
         // held can never accumulate while a card is on screen. Draining once
         // before the loop was not enough: another can arrive mid-hold.
-        const card = page.locator('.levelup .card').first()
+        const card = page.locator('.gate .gate-push').first()
         if (await card.isVisible().catch(() => false)) await card.click().catch(() => {})
         await provoke()
         last = await conditions()
@@ -748,7 +748,7 @@ async function main(): Promise<void> {
         if ((await page.evaluate(() => document.body.dataset.screen)) === 'over') break
         // A level-up freezes the field behind a choice; left unanswered the
         // character would stand safely inside a menu and never die.
-        const card = page.locator('.levelup .card').first()
+        const card = page.locator('.gate .gate-push').first()
         if (await card.isVisible().catch(() => false)) await card.click()
         await page.waitForTimeout(1000)
       }

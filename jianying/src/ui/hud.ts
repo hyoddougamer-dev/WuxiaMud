@@ -12,15 +12,15 @@
  * conversion is itemised. A player who dies at four minutes should be able to
  * read, without asking anyone, exactly what those four minutes bought.
  */
-import { TECHNIQUE_BY_ID, type Loadout } from '../data/techniques'
-import { ART_BY_ID, CONDITION_BY_ID, type Art } from '../data/arts'
+import { ART_BY_ID, MAX_ART_LEVEL } from '../data/arts'
+import type { CarriedArt } from '../sim/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
-import { effectIconSvg } from '../render/packIcons'
+import { conditionIconSvg, effectIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
 import { statLine, type Item } from '../data/items'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
-import { regionAt, type Region } from '../data/regions'
+import { regionAt } from '../data/regions'
 import { realmOf } from '../meta/realms'
 import { strings } from './strings'
 
@@ -59,18 +59,27 @@ export interface Hud {
     xpNeeded: number,
     insight: number,
   ): void
-  /** Sets the arts shown in the strip — the scroll of the weapon in hand. */
-  setScroll(arts: readonly Art[]): void
+  /**
+   * Fills the rift's bar — the hairline across the very top edge of the
+   * screen, the one thing that survives everything else this layout deletes.
+   * `target` of `Infinity` (a run outside any rift) hides it rather than
+   * drawing a bar that can never fill.
+   */
+  setRift(value: number, target: number): void
+  /** Sets the arts shown in the strip, each with the grade it has reached. */
+  setScroll(carried: readonly CarriedArt[]): void
   /** Lights the tiles whose condition holds right now. Called every frame. */
   setConditions(active: Conditions): void
-  /** Redraws the owned-technique strip. Cheap when nothing has changed. */
-  updateLoadout(loadout: Loadout): void
-  /** Names the road in the corner, so depth is visible during play. */
-  /** Names the place and its rule in the corner, so both stay visible in play. */
-  setRegion(region: Region): void
   /** Shows the end screen. `onReturn` takes the player back to the hub. */
   showGameOver(summary: RunSummary, onReturn: () => void): void
   hideGameOver(): void
+  /**
+   * Shows the choice a cleared gate offers: bank what was earned, or push to
+   * a harder floor carrying the same build. `onBank` and `onPush` each fire
+   * at most once per `showGate` call.
+   */
+  showGate(tier: number, onBank: () => void, onPush: () => void): void
+  hideGate(): void
   /** Hides or reveals the whole in-run HUD, for the hub. */
   setPlaying(playing: boolean): void
 }
@@ -85,17 +94,15 @@ function formatTime(seconds: number): string {
 
 export function createHud(root: HTMLElement): Hud {
   root.innerHTML = `
+    <div class="hud-rift" hidden><div class="hud-rift-fill"></div></div>
     <div class="hud-bar">
-      <div class="hud-health"><div class="hud-health-fill"></div></div>
-      <div class="hud-xp"><div class="hud-xp-fill"></div></div>
-      <div class="hud-stats">
+      <div class="hud-console">
+        <span class="hud-hp">0</span>
         <span class="hud-time">0:00</span>
-        <span class="hud-insight">${strings.insight} 1</span>
-        <span class="hud-kills">0</span>
       </div>
-      <div class="hud-road"></div>
+      <div class="hud-health"><div class="hud-health-fill"></div></div>
       <div class="hud-arts"></div>
-      <div class="hud-loadout"></div>
+      <div class="hud-xp"><div class="hud-xp-fill"></div></div>
     </div>
     <div class="over" hidden>
       <div class="over-inner">
@@ -110,34 +117,48 @@ export function createHud(root: HTMLElement): Hud {
         <button class="over-again" type="button">${strings.toHub}</button>
       </div>
     </div>
+    <div class="gate" hidden>
+      <div class="gate-title">${strings.gateClearedTitle}</div>
+      <div class="gate-sub">${strings.gateClearedBody}</div>
+      <div class="gate-choices">
+        <button type="button" class="gate-choice gate-bank">
+          <div class="gate-choice-name">${strings.bankChoice}</div>
+          <div class="gate-choice-note">${strings.bankNote}</div>
+        </button>
+        <button type="button" class="gate-choice gate-push">
+          <div class="gate-choice-name gate-push-name">${strings.pushChoice}</div>
+          <div class="gate-choice-note">${strings.pushNote}</div>
+        </button>
+      </div>
+    </div>
   `
 
   const bar = root.querySelector<HTMLElement>('.hud-bar')!
+  const rift = root.querySelector<HTMLElement>('.hud-rift')!
+  const riftFill = root.querySelector<HTMLElement>('.hud-rift-fill')!
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!
   const xpFill = root.querySelector<HTMLElement>('.hud-xp-fill')!
-  const insightEl = root.querySelector<HTMLElement>('.hud-insight')!
+  const hpEl = root.querySelector<HTMLElement>('.hud-hp')!
   const timeEl = root.querySelector<HTMLElement>('.hud-time')!
-  const killsEl = root.querySelector<HTMLElement>('.hud-kills')!
-  const roadEl = root.querySelector<HTMLElement>('.hud-road')!
   const over = root.querySelector<HTMLElement>('.over')!
   const overTime = root.querySelector<HTMLElement>('.over-time')!
   const overKills = root.querySelector<HTMLElement>('.over-kills')!
   const overCause = root.querySelector<HTMLElement>('.over-cause')!
   const overReward = root.querySelector<HTMLElement>('.over-reward')!
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
-  const loadoutEl = root.querySelector<HTMLElement>('.hud-loadout')!
   const artsEl = root.querySelector<HTMLElement>('.hud-arts')!
+  const gate = root.querySelector<HTMLElement>('.gate')!
+  const gateBank = root.querySelector<HTMLButtonElement>('.gate-bank')!
+  const gatePush = root.querySelector<HTMLButtonElement>('.gate-push')!
+  const gatePushName = root.querySelector<HTMLElement>('.gate-push-name')!
 
   // Only touch the DOM when a displayed value actually changes. Writing the
   // same string 60 times a second is layout work for nothing.
   let lastTime = ''
-  let lastKills = -1
+  let lastHp = -1
   let lastPct = -1
   let lastXpPct = -1
-  let lastInsight = -1
-
-  /** Serialised loadout, so the strip is only rebuilt when it really changes. */
-  let lastLoadout = ''
+  let lastRiftPct = -1
 
   /** The art tiles, in scroll order, so lighting one is a class toggle. */
   let artTiles: HTMLElement[] = []
@@ -151,12 +172,29 @@ export function createHud(root: HTMLElement): Hud {
     handler?.()
   })
 
+  let bankHandler: (() => void) | null = null
+  let pushHandler: (() => void) | null = null
+  gateBank.addEventListener('click', () => {
+    const handler = bankHandler
+    bankHandler = null
+    pushHandler = null
+    handler?.()
+  })
+  gatePush.addEventListener('click', () => {
+    const handler = pushHandler
+    bankHandler = null
+    pushHandler = null
+    handler?.()
+  })
+
   /** One itemised line on the reward breakdown. */
   const row = (label: string, value: string, cls = ''): string =>
     `<div class="rw ${cls}"><span>${label}</span><b>${value}</b></div>`
 
   return {
     update(hp, maxHp, elapsed, kills, xp, xpNeeded, insight) {
+      void kills
+      void insight
       const pct = Math.max(0, Math.min(1, hp / maxHp))
       if (pct !== lastPct) {
         fill.style.transform = `scaleX(${pct})`
@@ -165,76 +203,68 @@ export function createHud(root: HTMLElement): Hud {
         fill.style.background = pct < 0.3 ? 'var(--cinnabar)' : 'var(--ink)'
         lastPct = pct
       }
+      const roundedHp = Math.ceil(hp)
+      if (roundedHp !== lastHp) {
+        hpEl.textContent = String(roundedHp)
+        lastHp = roundedHp
+      }
       const t = formatTime(elapsed)
       if (t !== lastTime) {
         timeEl.textContent = t
         lastTime = t
-      }
-      if (kills !== lastKills) {
-        killsEl.textContent = String(kills)
-        lastKills = kills
       }
       const xpPct = xpNeeded > 0 ? Math.max(0, Math.min(1, xp / xpNeeded)) : 0
       if (xpPct !== lastXpPct) {
         xpFill.style.transform = `scaleX(${xpPct})`
         lastXpPct = xpPct
       }
-      if (insight !== lastInsight) {
-        // "Insight", never "Level": the permanent level lives in the hub, and
-        // one word meaning two things on two screens was a real source of
-        // confusion rather than a naming quibble.
-        insightEl.textContent = `${strings.insight} ${insight}`
-        lastInsight = insight
-      }
     },
 
-    setRegion(region) {
-      // The rule sits under the name for the whole expedition. A player who has
-      // to work out that they are being slowed has been given a puzzle instead
-      // of a place.
-      roadEl.innerHTML = ''
-      const name = document.createElement('div')
-      name.textContent = `${region.seal} ${region.name}`
-      const rule = document.createElement('div')
-      rule.className = 'hud-rule'
-      rule.textContent = region.ruleText
-      roadEl.append(name, rule)
+    setRift(value, target) {
+      if (!Number.isFinite(target)) {
+        rift.hidden = true
+        return
+      }
+      rift.hidden = false
+      const pct = Math.max(0, Math.min(1, value / target))
+      if (pct === lastRiftPct) return
+      lastRiftPct = pct
+      riftFill.style.transform = `scaleX(${pct})`
     },
 
     setPlaying(playing) {
       bar.style.display = playing ? '' : 'none'
+      if (!playing) rift.hidden = true
     },
 
-    setScroll(arts) {
-      // The whole scroll for the weapon in hand. Equipping four of them is a
-      // later step; until it exists, showing all five is the honest thing —
-      // inventing an equipped set the save does not hold would put a lie on the
-      // screen for the sake of matching a mockup.
-      const key = arts.map((a) => a.id).join(',')
+    setScroll(carried) {
+      // The whole scroll used to show here regardless of grade; now each tile
+      // is one CARRIED art with the grade this run has actually raised it to.
+      const key = carried.map((c) => `${c.art.id}:${c.level}`).join(',')
       if (key === lastScroll) return
       lastScroll = key
       lastLit = ''
 
       artsEl.innerHTML = ''
-      artTiles = arts.map((art) => {
+      artTiles = carried.map(({ art, level }) => {
         const tile = document.createElement('div')
         tile.className = 'art'
         tile.dataset.art = art.id
-        // The EFFECT's icon above, the CONDITION's seal below.
-        //
-        // The art's own seal used to be the mark up here, and it was wrong for
-        // this particular place: half a second, a thumb already busy, and four
-        // seals of similar stroke count read as four identical grey squares.
-        // Nothing about 点 says it makes the sweep run through what it hits.
-        // The icon says exactly that, and the seal keeps its place in the hub
-        // where there is time to read a name.
-        //
-        // The condition seal stays because it is the half the player must DO —
-        // five shapes, not sixteen — and it belongs on the tile rather than in
-        // a menu nobody can open mid-fight.
-        tile.innerHTML =
+        // The EFFECT's icon above, a PICTOGRAM of the condition below — not the
+        // condition's seal. A seal alone asked a player who reads no Chinese to
+        // learn that 静 means "stop moving" by dying a few times; see
+        // render/packIcons.ts PACK_CONDITION_ICON for the rule this follows.
+        // The seals keep their place in the hub, where there is time to read a
+        // name — see ui/hub.ts and the long-press panel there.
+        let html =
           effectIconSvg(art.effect, palette.ink, 1, 'art-icon') +
-          `<span class="art-cond">${CONDITION_BY_ID.get(art.condition)!.seal}</span>`
+          conditionIconSvg(art.condition, palette.ink, 1, 'art-cond-icon')
+        html += '<div class="art-pips">'
+        for (let p = 0; p < MAX_ART_LEVEL; p++) {
+          html += `<span class="art-pip${p < level ? ' art-pip-on' : ''}"></span>`
+        }
+        html += '</div>'
+        tile.innerHTML = html
         artsEl.appendChild(tile)
         return tile
       })
@@ -253,24 +283,19 @@ export function createHud(root: HTMLElement): Hud {
       }
     },
 
-    updateLoadout(loadout) {
-      // "I do not understand how many skills I have" was the report this
-      // answers: without a persistent list, the only place a technique is ever
-      // named is the card you tapped twenty seconds ago.
-      let key = ''
-      for (const [id, lv] of loadout) key += `${id}${lv},`
-      if (key === lastLoadout) return
-      lastLoadout = key
+    showGate(tier, onBank, onPush) {
+      bankHandler = onBank
+      pushHandler = onPush
+      gatePushName.textContent = `${strings.pushChoice} · ${strings.tier} ${tier + 1}`
+      gate.hidden = false
+      requestAnimationFrame(() => gate.classList.add('shown'))
+    },
 
-      loadoutEl.innerHTML = ''
-      for (const [id, level] of loadout) {
-        const tech = TECHNIQUE_BY_ID.get(id)
-        if (!tech) continue
-        const chip = document.createElement('span')
-        chip.className = 'chip' + (tech.kind === 'art' ? ' chip-art' : '')
-        chip.textContent = `${tech.name} ${level}`
-        loadoutEl.appendChild(chip)
-      }
+    hideGate() {
+      gate.classList.remove('shown')
+      gate.hidden = true
+      bankHandler = null
+      pushHandler = null
     },
 
     showGameOver(summary, onReturn) {
@@ -350,12 +375,9 @@ export function createHud(root: HTMLElement): Hud {
       over.hidden = true
       returnHandler = null
       lastPct = -1
-      lastKills = -1
+      lastHp = -1
       lastXpPct = -1
-      lastInsight = -1
       lastTime = ''
-      lastLoadout = ''
-      loadoutEl.innerHTML = ''
     },
   }
 }

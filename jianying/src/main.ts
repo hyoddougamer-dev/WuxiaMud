@@ -23,7 +23,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng, expeditionSeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
-import { ENEMY_KINDS, KIND_BY_ID } from './data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
 import { allRankMarks } from './render/rankMarks'
@@ -37,10 +37,10 @@ import { Bolts } from './sim/projectiles'
 import { Hazards } from './sim/hazards'
 import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
-import { type Loadout, offerTechniques, xpForLevel } from './data/techniques'
+import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
-import { applyArts, beginProgress, equippedIds } from './sim/arts'
+import { advanceArt, applyArts, beginProgress, equippedIds } from './sim/arts'
 import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
@@ -52,7 +52,6 @@ import { gearFromIds } from './render/wardrobe'
 import type { Kit, Stats } from './sim/loadout'
 import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
-import { createLevelUp } from './ui/levelup'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
 import { createHud, type Found, type RunSummary } from './ui/hud'
@@ -135,14 +134,22 @@ async function boot(): Promise<void> {
   const motes = new Motes()
   const bolts = new Bolts()
   const hazards = new Hazards()
-  // A stream of its own, so drawing technique offers never shifts the enemy
-  // sequence a seed is supposed to guarantee.
+  // The combat rng — crits' timing aside, everything it draws (drop rolls,
+  // splitter scatter angles) on a stream of its own, so it never shifts the
+  // enemy spawn sequence a seed is supposed to guarantee.
   let pickRng = new Rng(runSeed ^ 0x5bf03635)
   /** Drop quality, on its own stream for the same reason `pickRng` has one. */
   let dropRng = new Rng(runSeed ^ 0x1b873593)
   /** Which of the five conditions hold right now. See sim/conditions.ts. */
   const sense = createSense()
-  let loadout: Loadout = new Map()
+  /**
+   * `deriveStats` still takes a technique loadout — see sim/loadout.ts. The
+   * three cards it was built for are gone (感悟 advances the equipped arts
+   * directly now; see the update loop below), so this stays permanently
+   * empty rather than threading a second, now-pointless growth channel back
+   * out of a signature every balance tool in the project also calls.
+   */
+  const EMPTY_LOADOUT: Map<string, number> = new Map()
 
   /**
    * Everything the character permanently brings: bought attributes, the
@@ -177,7 +184,7 @@ async function boot(): Promise<void> {
   }
 
   let kit = currentKit()
-  let stats = deriveStats(loadout, kit)
+  let stats = deriveStats(EMPTY_LOADOUT, kit)
   /**
    * The arts carried, and the stats once those whose condition holds are in.
    *
@@ -200,7 +207,7 @@ async function boot(): Promise<void> {
    * persists is which four you carry, not how far they got. See sim/arts.ts.
    */
   let progress = beginProgress(equippedIds(character.arts, kit.weapon.id))
-  const live: Stats = deriveStats(loadout, kit)
+  const live: Stats = deriveStats(EMPTY_LOADOUT, kit)
   /**
    * Recomputes the permanent stats AND the scroll, together.
    *
@@ -211,7 +218,7 @@ async function boot(): Promise<void> {
    * longer holding.
    */
   const refreshKit = (): void => {
-    stats = deriveStats(loadout, kit)
+    stats = deriveStats(EMPTY_LOADOUT, kit)
     // A weapon change is a different scroll, so the grades this run earned on
     // the old one do not carry over. Anything else would let a player bank
     // grades on one weapon and cash them on another.
@@ -225,6 +232,12 @@ async function boot(): Promise<void> {
   /** The place being walked. Chosen in the hub before every expedition. */
   let region = regionAt(clampDepth(character.depth, character.depth))
   const depthOf = (): number => region.depth
+  /**
+   * How many gates this expedition has pushed past. 1 at the first floor of
+   * any rift, and reset there on every new expedition — it is not permanent
+   * progress, it is how far into THIS descent the player has gone.
+   */
+  let tier = 1
 
   // The figure is rebuilt whenever equipment changes, since equipment IS the
   // geometry here — a longer hem is literally a longer silhouette.
@@ -236,7 +249,6 @@ async function boot(): Promise<void> {
   const joystick = createJoystick(host)
   const ui = createHud(uiRoot)
   const banners = createBanners(uiRoot)
-  const levelUp = createLevelUp(uiRoot)
   const codex = createCodex(uiRoot)
   const title = createTitle(uiRoot)
   const creator = createCreator(uiRoot)
@@ -474,6 +486,8 @@ async function boot(): Promise<void> {
   // ---- Run lifecycle ----------------------------------------------------
 
   let gameOverShown = false
+  /** True while the gate's bank-or-push choice is on screen. */
+  let gateUp = false
   /** True between "Set out" and the end screen. False while the hub is up. */
   let playing = false
 
@@ -527,14 +541,14 @@ async function boot(): Promise<void> {
     player.vx = 0
     player.vy = 0
     runSeed = expeditionSeed()
-    swarm.reset(runSeed, region)
+    tier = 1
+    swarm.reset(runSeed, region, tier)
     motes.clear()
     bolts.clear()
     hazards.clear()
     floaters.clear()
     banners.clear()
-    levelUp.hide()
-    loadout = new Map()
+    ui.hideGate()
     foundThisRun = []
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
     // The kit is read here, and this is the only place permanent power touches
@@ -546,12 +560,16 @@ async function boot(): Promise<void> {
     dropRng = new Rng(runSeed ^ 0x1b873593)
     run = createRun(kit.weapon.interval)
     run.hp = stats.maxHp
+    // The rift's gate, at the first floor. See riftTargetFor in data/enemies.ts
+    // and the calibration in docs/CORRIDAS.md for where region.riftBase comes
+    // from.
+    run.riftTarget = riftTargetFor(region.riftBase, tier)
     resetCamera(camera, 0, 0)
     gameOverShown = false
+    gateUp = false
     playing = true
     ui.hideGameOver()
     ui.setPlaying(true)
-    ui.setRegion(region)
     hub.hide()
     tutorial.reset()
 
@@ -559,6 +577,28 @@ async function boot(): Promise<void> {
     // the player has to infer from being slowed is a bug, not a discovery.
     banners.show(region.name, 'plain', `${region.seal} · ${kit.weapon.name}`)
     if (region.ruleText) banners.show(region.ruleText, 'gold')
+  }
+
+  /**
+   * Carries the same swordsman to a harder floor of the same rift.
+   *
+   * Everything that makes a push a FLOOR rather than a fresh expedition: the
+   * build, the kills, the insight and the elapsed clock all continue. Only the
+   * field resets — a new swarm, a new (harder) target — because the floor
+   * just cleared is not somewhere to keep fighting.
+   */
+  const pushDeeper = (): void => {
+    tier++
+    swarm.reset(runSeed ^ (tier * 0x9e3779b9), region, tier)
+    motes.clear()
+    bolts.clear()
+    hazards.clear()
+    run.gateCleared = false
+    run.riftValue = 0
+    run.riftTarget = riftTargetFor(region.riftBase, tier)
+    ui.hideGate()
+    gateUp = false
+    banners.show(`${strings.tier} ${tier}`, 'gold')
   }
 
   openHub = (): void => {
@@ -643,34 +683,37 @@ async function boot(): Promise<void> {
 
     if (!playing || run.over) return
 
-    // A pending choice freezes the field. The player is reading three cards;
-    // being surrounded while doing so would be indefensible.
-    //
-    // THE CARDS WERE ALMOST REMOVED HERE, and the measurement is why they are
-    // still standing. docs/ARTES.md's plan is that 感悟 advances the four
-    // equipped arts instead — and `advanceArt` in sim/arts.ts is written and
-    // tested for exactly that. But `tools/artsBalance.mts` compared the two
-    // motors head to head and the replacement lost: −9% survival overall, and
-    // far worse on kills. The reason is visible in that tool's `live` column.
-    // Only 17 of the 30 arts act, so of the four a weapon carries, one to three
-    // do anything at all, and every 感悟 that lands on one of the others is a
-    // level-up that does nothing.
-    //
-    // So the order in the doc is load-bearing rather than a preference: the six
-    // remaining effects have to exist BEFORE the cards can go. Removing them
-    // first would not make the game harder, only shorter.
-    if (run.pendingLevelUps > 0) {
-      if (!levelUp.visible) {
-        levelUp.show(run.level, offerTechniques(loadout, () => pickRng.next()), loadout, (tech) => {
-          const before = stats.maxHp
-          loadout.set(tech.id, (loadout.get(tech.id) ?? 0) + 1)
-          refreshKit()
-          // Iron Skin heals for what it adds, so taking it while badly hurt is
-          // a real decision rather than a promise for the next run.
-          run.hp = Math.min(stats.maxHp, run.hp + (stats.maxHp - before))
-          run.pendingLevelUps--
-          levelUp.hide()
-        })
+    // 感悟 spends itself the instant it is earned — see sim/arts.ts. There is
+    // nothing to choose and so nothing to freeze the field for: the three
+    // technique cards this replaced needed a pause because picking one was a
+    // decision; raising the next carried art in order is not.
+    while (run.pendingLevelUps > 0) {
+      run.pendingLevelUps--
+      const raised = advanceArt(progress)
+      if (raised) {
+        banners.show(`${raised.art.name} ${raised.level - 1} → ${raised.level}`, 'gold')
+      }
+    }
+
+    // The gate freezes the field exactly like the cards used to: the player is
+    // choosing, and a crowd closing in while they read the choice would be
+    // indefensible. Shown once per clearing — `run.gateCleared` stays true
+    // until `pushDeeper` or the reward screen (via `run.over`) clears it.
+    if (run.gateCleared) {
+      if (!gateUp) {
+        gateUp = true
+        ui.showGate(
+          tier,
+          () => {
+            // Bank: ends the expedition exactly as a death would, except
+            // nothing killed the swordsman — `killedBy` stays null, and
+            // `showGameOver` already reads that as "no cause" rather than as
+            // a lie about how the run ended.
+            run.gateCleared = false
+            run.over = true
+          },
+          pushDeeper,
+        )
       }
       return
     }
@@ -753,8 +796,12 @@ async function boot(): Promise<void> {
 
     // A boss used to simply walk on from off-screen, indistinguishable from a
     // larger silhouette in a crowd of silhouettes until it started firing.
+    //
+    // Named for the REGION's own boss, not always the Warlord — the rift is
+    // meant to ask each place's own question, and a banner that named the
+    // wrong one on four of five floors would say otherwise.
     if (swarm.takeBossArrival()) {
-      banners.show(KIND_BY_ID.get('warlord')!.name, 'danger', strings.bossApproaches)
+      banners.show(KIND_BY_ID.get(region.bossId)!.name, 'danger', strings.bossApproaches)
     }
     if (run.level > insightBefore) {
       banners.show(`${strings.insightReached} ${run.level}`, 'gold')
@@ -1009,13 +1056,15 @@ async function boot(): Promise<void> {
 
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, live.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
-    // The four arts actually carried, not the whole scroll of five.
+    ui.setRift(run.riftValue, run.riftTarget)
+    // The four arts actually carried, not the whole scroll of five — and each
+    // WITH its grade, now that 感悟 actually moves it.
     //
     // Showing five while the simulation ran four would put a tile on screen
     // that can never fire — the exact class of lie this project keeps having to
     // dig out. `progress.carried` IS what applyArts reads each frame, so the
     // strip and the simulation cannot disagree about what is in hand.
-    ui.setScroll(progress.carried.map((c) => c.art))
+    ui.setScroll(progress.carried)
     ui.setConditions(sense.active)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
@@ -1028,7 +1077,7 @@ async function boot(): Promise<void> {
     }
 
     stickGfx.clear()
-    if (playing && joystick.state.active && !run.over && !levelUp.visible) {
+    if (playing && joystick.state.active && !run.over && !gateUp) {
       const s = joystick.state
       stickGfx
         .circle(s.originX, s.originY, 54)
@@ -1066,10 +1115,9 @@ async function boot(): Promise<void> {
       hud.textContent =
         `${s.fps} fps · ${swarm.count}e · u${s.updateMs.toFixed(1)} r${s.renderMs.toFixed(1)} ` +
         `▲${s.worstFrameMs.toFixed(0)} · ${stage.rendererType} · ${BUILD}`
-      ui.updateLoadout(loadout)
       // The hint must not bleed through the level-up cards, which sit exactly
       // where it is drawn.
-      const showHint = playing && joystick.idleTime() > 3 && !run.over && !levelUp.visible
+      const showHint = playing && joystick.idleTime() > 3 && !run.over && !gateUp
       hint.style.opacity = showHint ? '0.55' : '0'
       // The harness needs to know which screen it is looking at: a screenshot
       // of the hub and a screenshot of a stalled boot are both "not the game".

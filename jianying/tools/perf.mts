@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     const deadline = Date.now() + seconds * 1000
     while (Date.now() < deadline) {
       // Standing still: the crowd grows fastest, which is the case that matters.
-      const card = page.locator('.levelup .card').first()
+      const card = page.locator('.gate .gate-push').first()
       if (await card.isVisible().catch(() => false)) await card.click()
       if ((await page.evaluate(() => document.body.dataset.screen)) === 'over') break
 

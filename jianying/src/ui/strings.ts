@@ -30,9 +30,7 @@ export const strings = {
 
   // --- in-run progression --------------------------------------------
   /** The temporary, per-expedition track. */
-  chooseTechnique: 'Choose a technique',
   insight: 'Insight',
-  newTechnique: 'New',
 
   // --- the persistent character ---------------------------------------
   cultivation: 'Cultivation',
@@ -81,6 +79,16 @@ export const strings = {
   // --- banners ---------------------------------------------------------
   bossApproaches: 'approaches',
   insightReached: 'Insight',
+
+  // --- the rift's gate ---------------------------------------------------
+  /** Shown once the floor's boss falls — see RunState.gateCleared. */
+  gateClearedTitle: 'Gate cleared',
+  gateClearedBody: 'What you have earned is already yours, whatever happens next.',
+  bankChoice: 'Leave with it',
+  bankNote: 'Return to the hub. Nothing here is risked.',
+  pushChoice: 'Push deeper',
+  pushNote: 'Harder ground, carrying the same swordsman.',
+  tier: 'Tier',
 
   // --- title -----------------------------------------------------------
   /** The whole game in two lines. It is the first thing anyone reads. */
