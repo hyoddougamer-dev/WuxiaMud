@@ -40,6 +40,13 @@ export interface RunSummary {
   raised: readonly Found[]
   /** Equipment found that was already owned. Reported, not hidden. */
   duplicates: readonly Found[]
+  /**
+   * Found this expedition, but lost — a death forfeits anything found after
+   * the last gate cleared, except a first piece for a slot that was empty
+   * when the expedition began. See settleFound in meta/character.ts for the
+   * whole rule. Always empty when the run ended by banking.
+   */
+  forfeited: readonly Found[]
 }
 
 /** A piece as it came off the ground: which piece, and how good a one. */
@@ -360,6 +367,17 @@ export function createHud(root: HTMLElement): Hud {
           // Named rather than hidden: pretending a duplicate was a discovery
           // would be lying about the only loot the player actually got.
           html += `<div class="loot loot-dupe"><span>${item.name}</span><b>${strings.alreadyYours}</b></div>`
+        }
+      }
+      // Forfeited last of all, and named — the whole point of the stake is
+      // that it is felt, and a loss the player cannot see is not a stake, it
+      // is a silent bug. Only a death ever produces this list; banking always
+      // leaves it empty.
+      if (summary.forfeited.length > 0) {
+        html += `<div class="rw-head rw-lost">${strings.lostToDeath}</div>`
+        for (const { item, rank: r } of summary.forfeited) {
+          const rankMark = r > 0 ? ` <i class="loot-rank">${'·'.repeat(r)}</i>` : ''
+          html += `<div class="loot loot-lost"><span>${item.name}${rankMark}</span><b>${strings.wasNotBanked}</b></div>`
         }
       }
       overReward.innerHTML = html

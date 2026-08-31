@@ -23,7 +23,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng, expeditionSeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
-import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor } from './data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor, tierEffectiveDepth } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
 import { allRankMarks } from './render/rankMarks'
@@ -41,12 +41,19 @@ import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 import { advanceArt, applyArts, beginProgress, equippedIds } from './sim/arts'
-import { type Character, createCharacter, grantXp, recordRun, rewardFor } from './meta/character'
+import {
+  type Character,
+  createCharacter,
+  grantXp,
+  recordRun,
+  rewardFor,
+  settleFound,
+} from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
 import { acquire, equip, equippedIn, equippedItems, rankOf } from './meta/inventory'
-import { ITEMS, ITEM_BY_ID, rollRank } from './data/items'
+import { ITEMS, ITEM_BY_ID, SLOTS, rollRank } from './data/items'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
 import type { Kit, Stats } from './sim/loadout'
@@ -508,6 +515,26 @@ async function boot(): Promise<void> {
    * put it away.
    */
   let ownedThisRun = new Set<string>()
+  /**
+   * How much of `foundThisRun` is safe from a death — see `settleFound` in
+   * meta/character.ts for the whole rule. Advances to `foundThisRun.length`
+   * the instant a gate clears, whether the player then banks or pushes on.
+   */
+  let securedFindCount = 0
+  /** True only when the run ends by choosing "leave", never by dying. */
+  let bankedThisEnd = false
+  /**
+   * Which slots were empty when the expedition began — the one class of find
+   * a death can never take, or a player's first weapon could vanish with
+   * them and teach nothing but that finding gear was pointless.
+   */
+  let emptySlotsAtStart = new Set<string>()
+  /**
+   * Loot's worth, in the unit `rollRank` and the drop table read — the same
+   * region can pay out better gear at a deeper 阶, since no new item ever
+   * unlocks past what the base regions already hold. See tierEffectiveDepth.
+   */
+  const effectiveDepth = (): number => tierEffectiveDepth(region.depth, tier)
 
   const events = {
     hit(x: number, y: number, amount: number, killed: boolean): void {
@@ -525,7 +552,7 @@ async function boot(): Promise<void> {
       // as a reward, and this genre never gives them a safe moment to go back.
       // Where it was found decides how good it is, on its own seeded stream
       // so that adding ranks did not shift the technique offers a replay expects.
-      foundThisRun.push({ item, rank: rollRank(depthOf(), dropRng.next()) })
+      foundThisRun.push({ item, rank: rollRank(effectiveDepth(), dropRng.next()) })
       ownedThisRun.add(item.id)
       banners.show(item.name, 'gold', strings.found)
       floaters.found(x, y)
@@ -551,6 +578,15 @@ async function boot(): Promise<void> {
     ui.hideGate()
     foundThisRun = []
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
+    securedFindCount = 0
+    bankedThisEnd = false
+    // Slots empty right now, before this expedition finds anything for them —
+    // see settleFound. Read from the equipped record directly rather than
+    // through `character.inventory.equipped[slot]` truthiness at settle time,
+    // because settling itself equips into empty slots as it goes.
+    emptySlotsAtStart = new Set(
+      SLOTS.filter((slot) => !character.inventory.equipped[slot]),
+    )
     // The kit is read here, and this is the only place permanent power touches
     // a run: after this the expedition knows nothing about the hub.
     kit = currentKit()
@@ -620,15 +656,21 @@ async function boot(): Promise<void> {
    * screen can itemise what the run was actually worth rather than promising it.
    */
   const settleExpedition = (): RunSummary => {
-    const result = {
-      kills: run.kills,
-      seconds: run.elapsed,
-      insight: run.level,
-      depth: depthOf(),
-    }
-    const reward = rewardFor(result)
+    // The reward reads the EFFECTIVE depth — the same number that decided
+    // loot this run — so pushing a gate pays in cultivation as well as gear.
+    // `recordRun` and the screen's own region lookup read the real, integer
+    // region depth instead: a lifetime stat or a name should never show a
+    // fractional "depth 6.5" a tier produced.
+    const result = { kills: run.kills, seconds: run.elapsed, insight: run.level, depth: depthOf() }
+    const reward = rewardFor({ ...result, depth: effectiveDepth() })
     const gain = grantXp(character, reward.total)
     recordRun(character, result)
+
+    // What a death forfeits — see settleFound in meta/character.ts for the
+    // whole rule. `bankedThisEnd` is only ever true when the run ended by
+    // choosing "leave" at a gate, never by dying.
+    const eligible = settleFound(foundThisRun, securedFindCount, emptySlotsAtStart, bankedThisEnd)
+    const forfeited = foundThisRun.filter((f) => !eligible.includes(f))
 
     // Duplicates are reported honestly rather than silently swallowed: owning
     // a second Hemp Robe is worth nothing here, and a reward screen that
@@ -636,7 +678,7 @@ async function boot(): Promise<void> {
     const kept: Found[] = []
     const raised: Found[] = []
     const duplicates: Found[] = []
-    for (const found of foundThisRun) {
+    for (const found of eligible) {
       const outcome = acquire(character.inventory, found.item.id, found.rank)
       if (outcome === 'new') {
         kept.push(found)
@@ -668,6 +710,7 @@ async function boot(): Promise<void> {
       kept,
       raised,
       duplicates,
+      forfeited,
     }
   }
 
@@ -702,13 +745,20 @@ async function boot(): Promise<void> {
     if (run.gateCleared) {
       if (!gateUp) {
         gateUp = true
+        // Clearing the gate is the proof of progress — everything found up to
+        // here is secured whether the player then leaves or pushes on. See
+        // settleFound in meta/character.ts for the whole rule this feeds.
+        securedFindCount = foundThisRun.length
         ui.showGate(
           tier,
           () => {
             // Bank: ends the expedition exactly as a death would, except
             // nothing killed the swordsman — `killedBy` stays null, and
             // `showGameOver` already reads that as "no cause" rather than as
-            // a lie about how the run ended.
+            // a lie about how the run ended. `bankedThisEnd` is what tells
+            // settleExpedition this was a leave rather than a death, so
+            // NOTHING found this run is at risk.
+            bankedThisEnd = true
             run.gateCleared = false
             run.over = true
           },
@@ -787,7 +837,7 @@ async function boot(): Promise<void> {
         stats: live,
         rng: pickRng,
         events,
-        depth: depthOf(),
+        depth: effectiveDepth(),
         owned: ownedThisRun,
       },
       dt,

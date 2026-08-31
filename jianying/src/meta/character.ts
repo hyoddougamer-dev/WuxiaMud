@@ -276,6 +276,62 @@ export function grantXp(character: Character, amount: number): LevelGain {
   return gain
 }
 
+/** Anything with a slot and a rank — deliberately structural, not imported
+ * from ui/hud.ts's `Found`, so this file does not reach into the UI layer for
+ * a shape this generic. */
+export interface SettledFind {
+  readonly item: { readonly slot: string }
+  readonly rank: number
+}
+
+/**
+ * Which of an expedition's finds a DEATH actually keeps — the "semi hardcore"
+ * stake that makes pushing a rift's gate a real decision rather than a free
+ * one.
+ *
+ * Before this, banking and dying paid out identically: `settleExpedition`
+ * granted the same cultivation and the same loot either way, so a player who
+ * kept pushing risked nothing by not banking. Two things are still NEVER at
+ * risk, on purpose, so a bad expedition still always means SOMETHING:
+ *
+ *   - everything found before the last gate this expedition cleared. Clearing
+ *     a gate is the proof of progress, and it banks everything up to it
+ *     whether the player then leaves or pushes on — see `pushDeeper` in
+ *     main.ts, which is what advances `securedCount`.
+ *   - the FIRST piece found for a slot that was empty at the start of the
+ *     expedition. A death must never be able to erase a run's only find, or a
+ *     bad first expedition would teach a new player that finding gear was
+ *     pointless.
+ *
+ * Everything else — an upgrade, a duplicate, a second piece for a slot
+ * already filled, found in the tier being fought toward the NEXT gate — is
+ * lost on death and kept only by banking (`banked = true`, which this
+ * function then treats as "everything is secured", matching the gate
+ * screen's own promise that leaving risks nothing).
+ */
+export function settleFound<T extends SettledFind>(
+  found: readonly T[],
+  securedCount: number,
+  emptyAtStart: ReadonlySet<string>,
+  banked: boolean,
+): T[] {
+  if (banked) return [...found]
+  const claimed = new Set<string>()
+  const kept: T[] = []
+  found.forEach((f, i) => {
+    if (i < securedCount) {
+      kept.push(f)
+      return
+    }
+    const slot = f.item.slot
+    if (emptyAtStart.has(slot) && !claimed.has(slot)) {
+      claimed.add(slot)
+      kept.push(f)
+    }
+  })
+  return kept
+}
+
 /** Spends one point. Returns false when there is none to spend. */
 export function spendPoint(character: Character, id: AttributeId): boolean {
   if (character.points <= 0) return false

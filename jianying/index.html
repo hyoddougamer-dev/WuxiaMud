@@ -866,6 +866,22 @@
       .loot-raised b {
         color: var(--cinnabar);
       }
+      /* What a death cost — the "semi hardcore" stake. Its own heading and its
+         own colour, because this is the one section of the reward screen that
+         only a death ever produces, and it needs to read as a LOSS rather
+         than blend into the finds above it. */
+      .rw-lost {
+        margin-top: 14px;
+        color: var(--cinnabar);
+      }
+      .loot-lost {
+        text-decoration: line-through;
+        text-decoration-color: rgba(193, 39, 45, 0.4);
+      }
+      .loot-lost b {
+        color: var(--cinnabar);
+        opacity: 0.7;
+      }
       /* Rank, as pips rather than a number. An item card is 158px wide and
          already carries a name and a line of effect; "rank 3" would need a word
          of explanation that three dots does not. */

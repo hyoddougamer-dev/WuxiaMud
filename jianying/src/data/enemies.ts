@@ -472,6 +472,22 @@ export function riftTargetFor(riftBase: number, tier: number): number {
 }
 
 /**
+ * What a rift's danger is worth in loot, expressed as an equivalent region
+ * depth — the unit `rollRank` and the drop table already read.
+ *
+ * A tier is not a new region: no item unlocks that a base region did not
+ * already have. What it buys is RANK. `rollRank`'s curve reaches the top
+ * rank (5) only past effective depth ~6.6, which no region alone reaches —
+ * The Pass tops out at 5. Half a depth per tier means the Pass's own gate
+ * reaches rank 5 at its fourth push, and the Post Road can reach the same
+ * rank eventually by pushing far enough — the whole point of a "semi
+ * hardcore" stake: the best gear in the game is never found safely.
+ */
+export function tierEffectiveDepth(regionDepth: number, tier: number): number {
+  return regionDepth + Math.max(0, tier - 1) * 0.5
+}
+
+/**
  * Spawns per second at a given point in the run.
  *
  * Roughly linear early, then bending upward, so the pressure builds without the

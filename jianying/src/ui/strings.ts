@@ -83,11 +83,11 @@ export const strings = {
   // --- the rift's gate ---------------------------------------------------
   /** Shown once the floor's boss falls — see RunState.gateCleared. */
   gateClearedTitle: 'Gate cleared',
-  gateClearedBody: 'What you have earned is already yours, whatever happens next.',
+  gateClearedBody: 'Everything found up to here is already yours.',
   bankChoice: 'Leave with it',
-  bankNote: 'Return to the hub. Nothing here is risked.',
+  bankNote: 'Return to the hub. Nothing is risked.',
   pushChoice: 'Push deeper',
-  pushNote: 'Harder ground, carrying the same swordsman.',
+  pushNote: 'Harder ground — and what you find there is not yours until the next gate.',
   tier: 'Tier',
 
   // --- title -----------------------------------------------------------
@@ -136,6 +136,9 @@ export const strings = {
   found: 'Found',
   alreadyYours: 'already yours',
   raised: 'sharpened',
+  /** Shown only after a death — never after banking. See settleFound. */
+  lostToDeath: 'Lost with you',
+  wasNotBanked: 'not banked',
 
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',

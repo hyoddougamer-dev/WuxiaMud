@@ -9,6 +9,7 @@ import {
   grantXp,
   recordRun,
   rewardFor,
+  settleFound,
   spendPoint,
   xpForCultivation,
 } from '../src/meta/character'
@@ -1334,5 +1335,60 @@ describe('appearance', () => {
     )
     expect(new Set(drawn).size).toBe(SCHOOLS.length)
     for (const svg of drawn) expect(svg).toContain('<polygon')
+  })
+})
+
+describe('what a death actually keeps', () => {
+  const find = (slot: string, rank = 1) => ({ item: { slot }, rank })
+
+  it('keeps everything on a bank, regardless of where it was found', () => {
+    const finds = [find('weapon'), find('robe'), find('robe', 3)]
+    const out = settleFound(finds, 0, new Set(), true)
+    expect(out).toEqual(finds)
+  })
+
+  it('loses everything on a death when nothing was secured and every slot was already filled', () => {
+    const finds = [find('weapon'), find('robe')]
+    const out = settleFound(finds, 0, new Set(), false)
+    expect(out).toEqual([])
+  })
+
+  it('keeps finds made before the last gate cleared, even on death', () => {
+    const finds = [find('weapon'), find('robe'), find('head')]
+    // Two were found before the checkpoint (securedCount = 2); the third was
+    // found afterward, pushing into the tier that killed the run.
+    const out = settleFound(finds, 2, new Set(), false)
+    expect(out).toEqual([finds[0], finds[1]])
+  })
+
+  it('keeps the first find for a slot that started the expedition empty', () => {
+    const finds = [find('weapon')]
+    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    expect(out).toEqual(finds)
+  })
+
+  it('keeps only the FIRST of two finds for the same empty slot, not both', () => {
+    // A death should never be able to erase a run's only find — but it is
+    // still a death, so a second piece for the same slot is not free.
+    const finds = [find('weapon', 1), find('weapon', 4)]
+    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    expect(out).toEqual([finds[0]])
+  })
+
+  it('does not exempt a slot that was already filled at the start', () => {
+    const finds = [find('robe')]
+    const out = settleFound(finds, 0, new Set(['weapon']), false)
+    expect(out).toEqual([])
+  })
+
+  it('never returns more than what was passed in', () => {
+    const finds = [find('weapon'), find('robe'), find('head'), find('shoulders')]
+    for (const secured of [0, 1, 2, 4]) {
+      for (const banked of [true, false]) {
+        const out = settleFound(finds, secured, new Set(['weapon', 'head']), banked)
+        expect(out.length).toBeLessThanOrEqual(finds.length)
+        for (const f of out) expect(finds).toContain(f)
+      }
+    }
   })
 })
