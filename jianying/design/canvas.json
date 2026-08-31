@@ -1,10 +1,10 @@
 {
   "artboards": [
     { "file": "Sistema.dc.html", "x": 0, "y": 0, "w": 560, "h": 700, "title": "O sistema, simplificado" },
-    { "file": "Raridades.dc.html", "x": 680, "y": 0, "w": 390, "h": 844, "title": "As raridades" },
-    { "file": "Drop.dc.html", "x": 1150, "y": 0, "w": 390, "h": 844, "title": "Um drop no chão" },
-    { "file": "Main.dc.html", "x": 1620, "y": 0, "w": 390, "h": 844, "title": "O inventário" },
-    { "file": "Comparar.dc.html", "x": 2090, "y": 0, "w": 390, "h": 844, "title": "Comparar e equipar" }
+    { "file": "Raridades.dc.html", "x": 700, "y": 0, "w": 390, "h": 844, "title": "As raridades" },
+    { "file": "Drop.dc.html", "x": 1210, "y": 0, "w": 390, "h": 844, "title": "Um drop no chão" },
+    { "file": "Main.dc.html", "x": 1720, "y": 0, "w": 390, "h": 844, "title": "O inventário" },
+    { "file": "Comparar.dc.html", "x": 2230, "y": 0, "w": 390, "h": 844, "title": "Comparar e equipar" }
   ],
   "annotations": [
     {
