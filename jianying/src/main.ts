@@ -35,6 +35,7 @@ import { CHARGE_WINDUP, Swarm } from './sim/enemies'
 import { Motes } from './sim/pickups'
 import { Bolts } from './sim/projectiles'
 import { Hazards } from './sim/hazards'
+import { Drops } from './sim/drops'
 import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
 import { xpForLevel } from './data/techniques'
@@ -66,8 +67,9 @@ import {
   type OwnedItem,
 } from './meta/inventory'
 import { ITEMS, ITEM_BY_ID, SLOTS, type Slot } from './data/items'
+import { BAG_CAPACITY } from './meta/inventory'
 import { rollAffixes, rollAmount, rollPower, type AffixKind } from './data/affixes'
-import { rarityOf, rollRarity } from './data/rarity'
+import { rarityOf, rollRarity, type Rarity } from './data/rarity'
 import { bladeOf, weaponById } from './data/weapons'
 import { gearFromIds } from './render/wardrobe'
 import type { Kit, Stats } from './sim/loadout'
@@ -155,6 +157,8 @@ async function boot(): Promise<void> {
   const motes = new Motes()
   const bolts = new Bolts()
   const hazards = new Hazards()
+  /** Equipment lying where its owner fell. See sim/drops.ts. */
+  const drops = new Drops()
   // The combat rng — crits' timing aside, everything it draws (drop rolls,
   // splitter scatter angles) on a stream of its own, so it never shifts the
   // enemy spawn sequence a seed is supposed to guarantee.
@@ -430,6 +434,12 @@ async function boot(): Promise<void> {
   boltGfx.zIndex = 1
   stage.world.addChild(boltGfx)
 
+  // Equipment on the ground. Above the motes and below the fighting, because a
+  // piece must be findable in a crowd without ever hiding what is hitting you.
+  const dropGfx = new Graphics()
+  dropGfx.zIndex = -2
+  stage.world.addChild(dropGfx)
+
   // Enemy fire, drawn above the crowd so it is never lost in a press of bodies.
   const hazardGfx = new Graphics()
   hazardGfx.zIndex = 4
@@ -563,6 +573,14 @@ async function boot(): Promise<void> {
    * that the gate's question — leave with it, or push on — is asked about the
    * permanent progression too. See `settleExpedition`.
    */
+  /**
+   * Pieces on the ground, by the handle the drop pool carries.
+   *
+   * The simulation holds a position and a rung; the instance itself lives here,
+   * because the roll is the caller's business and the sim has no business
+   * knowing what a Hemp Robe is.
+   */
+  const onGround = new Map<string, Found>()
   let manualsThisRun: Art[] = []
   /** How many of `manualsThisRun` a death cannot take. Mirrors securedFindCount. */
   let securedManualCount = 0
@@ -629,12 +647,17 @@ async function boot(): Promise<void> {
         power: rollPower(rarity, item.slot, dropRng.next()),
         depth: Math.round(depth),
       }
-      foundThisRun.push(found)
+      // Rolled here, at the moment of death, so a seeded expedition rolls the
+      // same piece whether or not the player ever goes to fetch it. It lands on
+      // the GROUND rather than in the bag — see sim/drops.ts for why that
+      // reversed an earlier decision.
+      onGround.set(found.uid, found)
+      drops.drop(x, y, found.uid, rarity)
       ownedThisRun.add(item.id)
-      // The banner is coloured by the rung, so the thing the player reads first
-      // is how excited to be — which is the entire job of a rarity ladder.
-      banners.show(item.name, rarity >= 3 ? 'gold' : 'plain', rarityOf(rarity).name)
-      floaters.found(x, y)
+      // Only the good rungs interrupt. A grey piece announcing itself on every
+      // third kill would train the player to ignore the banner entirely, and
+      // then the purple one would go unread too.
+      if (rarity >= 3) banners.show(item.name, 'gold', rarityOf(rarity).name)
     },
     manual(x: number, y: number, artId: string): void {
       const art = ART_BY_ID.get(artId)
@@ -668,6 +691,8 @@ async function boot(): Promise<void> {
     banners.clear()
     ui.hideGate()
     foundThisRun = []
+    drops.clear()
+    onGround.clear()
     manualsThisRun = []
     securedManualCount = 0
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
@@ -945,6 +970,18 @@ async function boot(): Promise<void> {
     )
 
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
+    // Pieces on the ground. The pool asks before handing one over, so a full
+    // pack leaves it lying there rather than eating it — the player can drop
+    // something in the hub and come back for it.
+    for (const uid of drops.update(player.x, player.y, dt, () => foundThisRun.length < BAG_CAPACITY)) {
+      const found = onGround.get(uid)
+      if (!found) continue
+      onGround.delete(uid)
+      foundThisRun.push(found)
+      const base = baseOf(found)
+      if (base) banners.show(base.name, found.rarity >= 3 ? 'gold' : 'plain', rarityOf(found.rarity).name)
+      floaters.found(player.x, player.y)
+    }
     updateCombat(
       {
         run,
@@ -1133,6 +1170,66 @@ async function boot(): Promise<void> {
       moteGfx.circle(mx, my, 7 * pulse).fill({ color: palette.gold, alpha: 0.16 })
     }
 
+    // --- equipment on the ground ---------------------------------------
+    //
+    // Drawn in the piece's own rung colour, which is the whole point: the
+    // decision "is that worth crossing the field for" has to be answerable at
+    // a glance, from across the screen, while something is chasing you.
+    dropGfx.clear()
+    for (let i = 0; i < drops.pool.size; i++) {
+      const d = drops.pool.at(i)
+      const dx = lerp(d.prevX, d.x, alpha)
+      const dy = lerp(d.prevY, d.y, alpha)
+      const tier = rarityOf(d.rarity as Rarity)
+      // A shaft of light standing on the ground, with the piece as a mark at
+      // its foot. It settles over the first third of a second so a drop reads
+      // as having LANDED rather than having always been there.
+      const settle = clamp01(d.age / 0.32)
+      const rise = easing.outCubic(settle)
+      const pulse = 0.86 + Math.sin(time * 3.4 + d.age * 5) * 0.14
+      // The better the rung, the taller and louder the shaft — a grey piece is
+      // a smudge you may walk past, a gold one is visible across the field.
+      const height = (16 + d.rarity * 13) * rise
+      const width = 4 + d.rarity * 1.5
+      const alphaTop = 0.05 + d.rarity * 0.03
+      const alphaFoot = 0.22 + d.rarity * 0.1
+      dropGfx
+        .poly([
+          dx - width, dy,
+          dx + width, dy,
+          dx + width * 0.45, dy - height,
+          dx - width * 0.45, dy - height,
+        ])
+        .fill({ color: tier.colour, alpha: alphaTop * pulse })
+      dropGfx
+        .ellipse(dx, dy, (7 + d.rarity * 2.2) * pulse, (2.6 + d.rarity * 0.8) * pulse)
+        .fill({ color: tier.colour, alpha: alphaFoot })
+      // The mark itself, and it does NOT scale with the rung.
+      //
+      // Screenshotting a real run caught this: a common piece drawn with a
+      // quiet shaft and a small mark read as a smudge among the qi motes, and
+      // "drops feel like nothing" is the exact complaint this whole rework
+      // exists to answer. A common piece is still a piece — it still rolls a
+      // line, and early on it is still an upgrade — so being FINDABLE is the
+      // floor. What the rung buys is how loudly it announces itself from
+      // across the field, not whether it can be seen at all.
+      //
+      // Drawn as an ink lozenge with a paper gap under it, which is the one
+      // shape on the field that is neither a silhouette (upright, tall) nor a
+      // mote (small, round, gold).
+      dropGfx
+        .ellipse(dx, dy + 1, 9, 4)
+        .fill({ color: palette.paperDeep, alpha: 0.85 * rise })
+      dropGfx
+        .ellipse(dx, dy - 4 * rise, 7, 4.5)
+        .fill({ color: palette.ink, alpha: 0.88 * rise })
+      // A rim in the rung's own colour, so the ladder reads on the object
+      // itself and not only in the light above it.
+      dropGfx
+        .ellipse(dx, dy - 4 * rise, 7, 4.5)
+        .stroke({ color: tier.colour, width: 1.6, alpha: (0.5 + d.rarity * 0.1) * rise })
+    }
+
     // --- sword qi ------------------------------------------------------
     boltGfx.clear()
     for (let i = 0; i < bolts.pool.size; i++) {
@@ -1308,6 +1405,11 @@ async function boot(): Promise<void> {
       // touch on the device while the game itself kept running perfectly, and
       // nothing in the pipeline noticed — a screenshot of a stationary
       // character looks identical to a screenshot of a moving one.
+      // Pieces lying on the field, for the harness. A drop that never appears
+      // and a drop that appears and is invisible look identical in a
+      // screenshot, and only one of them is a rendering bug.
+      document.body.dataset.drops = String(drops.count)
+      document.body.dataset.found = String(foundThisRun.length)
       document.body.dataset.px = String(Math.round(player.x))
       document.body.dataset.py = String(Math.round(player.y))
       // Which conditions hold, for the harness. The seals lighting on screen is
