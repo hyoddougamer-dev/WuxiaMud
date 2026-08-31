@@ -4,19 +4,15 @@ import { Rng } from '../src/core/rng'
 import {
   ATTRIBUTES,
   type Attributes,
-  artStartLevel,
   createCharacter,
   emptyAttributes,
   grantXp,
-  manualRank,
   recordRun,
   rewardFor,
   settleFound,
   spendPoint,
-  studyManual,
   xpForCultivation,
 } from '../src/meta/character'
-import { MAX_MANUAL_RANK } from '../src/data/arts'
 import {
   MAX_DEPTH,
   REGIONS,
@@ -1375,62 +1371,28 @@ describe('what a death actually keeps', () => {
 })
 
 
-describe('秘笈 on the swordsman', () => {
-  it('reads an unstudied art as rank zero rather than undefined', () => {
-    const c = createCharacter()
-    expect(manualRank(c, 'jian-point')).toBe(0)
-    expect(artStartLevel(c, 'jian-point')).toBe(1)
-  })
-
-  it('raises the art one grade per manual, and says so', () => {
-    const c = createCharacter()
-    expect(studyManual(c, 'jian-point')).toBe(true)
-    expect(manualRank(c, 'jian-point')).toBe(1)
-    expect(artStartLevel(c, 'jian-point')).toBe(2)
-  })
-
-  it('refuses a manual for an art already mastered, instead of eating it', () => {
-    // A find that silently changes nothing is the loot equivalent of a
-    // level-up that grants no point. The caller needs to be able to say so.
-    const c = createCharacter()
-    for (let i = 0; i < MAX_MANUAL_RANK; i++) expect(studyManual(c, 'jian-point')).toBe(true)
-    expect(studyManual(c, 'jian-point')).toBe(false)
-    expect(manualRank(c, 'jian-point')).toBe(MAX_MANUAL_RANK)
-  })
-
-  it('keeps manuals for one art from touching another', () => {
-    const c = createCharacter()
-    studyManual(c, 'jian-point')
-    expect(manualRank(c, 'spear-thrust')).toBe(0)
-  })
-
-  it('survives a save written before manuals existed', () => {
-    // The migration that matters: a real save from the shipped build has no
-    // `manuals` key at all, and must come back as a playable swordsman whose
-    // arts simply start at grade one.
+describe('the save, once the 秘笈 ladder is gone', () => {
+  it('reads a save that still carries manual ranks, and drops them', () => {
+    // The migration that matters, and the honest one. A real save from the
+    // shipped build has a `manuals` record in it. An art's grade now comes from
+    // the rungs of the gear worn, so a manual rank would be a second, invisible
+    // ladder climbing the same number — folding it in would hand some saves a
+    // head start nothing on screen could explain. It is dropped, and the
+    // swordsman comes back playable.
     const before = createCharacter('Wei Zilan')
     const record = JSON.parse(serialiseCharacter(before)) as Record<string, unknown>
-    delete record.manuals
+    record.manuals = { 'jian-point': 3, 'no-such-art': 2 }
     const after = parseCharacter(JSON.stringify(record))
     expect(after).not.toBeNull()
-    expect(after!.manuals).toEqual({})
-    expect(artStartLevel(after!, 'jian-point')).toBe(1)
+    expect(after!.name).toBe('Wei Zilan')
+    expect((after as unknown as Record<string, unknown>).manuals).toBeUndefined()
   })
 
-  it('round-trips studied manuals through a save', () => {
-    const c = createCharacter()
-    studyManual(c, 'jian-point')
-    studyManual(c, 'jian-point')
-    const back = parseCharacter(serialiseCharacter(c))
-    expect(manualRank(back!, 'jian-point')).toBe(2)
-  })
-
-  it('clamps a tampered or corrupted rank rather than trusting it', () => {
+  it('does not write manuals back out', () => {
+    // A field that came back on the round trip would resurrect the ladder in
+    // every save the moment anything read it again.
     const c = createCharacter()
     const record = JSON.parse(serialiseCharacter(c)) as Record<string, unknown>
-    record.manuals = { 'jian-point': 999, 'no-such-art': 2 }
-    const back = parseCharacter(JSON.stringify(record))
-    expect(manualRank(back!, 'jian-point')).toBe(MAX_MANUAL_RANK)
-    expect(back!.manuals['no-such-art']).toBeUndefined()
+    expect(record.manuals).toBeUndefined()
   })
 })

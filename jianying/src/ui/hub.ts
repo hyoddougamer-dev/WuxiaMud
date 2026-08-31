@@ -35,7 +35,6 @@ import {
   ATTRIBUTES,
   type Attributes,
   type Character,
-  manualRank,
   spendPoint,
   xpForCultivation,
 } from '../meta/character'
@@ -70,11 +69,10 @@ import {
   CONDITIONS,
   CONDITION_BY_ID,
   EQUIPPED_ARTS,
-  MAX_MANUAL_RANK,
   artsFor,
   type Art,
 } from '../data/arts'
-import { equippedIds } from '../sim/arts'
+import { artGrade, awakeCount, equippedIds } from '../sim/arts'
 import { palette } from '../render/palette'
 import { strings } from './strings'
 
@@ -514,13 +512,21 @@ export function createHub(
     pane.className = 'pane'
 
     const scroll = artsFor(weapon.id)
-    const carried = equippedIds(c.arts, weapon.id)
+    // The whole scroll, in the player's ranking. How far down it the arts
+    // actually wake is the gear's business — see `attune` in sim/arts.ts.
+    const ranked = equippedIds(c.arts, weapon.id)
+    // Chosen explicitly, which is what a tap toggles. The rest of `ranked` is
+    // the tail of the scroll, shown but not ranked.
+    const chosen = (c.arts[weapon.id] ?? []).filter((id) => scroll.some((a) => a.id === id))
+    const rungs = SLOTS.map((slot) => equippedIn(c.inventory, slot)?.rarity ?? 0)
+    const awake = awakeCount(rungs[0]!, scroll.length)
+    const grade = artGrade(rungs)
 
     const head = document.createElement('div')
     head.className = 'block-head arts-head'
     head.innerHTML =
       `<span>${weapon.seal} ${escapeHtml(weapon.name)}</span>` +
-      `<b class="arts-count">${carried.length} / ${EQUIPPED_ARTS}</b>`
+      `<b class="arts-count">${awake} ${strings.artsAwake} · ${strings.artsGrade} ${grade}</b>`
     pane.appendChild(head)
 
     const note = document.createElement('div')
@@ -536,49 +542,46 @@ export function createHub(
      * simulation reads whatever is here.
      */
     /**
-     * The permanent grade an art opens at, as pips — or nothing at all.
+     * One art, at its place in the ranking.
      *
-     * Absent when no manual has been studied, deliberately: a column of empty
-     * markers against thirty arts would read as "you are missing thirty
-     * things" on the very first screen a new player opens. It appears the
-     * moment the ladder starts, which is when it means something.
+     * `place` is 1-based and always present — every art on the scroll has a
+     * rank now, whether the player set it or the table's own order did. What
+     * changes is whether the gear reaches that far down: an art past `awake` is
+     * shown greyed with the reason, rather than hidden. Hiding it would make
+     * the reward for a better blade invisible until the moment it arrived, and
+     * a reward nobody can see coming is not a reward.
      */
-    const manualMark = (artId: string): string => {
-      const rank = character ? manualRank(character, artId) : 0
-      if (rank <= 0) return ''
-      return (
-        `<span class="art-row-manual" title="${strings.opensAt} ${rank + 1}">` +
-        '●'.repeat(rank) +
-        '○'.repeat(Math.max(0, MAX_MANUAL_RANK - rank)) +
-        `</span>`
-      )
-    }
-
     const artRow = (art: Art, place: number): HTMLElement => {
-      const on = place > 0
+      const on = place <= awake
+      // The hint goes on the FIRST sleeping row only — the next one to wake.
+      // On every sleeping row it becomes a column of the same sentence four
+      // times over, which stops being information and starts being wallpaper.
+      const next = place === awake + 1
+      const ranked = chosen.includes(art.id)
       const cond = CONDITION_BY_ID.get(art.condition)!
       const row = document.createElement('button')
       row.type = 'button'
-      row.className = 'art-row' + (on ? ' art-row-on' : '')
+      row.className = 'art-row' + (on ? ' art-row-on' : ' art-row-off')
       row.innerHTML = `
-        <span class="art-row-place">${on ? place : ''}</span>
+        <span class="art-row-place">${place}</span>
         ${effectIconSvg(art.effect, palette.ink, 1, 'art-row-icon')}
         <span class="art-row-text">
           <span class="art-row-name">${art.seal} ${escapeHtml(art.name)}</span>
           <span class="art-row-blurb">${escapeHtml(art.blurb)}</span>
+          ${next ? `<span class="art-row-wake">${escapeHtml(strings.artsAsleep)}</span>` : ''}
         </span>
         <span class="art-row-cond">
           <span class="art-row-seal">${cond.seal}</span>
           <span class="art-row-how">${escapeHtml(cond.name)}</span>
         </span>
-        ${manualMark(art.id)}
+        <span class="art-row-grade">${on ? grade : ''}</span>
       `
       row.addEventListener('click', () => {
         if (!character) return
-        const next = carried.filter((id) => id !== art.id)
-        // Adding appends, so the order is the order you tapped them in — the
+        const next = chosen.filter((id) => id !== art.id)
+        // Adding appends, so the ranking is the order you tapped them in — the
         // only reordering control a thumb needs, and one nobody has to learn.
-        if (!on && next.length < EQUIPPED_ARTS) next.push(art.id)
+        if (!ranked && next.length < EQUIPPED_ARTS) next.push(art.id)
         character.arts = { ...character.arts, [weapon.id]: next }
         onSave()
         render()
@@ -588,16 +591,13 @@ export function createHub(
 
     const list = document.createElement('div')
     list.className = 'art-list'
-    // Carried first and in their order, then the rest of the scroll. Sorting by
-    // state rather than by the table's order means the four that matter are
-    // always the four at the top.
-    for (const id of carried) {
+    // In the ranked order, awake ones first by construction. Sorting by state
+    // rather than by the table's order means the arts that fire are always the
+    // ones at the top, and the next one to wake is the one directly below.
+    ranked.forEach((id, i) => {
       const art = scroll.find((a) => a.id === id)
-      if (art) list.appendChild(artRow(art, carried.indexOf(id) + 1))
-    }
-    for (const art of scroll) {
-      if (!carried.includes(art.id)) list.appendChild(artRow(art, 0))
-    }
+      if (art) list.appendChild(artRow(art, i + 1))
+    })
     pane.appendChild(list)
 
     // What the five conditions actually ask of the player. The strip during a

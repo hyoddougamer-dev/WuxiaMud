@@ -184,6 +184,28 @@ const LIVE = new Set<EffectKind>(LIVE_EFFECTS)
 export const artActs = (art: Art): boolean => LIVE.has(art.effect)
 
 /**
+ * 内力 — what a level-up grants, now that it no longer touches the arts.
+ *
+ * Deliberately dull, and that is the design. The interesting growth inside a
+ * run is the drop; this is the background hum underneath it, the thing that
+ * makes the clock itself worth something on a run where nothing good falls. It
+ * is flat, it is two numbers, and it can never be confused with an art —
+ * which is precisely the confusion the 感悟 banner used to cause.
+ */
+export const MIGHT = {
+  /** Sweep damage per level past the first. */
+  damage: 1.6,
+  /** Maximum health per level past the first. */
+  maxHp: 6,
+} as const
+
+function addMight(into: Stats, level: number): void {
+  const n = Math.max(0, Math.floor(level) - 1)
+  into.slashDamage += MIGHT.damage * n
+  into.maxHp += MIGHT.maxHp * n
+}
+
+/**
  * Applies every carried art whose condition currently holds, into `out`.
  *
  * `out` is caller-owned and returned, so a frame costs one copy of fifteen
@@ -196,8 +218,16 @@ export function applyArts(
   carried: readonly CarriedArt[],
   active: Conditions,
   out: Stats,
+  runLevel = 1,
 ): Stats {
   copyStats(base, out)
+  // 内力 folded in HERE rather than into `base`, and that is not tidiness. The
+  // run's levels are a running total; adding them to the permanent block would
+  // compound every time that block was recomputed — and the block IS recomputed
+  // mid-run now, every time a piece is put on. Folding them into the per-frame
+  // copy makes double-counting impossible by construction rather than by
+  // everybody remembering. See MIGHT.
+  addMight(out, runLevel)
   for (const { art, level } of carried) {
     if (!active[art.condition as Condition]) continue
     const s = artScale(level)
@@ -277,103 +307,124 @@ export function applyArts(
   return out
 }
 
+
 // ---------------------------------------------------------------------------
-// 感悟 — how a run grows now
+// 器蕴 — the arts come from what you carry
 // ---------------------------------------------------------------------------
 /**
- * The in-run progression, which replaces the three technique cards.
+ * WHAT THIS REPLACED, AND WHY.
  *
- * The cards were the motor of the genre — they are what made a run GROW while
- * the enemies grew — and taking them away without a replacement would break the
- * curve outright. The replacement, agreed in docs/ARTES.md, is that each 感悟
- * advances the next art in the order you set, cycling.
+ * The arts used to be raised by two separate ladders and neither was one.
  *
- * WHY THAT IS BETTER THAN A DRAW. Three cards offered at random are a sorting
- * problem, not a decision: over a run you take most of what you are shown and
- * two players with the same weapon end up in nearly the same place. Advancing a
- * list you chose in the hub means the run deepens the build you brought, and
- * the order you put them in is a real choice made with time to think rather
- * than one made in a freeze-frame with things closing in.
+ *   - 感悟, during a run: every level-up pushed the next carried art up a grade,
+ *     and the whole climb was thrown away when the run ended. A player watched
+ *     "Flow 2 → 3" flash past mid-fight, could not act on it, could not keep it,
+ *     and started the next expedition back at the bottom.
+ *   - 秘笈, between runs: a manual raised the grade an art OPENED at. Permanent,
+ *     but invisible — a number in a save file that the player never saw move.
  *
- * GRADES ARE PER RUN, like the cards were. What persists is which arts you
- * know and which four you carry; what resets is how far they got. That keeps
- * the survivors-like shape — every run starts at the bottom of its own curve.
+ * Two ladders climbing the same number, one of them a treadmill, and neither
+ * attached to anything the player could look at. That is what "levels sobem de
+ * forma ridícula" and "skills sobem em combate não faz sentido" were reports of.
+ *
+ * THE RULE NOW IS ONE SENTENCE: the weapon decides what you do, and the gear
+ * decides how hard you do it.
+ *
+ *   - WHICH arts — the scroll of the weapon in hand, as ever.
+ *   - HOW MANY of them wake — the weapon's RUNG. A grey blade wakes one art; a
+ *     purple blade wakes four; a divine blade wakes the whole scroll.
+ *   - WHAT GRADE they sit at — the rungs of everything worn, added up.
+ *
+ * Every one of those three is something the player is already looking at. The
+ * art strip stops being a mystery meter and becomes a readout of the gear.
+ *
+ * AND IT KEEPS THE GENRE. A survivors-like needs minute eight to differ from
+ * minute one. It still does — but the growth is now the drop. Walk over the
+ * purple sword at minute six and a fourth art wakes, mid-fight, in the colour
+ * you saw land. That is the beat the treadmill was standing in for.
  */
-export interface ArtProgress {
-  /** The four carried, in the order they advance. Mutated in place. */
-  readonly carried: CarriedArt[]
-  /** Index of the next art to advance. */
-  next: number
+
+/**
+ * How much added-up worn rung buys one grade of every art.
+ *
+ * Four, so the ladder spans exactly the space the rarities span: four slots at
+ * 凡 is nothing (grade 1), four at 良 is grade 2, four at 珍 grade 3, four at
+ * 宝 grade 4, four at 神 grade 5. Every rung of gear moves the number, and the
+ * cap is reached only by a set that is nearly all divine — which is the point
+ * of having a cap at all.
+ */
+export const ATTUNE_PER_GRADE = 4
+
+/**
+ * How many of the scroll the weapon in hand wakes.
+ *
+ * Starts at one rather than zero on purpose. A swordsman with a rusty blade is
+ * still a swordsman: they have an art, it fires, and the strip has something on
+ * it from the first second of the first expedition. Handing a new player an
+ * empty scroll to teach them that rarity matters would teach them instead that
+ * the game does nothing.
+ */
+export function awakeCount(weaponRarity: number, scrollLength: number): number {
+  const rung = Math.max(0, Math.floor(weaponRarity))
+  return Math.max(0, Math.min(scrollLength, 1 + rung))
 }
 
-/** The grade a carried art starts a run at with nothing studied for it. */
-export const START_LEVEL = 1
+/**
+ * The grade every awake art sits at, from the rungs of everything worn.
+ *
+ * The WEAPON'S rung counts here too, and it is the only number that appears in
+ * both halves of the rule. That is deliberate rather than sloppy: a great blade
+ * should be felt twice — once as another art waking, once as every art hitting
+ * harder — because "the weapon is the class" is the promise this whole system
+ * rests on, and a promise you only feel once is a small promise.
+ */
+export function artGrade(wornRarities: readonly number[]): number {
+  let total = 0
+  for (const r of wornRarities) total += Math.max(0, Math.floor(r))
+  return Math.min(MAX_ART_LEVEL, 1 + Math.floor(total / ATTUNE_PER_GRADE))
+}
 
 /**
- * Sets up a run's progression from an ordered list of art ids.
+ * The arts a kit grants: which, how many, and at what grade.
  *
- * Unknown ids are dropped rather than throwing: a save can name an art from a
- * build that renamed one, and losing a slot beats losing the expedition.
- *
- * `startLevel` is where the permanent half of an art's grade enters the
- * simulation — the manuals studied for it (see meta/character.ts). It arrives
- * as a FUNCTION rather than as the character itself so that this file stays
- * ignorant of saves, inventories and everything else in meta/: the simulation
- * needs to know what grade an art begins at, not who is carrying it. Omitted,
- * every art begins at grade one, which is how the game played before manuals
- * existed and how every headless balance harness still calls it.
+ * `orderedIds` is the whole scroll in the order the player set — see
+ * `equippedIds`. Slicing rather than filtering is what makes that order a real
+ * decision: the arts that wake are the ones at the TOP of your list, so a
+ * player carrying a common blade is choosing their single art, not being handed
+ * whichever one the table happened to list first.
  */
-export function beginProgress(
-  artIds: readonly string[],
-  startLevel?: (artId: string) => number,
-): ArtProgress {
+export function attune(
+  orderedIds: readonly string[],
+  weaponRarity: number,
+  wornRarities: readonly number[],
+): CarriedArt[] {
+  const level = artGrade(wornRarities)
+  const awake = awakeCount(weaponRarity, orderedIds.length)
   const carried: CarriedArt[] = []
-  for (const id of artIds) {
+  for (const id of orderedIds.slice(0, awake)) {
     const art = ARTS.find((a) => a.id === id)
-    if (!art) continue
-    const level = startLevel ? startLevel(id) : START_LEVEL
-    carried.push({ art, level: Math.max(START_LEVEL, Math.min(MAX_ART_LEVEL, Math.floor(level))) })
+    // Unknown ids are dropped rather than thrown on: a save can name an art
+    // from a build that renamed one, and losing a slot beats losing the run.
+    if (art) carried.push({ art, level })
   }
-  return { carried, next: 0 }
+  return carried
 }
 
 /**
- * Advances one art by a grade and returns it, or null if every one is capped.
+ * The weapon's whole scroll, in the order the player set.
  *
- * Walks forward from `next` rather than simply taking it, so a maxed art does
- * not swallow a 感悟 and leave the player with a level-up that did nothing.
- */
-export function advanceArt(progress: ArtProgress): CarriedArt | null {
-  const n = progress.carried.length
-  if (n === 0) return null
-  for (let step = 0; step < n; step++) {
-    const i = (progress.next + step) % n
-    const entry = progress.carried[i]!
-    if (entry.level < MAX_ART_LEVEL) {
-      const raised: CarriedArt = { art: entry.art, level: entry.level + 1 }
-      progress.carried[i] = raised
-      progress.next = (i + 1) % n
-      return raised
-    }
-  }
-  return null
-}
-
-/**
- * The four art ids a weapon carries, falling back to the head of its scroll.
+ * RETURNS ALL FIVE, not the four chosen. The chosen ones lead, in their order,
+ * and the rest of the scroll follows — because how far down this list the arts
+ * actually wake is decided by the blade in hand, and a 神 weapon reaches the
+ * fifth. Truncating here would make that reward unreachable and would hide the
+ * fact that the order is a full ranking rather than a set.
  *
  * The fallback is not a placeholder to remove later — it is what makes the
- * 法 tab optional. A player who never opens it still walks out with a real
+ * 法 tab optional. A player who never opens it still walks out with a coherent
  * build, and a save written before equipping existed still means something.
- * Choosing simply replaces a default that was already coherent.
  */
-export function equippedIds(
-  arts: Record<string, string[]>,
-  weaponId: string,
-): string[] {
-  const chosen = arts[weaponId]
-  if (chosen && chosen.length > 0) return chosen.slice(0, EQUIPPED_ARTS)
-  return ARTS.filter((a) => a.weapon === weaponId)
-    .slice(0, EQUIPPED_ARTS)
-    .map((a) => a.id)
+export function equippedIds(arts: Record<string, string[]>, weaponId: string): string[] {
+  const scroll = ARTS.filter((a) => a.weapon === weaponId).map((a) => a.id)
+  const chosen = (arts[weaponId] ?? []).slice(0, EQUIPPED_ARTS).filter((id) => scroll.includes(id))
+  return [...chosen, ...scroll.filter((id) => !chosen.includes(id))]
 }

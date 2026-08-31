@@ -30,7 +30,7 @@ import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
 import { offerTechniques, type Loadout } from '../src/data/techniques'
-import { advanceArt, applyArts, artActs, beginProgress, equippedIds } from '../src/sim/arts'
+import { applyArts, artActs, attune, equippedIds } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 
@@ -124,7 +124,13 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
     // An empty scroll is how "off" is expressed, rather than a branch: the same
     // code path runs in both rows, so the delta cannot be an artefact of one
     // row taking a different route through the simulation.
-    const progress = beginProgress(growth === 'arts' ? equippedIds({}, weapon.id) : [])
+    // The rung the harness measures at. 珍 across all four slots is a middling
+    // real kit: it wakes three of the five arts and grades them at 3, which is
+    // roughly where a player is a few expeditions in. An empty scroll is still
+    // how "off" is expressed, so the same code path runs in both rows.
+    const RUNG = 2
+    const carried =
+      growth === 'arts' ? attune(equippedIds({}, weapon.id), RUNG, [RUNG, RUNG, RUNG, RUNG]) : []
     const rule = REGION.rule
     const drift = rule.drift ?? 0
     let t = 0
@@ -134,7 +140,7 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
-      applyArts(stats, progress.carried, sense.active, live)
+      applyArts(stats, carried, sense.active, live, run.level)
       updatePlayer(
         player,
         ix,
@@ -163,15 +169,12 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
         TICK_S,
       )
       swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
-      // 感悟 is now the run's growth, so it is CONSUMED rather than suppressed.
-      // Zeroing it — which is what this line used to do, back when growth came
-      // from three cards this harness deliberately refused — would now measure
-      // a run that cannot grow at all, and report the whole game as broken.
+      // A level is CONSUMED rather than suppressed. Its 内力 is folded in by
+      // applyArts above, from run.level, so the arts row needs nothing here
+      // beyond draining the queue.
       while (run.pendingLevelUps > 0) {
         run.pendingLevelUps--
-        if (growth === 'arts') {
-          advanceArt(progress)
-        } else if (growth === 'cards') {
+        if (growth === 'cards') {
           // Greedy: always the first on offer. A real player picks better than
           // this, so the card column is a FLOOR for what the cards were worth,
           // which is the conservative direction for the comparison to fail in.

@@ -44,12 +44,14 @@ export const strings = {
   /**
    * The 法 tab's one line of instruction.
    *
-   * Says outright that the numbering is not yet read by anything, because a
-   * player who carefully orders four rows for no effect has been lied to.
+   * States the rule outright, because the whole point of routing the arts
+   * through the gear is that the player can PREDICT them. Ranking five arts
+   * while the blade in hand wakes two is a real decision, and it is only a
+   * decision if the pane says which two.
    */
   artsNote:
-    'Tap to carry an art. Only the four you carry can fire. ' +
-    'The order will decide which deepens first once 感悟 raises them.',
+    'Tap to rank an art. The blade in your hand decides how many wake, ' +
+    'from the top of this list down; everything you wear decides their grade.',
   pointsToSpend: 'points to spend',
   onePointToSpend: 'point to spend',
   spend: '+',
@@ -142,16 +144,18 @@ export const strings = {
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',
 
-  // --- 秘笈, the permanent half of an art ---------------------------------
-  /** Banner when one drops. Named for the art, not the object. */
-  manualFound: 'a manual',
-  manualsStudied: 'Studied',
-  /** The grade the art will now BEGIN an expedition at. */
-  manualGrade: 'now opens at grade',
-  manualMastered: 'already mastered',
-  manualsLost: 'A manual, lost',
-  /** Shown on the arts tab against an art with manuals studied. */
-  opensAt: 'opens at',
+  // --- 器蕴, the arts as read off the gear --------------------------------
+  /** Banner when a piece is put on mid-run and wakes another art. */
+  artWoke: 'an art wakes',
+  /** Banner when a piece is put on mid-run without waking one. */
+  wornNow: 'worn',
+  /** Banner on a level-up. 内力 is flat power, never an art. See applyMight. */
+  mightGained: 'Inner force deepens',
+  /** Headings on the 法 tab, which now reads the gear rather than a ladder. */
+  artsAwake: 'awake',
+  artsGrade: 'grade',
+  artsAsleep: 'a better blade wakes this one next',
+  artsFromGear: 'The blade in your hand decides how many wake. Everything you wear decides their grade.',
 
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',

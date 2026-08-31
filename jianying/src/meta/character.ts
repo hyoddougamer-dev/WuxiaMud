@@ -21,7 +21,6 @@
  * `depth.ts`) — the character grows, and the player is expected to spend that
  * growth on harder ground rather than on an easier version of the same ground.
  */
-import { MAX_MANUAL_RANK, startLevelFor } from '../data/arts'
 import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
 import { DEFAULT_LOOK, type Look } from './look'
@@ -99,23 +98,12 @@ export interface Character {
    * weapon with no entry falls back to the first four of its scroll, so a save
    * written before this existed still walks out with a build.
    *
-   * The ORDER is the decision. Each 感悟 during a run advances the next one in
-   * this list, so putting an art first means it reaches grade five and putting
-   * it fourth means it might not.
+   * The ORDER is the decision, and it bites harder than it used to. How far
+   * down this list the arts actually wake is decided by the rung of the weapon
+   * in hand — see `attune` in sim/arts.ts — so first in the list is the art a
+   * common blade fires, and fifth is the one only a 神 blade ever reaches.
    */
   arts: Record<string, string[]>
-  /**
-   * Manuals studied, per art id — the permanent half of an art's grade.
-   *
-   * Keyed by art rather than by weapon because a 秘笈 is for one art, and
-   * studying it is not undone by changing weapon: what you learned about the
-   * spear is still learned when you pick the spear back up. Absent means zero,
-   * which is what every save written before manuals existed reads as.
-   *
-   * Capped at MAX_MANUAL_RANK. See `startLevelFor` in data/arts.ts for why the
-   * cap stops one short of the art cap.
-   */
-  manuals: Record<string, number>
   /** Deepest expedition unlocked. Starts at 1. */
   depth: number
   /** Lifetime totals, purely for the hub to have something to show. */
@@ -154,7 +142,6 @@ export function createCharacter(
     points: 1,
     spent: emptyAttributes(),
     arts: {},
-    manuals: {},
     depth: 1,
     runs: 0,
     bestSeconds: 0,
@@ -369,32 +356,6 @@ export function settleFound<T>(
     }
   })
   return kept
-}
-
-/** How many manuals have been studied for `artId`. Absent reads as none. */
-export function manualRank(character: Character, artId: string): number {
-  const rank = character.manuals[artId]
-  return typeof rank === 'number' && rank > 0 ? Math.min(MAX_MANUAL_RANK, Math.floor(rank)) : 0
-}
-
-/**
- * Studies one 秘笈, raising that art's permanent grade by one.
- *
- * Returns false when the art is already at MAX_MANUAL_RANK, so the caller can
- * say "you already know this one" rather than silently eating the find. A
- * manual that vanishes into a capped art is the loot equivalent of a level-up
- * that does nothing, and this game has had one of those already.
- */
-export function studyManual(character: Character, artId: string): boolean {
-  const current = manualRank(character, artId)
-  if (current >= MAX_MANUAL_RANK) return false
-  character.manuals[artId] = current + 1
-  return true
-}
-
-/** The grade `artId` will begin an expedition at, given what has been studied. */
-export function artStartLevel(character: Character, artId: string): number {
-  return startLevelFor(manualRank(character, artId))
 }
 
 /** Spends one point. Returns false when there is none to spend. */

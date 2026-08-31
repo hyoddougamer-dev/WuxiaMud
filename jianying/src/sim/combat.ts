@@ -16,7 +16,7 @@ import type { Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
 import { dropChance, rollDrop } from '../data/items'
-import { manualChance } from '../data/arts'
+import { BOSS_LUCK } from '../data/rarity'
 import { DEFAULT_WEAPON } from '../data/weapons'
 
 /**
@@ -225,10 +225,14 @@ export interface CombatEvents {
   mend?(x: number, y: number, amount: number): void
   /** The player took `amount` from something named `source`. */
   hurt(amount: number, source: string): void
-  /** Something dropped equipment at (x, y). */
-  drop?(x: number, y: number, itemId: string): void
-  /** Something left a 秘笈 for `artId` at (x, y). */
-  manual?(x: number, y: number, artId: string): void
+  /**
+   * Something dropped equipment at (x, y).
+   *
+   * `luck` tilts the rarity roll the caller then makes — 1 for an ordinary
+   * corpse, BOSS_LUCK for a boss. It travels with the event rather than being
+   * inferred later because by the time the caller rolls, the corpse is gone.
+   */
+  drop?(x: number, y: number, itemId: string, luck: number): void
 }
 
 /** Shortest absolute angular distance between two directions, in radians. */
@@ -329,16 +333,6 @@ export interface CombatContext {
   depth?: number
   /** Item ids already owned, so drops can favour something new. */
   owned?: ReadonlySet<string>
-  /**
-   * Art ids a dropped 秘笈 may be for, best first.
-   *
-   * Supplied by the caller rather than derived here, because WHICH manuals are
-   * worth finding is a question about the swordsman — the weapon in their hand,
-   * the arts they carry, what they have already mastered — and none of that
-   * belongs in the simulation. An empty or absent list simply means no manual
-   * drops, which is how every headless balance harness runs.
-   */
-  manualPool?: readonly string[]
 }
 
 /** Shared, so the hot path does not allocate a set per kill. */
@@ -382,8 +376,13 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number, crit = f
     ctx.motes.drop(e.x, e.y, Math.ceil(e.kind.qi / drops), ctx.rng)
   }
   // Equipment, rarely — and always from the body, before the pool recycles it.
-  // A boss never leaves empty-handed: a fight that long resolving into the same
-  // nothing as a bandit is the surest way to make it feel pointless.
+  //
+  // A boss never leaves empty-handed, AND what it leaves rolls on a tilted
+  // table. That is what took over from the 秘笈 the boss used to guarantee:
+  // permanent progression still comes reliably from clearing a gate, so the
+  // answer to "why fight the boss instead of farming the easy ring forever" is
+  // still a number the player can feel — it just arrives as a colour on the
+  // ground now, rather than as a rank in a save file.
   // Splinters are exempt. Loot is rolled per corpse, and a region that
   // manufactures corpses would otherwise pay for the very habit it exists to
   // discourage — see Enemy.splinter.
@@ -391,29 +390,7 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number, crit = f
   const boss = e.kind.behaviour === 'boss'
   if (ctx.events?.drop && !e.splinter && (boss || ctx.rng.next() < dropChance(depth))) {
     const item = rollDrop(depth, ctx.rng.next(), ctx.owned ?? EMPTY_OWNED)
-    if (item) ctx.events.drop(e.x, e.y, item.id)
-  }
-
-  // A 秘笈, which is the only PERMANENT thing a corpse can leave.
-  //
-  // The boss always leaves one, and that is the design rather than a
-  // generosity: it makes clearing a gate the reliable source of vertical
-  // progression, so the answer to "why fight the boss instead of farming the
-  // easy ring forever" is a number the player can feel rather than a lecture.
-  // The pool is ordered best-first by the caller, and the roll is biased
-  // toward its front for the same reason the item table favours what you do
-  // not own — a manual for an art you never carry is a drop that did nothing.
-  const pool = ctx.manualPool
-  if (
-    ctx.events?.manual &&
-    pool &&
-    pool.length > 0 &&
-    !e.splinter &&
-    (boss || ctx.rng.next() < manualChance(depth))
-  ) {
-    const pick = ctx.rng.next()
-    const index = Math.min(pool.length - 1, Math.floor(pick * pick * pool.length))
-    ctx.events.manual(e.x, e.y, pool[index]!)
+    if (item) ctx.events.drop(e.x, e.y, item.id, boss ? BOSS_LUCK : 1)
   }
 
   // The rift's bar, fed by the same qi that already drops as motes — a kill is

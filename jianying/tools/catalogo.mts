@@ -16,7 +16,8 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ITEMS, SLOTS, SLOT_NAMES, dropChance } from '../src/data/items'
-import { ARTS, CONDITIONS, EQUIPPED_ARTS, MAX_ART_LEVEL, MAX_MANUAL_RANK } from '../src/data/arts'
+import { ARTS, CONDITIONS, EQUIPPED_ARTS, MAX_ART_LEVEL } from '../src/data/arts'
+import { ATTUNE_PER_GRADE, artGrade, awakeCount } from '../src/sim/arts'
 import { WEAPONS, singleTargetDps, sweptAreaPerSecond } from '../src/data/weapons'
 import { AFFIX_SPECS, NAMED_POWERS, isPercent, rollAmount } from '../src/data/affixes'
 import { RARITIES, rarityOdds } from '../src/data/rarity'
@@ -32,7 +33,7 @@ const esc = (text: string): string =>
 const pct = (n: number, places = 2): string => `${(n * 100).toFixed(places)}%`
 
 // --- the ladder --------------------------------------------------------------
-const ladder = RARITIES.map((tier) => {
+const attuneLadder = RARITIES.map((tier) => {
   const odds = [1, 3, 5].map((d) => rarityOdds(d)[tier.id]!)
   return `<tr>
     <td><b style="color:${tier.css}">${tier.seal} ${tier.name}</b></td>
@@ -109,6 +110,16 @@ const arts = WEAPONS.map((w) => {
 }).join('\n')
 
 // --- the named powers --------------------------------------------------------
+const ladder = RARITIES.map((tier) => {
+  const rungs = [tier.id, tier.id, tier.id, tier.id]
+  return (
+    `<tr><td><b style="color:${tier.css}">${tier.seal}</b> ${tier.name}</td>` +
+    `<td class="n">${awakeCount(tier.id, 5)} de 5</td>` +
+    `<td>4× <b style="color:${tier.css}">${tier.seal}</b></td>` +
+    `<td class="n">${artGrade(rungs)}</td></tr>`
+  )
+}).join('')
+
 const powers = NAMED_POWERS.map(
   (p) => `<div class="power">
     <div class="card-head"><span class="seal gold">${p.seal}</span><b>${esc(p.name)}</b>
@@ -276,9 +287,14 @@ footer code { font-family: "IBM Plex Mono", monospace; }
 </section>
 
 <section>
-  <p class="eyebrow">${EQUIPPED_ARTS} carregadas de cada vez · grau até ${MAX_ART_LEVEL} · manuais até ${MAX_MANUAL_RANK}</p>
+  <p class="eyebrow">${EQUIPPED_ARTS} ordenadas na aba 法 · a arma decide quantas acordam · grau até ${MAX_ART_LEVEL}</p>
   <h2>As ${ARTS.length} artes</h2>
   <p class="note">Cinco por arma, e cada arma cobre as cinco condições exatamente uma vez: nenhuma arma tem uma condição morta, e quem troca de arma mantém as mesmas cinco coisas a FAZER enquanto tudo o que elas produzem muda.</p>
+  <p class="note"><b>As artes vêm do equipamento.</b> A arma decide <i>quais</i> e <i>quantas</i> acordam — uma lâmina 凡 acorda uma arte, uma 宝 acorda quatro, uma 神 acorda o pergaminho inteiro. O que vestes decide o <i>grau</i>: as raridades das quatro peças somadas, ${ATTUNE_PER_GRADE} pontos por grau, até ${MAX_ART_LEVEL}. Não há 感悟 a subir artes em combate e não há 秘笈 — duas escadas a subir o mesmo número, nenhuma delas presa a algo que se pudesse ver.</p>
+  <div class="tablewrap"><table class="t">
+    <thead><tr><th>arma</th><th class="n">artes acordadas</th><th>conjunto</th><th class="n">grau</th></tr></thead>
+    <tbody>${attuneLadder}</tbody>
+  </table></div>
   ${arts}
 </section>
 

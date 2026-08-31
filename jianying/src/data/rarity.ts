@@ -96,6 +96,27 @@ export function hasNamedPower(rarity: Rarity): boolean {
 }
 
 /**
+ * How much better than an ordinary corpse a boss's one guaranteed piece rolls.
+ *
+ * A boss already always leaves something — but "always leaves a grey robe" is
+ * the same disappointment as leaving nothing, dressed up. This is what replaced
+ * the 秘笈 the boss used to guarantee: the reliable vertical progression is
+ * still routed through the gate, it just arrives as gear now, in a colour, on
+ * the ground, instead of as a rank in a save file nobody could see.
+ *
+ * Three, measured rather than picked: at depth 1 it takes the odds of coming
+ * away with better than 良 from roughly a third to roughly two thirds, which
+ * makes clearing a gate worth doing without making the field drops pointless.
+ */
+export const BOSS_LUCK = 3
+
+/** The drawing weights at a depth, tilted by luck. One place, three callers. */
+function weightsAt(depth: number, luck: number): number[] {
+  const lift = (1 + Math.max(0, depth - 1) * 0.55) * Math.max(1, luck)
+  return RARITIES.map((tier) => (tier.id === 0 ? tier.weight : tier.weight * lift))
+}
+
+/**
  * Rolls a tier for a drop at `depth`, from a seeded 0..1 pick.
  *
  * Depth tilts the ladder rather than replacing it: every tier stays reachable
@@ -106,16 +127,14 @@ export function hasNamedPower(rarity: Rarity): boolean {
  *
  * The tilt is applied to the weights of the tiers ABOVE common, which is the
  * cheap way to say "deeper ground rolls better" without four separate curves
- * to hold in your head.
+ * to hold in your head. `luck` tilts the same weights the same way, and exists
+ * so that a boss's piece and a bandit's piece come off ONE table — a separate
+ * boss table would drift from this one the first time either was retuned.
  */
-export function rollRarity(depth: number, pick: number): Rarity {
-  const lift = 1 + Math.max(0, depth - 1) * 0.55
+export function rollRarity(depth: number, pick: number, luck = 1): Rarity {
+  const weights = weightsAt(depth, luck)
   let total = 0
-  const weights = RARITIES.map((tier) => {
-    const w = tier.id === 0 ? tier.weight : tier.weight * lift
-    total += w
-    return w
-  })
+  for (const w of weights) total += w
   let target = Math.max(0, Math.min(1, pick)) * total
   for (let i = 0; i < RARITIES.length; i++) {
     target -= weights[i]!
@@ -132,9 +151,8 @@ export function rollRarity(depth: number, pick: number): Rarity {
  * typed by hand beside a table that had since been retuned, which is a lie the
  * player has no way to catch.
  */
-export function rarityOdds(depth: number): number[] {
-  const lift = 1 + Math.max(0, depth - 1) * 0.55
-  const weights = RARITIES.map((tier) => (tier.id === 0 ? tier.weight : tier.weight * lift))
+export function rarityOdds(depth: number, luck = 1): number[] {
+  const weights = weightsAt(depth, luck)
   const total = weights.reduce((a, b) => a + b, 0)
   return weights.map((w) => w / total)
 }

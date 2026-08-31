@@ -7,6 +7,7 @@ import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats } from '../src/sim/loadout'
+import { BOSS_LUCK, rollRarity } from '../src/data/rarity'
 import { createPlayer, updatePlayer, type Player } from '../src/sim/player'
 import {
   HURT_IMMUNITY,
@@ -360,42 +361,44 @@ describe('the rift', () => {
     }
   }
 
-  it('leaves a 秘笈 when the gate boss falls', () => {
-    // The load-bearing promise of the whole progression rework: clearing a
-    // gate is the reliable source of permanent power. If a boss can die
-    // without leaving a manual, the answer to "why fight the boss instead of
-    // farming the easy ring" goes back to being nothing.
+  it('always leaves equipment when the gate boss falls, and better than a bandit\'s', () => {
+    // The load-bearing promise of the whole progression rework: clearing a gate
+    // is the reliable source of vertical power. This is what took over from the
+    // 秘笈 the boss used to guarantee — if a boss can die leaving nothing, or
+    // leaving the same grey robe a bandit leaves, the answer to "why fight the
+    // boss instead of farming the easy ring" goes back to being nothing.
     const sim = newSim()
     sim.run.riftTarget = 40
-    const manuals: string[] = []
+    const lucks: number[] = []
     const events: CombatEvents = {
       hit: () => {},
       hurt: () => {},
-      manual: (_x, _y, artId) => manuals.push(artId),
+      drop: (_x, _y, _itemId, luck) => lucks.push(luck),
     }
-    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, undefined, {
-      events,
-      manualPool: ['jian-point', 'jian-sweep'],
-    })
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, undefined, { events, depth: 1 })
     expect(sim.run.gateCleared).toBe(true)
-    expect(manuals.length).toBeGreaterThan(0)
-    expect(manuals.every((id) => id === 'jian-point' || id === 'jian-sweep')).toBe(true)
+    // At least one drop rolled on the tilted table, and every ordinary corpse
+    // that dropped rolled on the flat one.
+    expect(lucks.some((l) => l === BOSS_LUCK)).toBe(true)
+    expect(lucks.every((l) => l === 1 || l === BOSS_LUCK)).toBe(true)
   })
 
-  it('drops no 秘笈 at all when the caller offers no pool', () => {
-    // Every headless balance harness runs without one, and none of them should
-    // start seeing manual drops appear in their measurements.
-    const sim = newSim()
-    sim.run.riftTarget = 40
-    let manuals = 0
-    const events: CombatEvents = {
-      hit: () => {},
-      hurt: () => {},
-      manual: () => manuals++,
+  it('tilts a boss\'s piece toward the good rungs rather than guaranteeing one', () => {
+    // Measured rather than asserted from the constant: a floor would make every
+    // boss piece identical, and a tilt that did not move the odds would be a
+    // number with nothing behind it.
+    const rolls = 4000
+    const better = (luck: number): number => {
+      let n = 0
+      for (let i = 0; i < rolls; i++) if (rollRarity(1, (i + 0.5) / rolls, luck) >= 1) n++
+      return n / rolls
     }
-    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, undefined, { events })
-    expect(sim.run.gateCleared).toBe(true)
-    expect(manuals).toBe(0)
+    const flat = better(1)
+    const boss = better(BOSS_LUCK)
+    expect(flat).toBeGreaterThan(0.2)
+    expect(boss).toBeGreaterThan(flat * 1.5)
+    // Still a roll, not a guarantee. A boss can hand over a 凡 piece.
+    expect(boss).toBeLessThan(1)
   })
 
   it('never queues a boss while the target is left at its default', () => {

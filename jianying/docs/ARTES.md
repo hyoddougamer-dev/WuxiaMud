@@ -1,5 +1,35 @@
 # 功法 — as artes, e porque não há botão
 
+> ## ⚠ Duas metades deste documento foram substituídas
+>
+> **Continua verdadeiro:** as trinta artes, as cinco condições, o facto de não
+> haver botão, e o que cada efeito faz aos números. Isso está tudo a acontecer.
+>
+> **Foi substituído:** *como* uma arte sobe de grau. Este documento descreve
+> duas escadas — o 感悟 dentro da corrida e os 秘笈 entre corridas — e as duas
+> saíram. Subiam o mesmo número, uma delas apagava-se ao fim de cada corrida, e
+> nenhuma estava presa a algo que o jogador pudesse ver. Era isso o relatório
+> *"skills sobem em combate não faz sentido"*.
+>
+> **A regra agora é uma frase: a arma decide o que fazes, o equipamento decide
+> com que força.**
+>
+> - **Quais** as artes — o pergaminho da arma na mão, como sempre.
+> - **Quantas acordam** — a raridade da arma. 凡 acorda uma; 宝 acorda quatro;
+>   神 acorda o pergaminho inteiro.
+> - **Que grau têm** — as raridades das quatro peças vestidas, somadas, quatro
+>   pontos por grau.
+>
+> E o minuto 8 continua diferente do minuto 1, porque uma peça apanhada durante
+> a corrida **veste-se ali**, se for de raridade melhor do que a que trazes.
+> A espada roxa cai ao minuto seis, atravessas o campo até ela, e acorda-te uma
+> quarta arte a meio da luta.
+>
+> Um nível (感悟) passou a ser 内力: dano e vida, plano e aborrecido de
+> propósito, para nunca mais se confundir com uma arte.
+>
+> Código: a secção 器蕴 em `src/sim/arts.ts`. Medição: `npx tsx tools/attune.mts`.
+
 *Escrito depois de três decisões tuas: a classe é a arma na mão, as artes
 aprendem-se de manuais que caem, e as três cartas de dentro da corrida
 desaparecem para dar lugar a builds próprias.*

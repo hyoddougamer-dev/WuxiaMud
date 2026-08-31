@@ -12,7 +12,7 @@
  * conversion is itemised. A player who dies at four minutes should be able to
  * read, without asking anyone, exactly what those four minutes bought.
  */
-import { ART_BY_ID, MAX_ART_LEVEL, MAX_MANUAL_RANK, type Art } from '../data/arts'
+import { ART_BY_ID, MAX_ART_LEVEL } from '../data/arts'
 import type { CarriedArt } from '../sim/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
 import { conditionIconSvg, effectIconSvg } from '../render/packIcons'
@@ -55,17 +55,6 @@ export interface RunSummary {
    * whole rule. Always empty when the run ended by banking.
    */
   forfeited: readonly Found[]
-  /**
-   * 秘笈 studied at the end of this expedition — the permanent half.
-   *
-   * This is the row the player is meant to look for. Everything else on the
-   * screen is either spent (cultivation) or replaceable (gear); a manual is
-   * the only thing that makes the NEXT expedition start stronger than this one
-   * did, which is the vertical progression the game was missing entirely.
-   */
-  studied: readonly StudiedManual[]
-  /** Manuals found but lost to a death, under the same rule as `forfeited`. */
-  manualsLost: number
 }
 
 /**
@@ -75,15 +64,6 @@ export interface RunSummary {
  * a find now is the lines it rolled, and those live on the instance.
  */
 export type Found = OwnedItem
-
-/** A manual, and the permanent grade the art reached by studying it. */
-export interface StudiedManual {
-  art: Art
-  /** The art's permanent rank AFTER studying. */
-  rank: number
-  /** True when the art was already mastered, so the manual taught nothing. */
-  wasted: boolean
-}
 
 export interface Hud {
   /** Called every frame with the current run state. */
@@ -402,24 +382,6 @@ export function createHud(root: HTMLElement): Hud {
         // saying nothing would look like the game had simply not dropped it.
         html += `<div class="loot loot-dupe"><span>${strings.packWasFull}</span><b>×${summary.noRoom}</b></div>`
       }
-      // The 秘笈 get their own block, ABOVE the loot's losses and below the
-      // gear, because this is the row that answers "did this expedition make
-      // me permanently stronger". Gear can be swapped and cultivation is spent;
-      // a manual is the only line here that changes where the next run starts.
-      if (summary.studied.length > 0) {
-        html += `<div class="rw-head rw-manual">${strings.manualsStudied}</div>`
-        for (const { art, rank, wasted } of summary.studied) {
-          const pips =
-            `<i class="manual-pips">` +
-            '●'.repeat(rank) +
-            '○'.repeat(Math.max(0, MAX_MANUAL_RANK - rank)) +
-            `</i>`
-          const note = wasted
-            ? `<b class="manual-capped">${strings.manualMastered}</b>`
-            : `<b>${strings.manualGrade} ${rank + 1}</b>`
-          html += `<div class="loot loot-manual"><span>${art.seal} ${art.name} ${pips}</span>${note}</div>`
-        }
-      }
       // Forfeited last of all, and named — the whole point of the stake is
       // that it is felt, and a loss the player cannot see is not a stake, it
       // is a silent bug. Only a death ever produces this list; banking always
@@ -434,12 +396,6 @@ export function createHud(root: HTMLElement): Hud {
             `<div class="loot loot-lost"><span>${tier.seal} ${base.name}</span>` +
             `<b>${strings.wasNotBanked}</b></div>`
         }
-      }
-      if (summary.manualsLost > 0) {
-        // Counted rather than named. Which manual was lost is a detail; THAT a
-        // manual was lost is the thing the player must feel, because it is the
-        // most expensive possible answer to "should I have banked".
-        html += `<div class="loot loot-lost"><span>${strings.manualsLost}</span><b>×${summary.manualsLost}</b></div>`
       }
       overReward.innerHTML = html
 

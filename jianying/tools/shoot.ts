@@ -419,13 +419,18 @@ async function main(): Promise<void> {
     if (tabCount !== 4) console.warn('warn:   expected four tabs')
     if (placeCount !== 5) console.warn('warn:   expected five places on the world tab')
 
-    // --- 法, and the fact that choosing there actually STICKS ---------------
+    // --- 法, and the fact that ranking there actually STICKS ---------------
     //
     // This tab exists because every art in the game acted and none of it was
     // reachable from the hub. The failure it has to be guarded against is the
     // one that shape of bug always takes: a list that renders, responds to a
     // tap, and writes nothing — so the player arranges a build, walks out, and
     // carries the default anyway.
+    //
+    // What a tap MEANS changed with 器蕴: it sets the RANKING, and the gear
+    // decides how far down that ranking the arts wake. So the two things to
+    // prove are now separate — the ranking is stored, and the awake count is
+    // read off the gear rather than off the taps.
     const artsTab = page.locator('.hub-tabs .tab', { hasText: 'Arts' })
     if ((await artsTab.count()) === 0) {
       console.error('arts:   no 法 tab in the hub')
@@ -434,27 +439,61 @@ async function main(): Promise<void> {
       await artsTab.first().click()
       await page.waitForTimeout(250)
       const rows = await page.locator('.art-row').count()
-      const before = await page.locator('.art-row-on').count()
-      // Drop one, then read the SAVE rather than the screen.
+      const awake = await page.locator('.art-row-on').count()
+      const asleep = await page.locator('.art-row-off').count()
+      const ranking = async (): Promise<string[]> =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('jianying.save.v2')
+          if (!raw) return []
+          const arts = JSON.parse(raw).swordsmen?.[0]?.arts ?? {}
+          const first = Object.values(arts)[0]
+          return Array.isArray(first) ? (first as string[]) : []
+        })
+      const rankedBefore = await ranking()
+      // Rank a sleeping art, then read the SAVE rather than the screen.
+      await page.locator('.art-row-off').last().click()
+      await page.waitForTimeout(250)
+      const rankedAfter = await ranking()
+      const awakeAfter = await page.locator('.art-row-on').count()
+      await page.screenshot({ path: join(OUT, 'hub-arts.png') })
+      // Ranked art goes to the head of the list, so it is the awake row now —
+      // tapping it again un-ranks it.
       await page.locator('.art-row-on').first().click()
       await page.waitForTimeout(250)
-      const after = await page.locator('.art-row-on').count()
-      const stored = await page.evaluate(() => {
-        const raw = localStorage.getItem('jianying.save.v2')
-        if (!raw) return -1
-        const arts = JSON.parse(raw).swordsmen?.[0]?.arts ?? {}
-        const first = Object.values(arts)[0]
-        return Array.isArray(first) ? first.length : -1
-      })
-      await page.screenshot({ path: join(OUT, 'hub-arts.png') })
-      if (rows !== 5 || before !== 4 || after !== 3 || stored !== 3) {
+      const rankedRestored = await ranking()
+      // Then rank 静 first, deliberately, and leave it there.
+      //
+      // The expedition below can only provoke 静 疾 转 — 围 and 危 are
+      // situations, not postures. A common blade wakes ONE art, so leaving the
+      // default order means a three-in-five chance the awake art is one this
+      // harness can never trigger, and a verifier that fails at random teaches
+      // you to ignore it. Every weapon's scroll covers all five conditions
+      // exactly once (data/arts.ts, and a unit test), so there is always
+      // exactly one 静 row to tap.
+      const stillRow = page.locator('.art-row', { has: page.locator('.art-row-seal', { hasText: '静' }) })
+      if ((await stillRow.count()) > 0) {
+        await stillRow.first().click()
+        await page.waitForTimeout(250)
+      }
+      const wired =
+        rows === 5 &&
+        awake >= 1 &&
+        awake + asleep === rows &&
+        rankedAfter.length === rankedBefore.length + 1 &&
+        awakeAfter === awake &&
+        rankedRestored.length === rankedBefore.length
+      if (!wired) {
         console.error(
-          `arts:   the 法 tab is not wired — ${rows} rows, ${before} carried, ` +
-            `${after} after dropping one, ${stored} in the save`,
+          `arts:   the 法 tab is not wired — ${rows} rows, ${awake} awake, ${asleep} asleep, ` +
+            `ranking ${rankedBefore.length} → ${rankedAfter.length}, ${awakeAfter} awake after`,
         )
         process.exitCode = 1
       } else {
-        console.log(`arts:   法 tab ${rows} rows, dropped one → ${after} carried and saved`)
+        console.log(
+          `arts:   法 tab ${rows} rows, ${awake} awake off the gear, ` +
+            `ranking ${rankedBefore.length}→${rankedAfter.length}→${rankedRestored.length} ` +
+            `and still ${awakeAfter} awake`,
+        )
       }
       await tabs.first().click()
       await page.waitForTimeout(200)
@@ -654,6 +693,28 @@ async function main(): Promise<void> {
       process.exitCode = 1
     }
 
+    /**
+     * The live stats and the resting baseline, as the page reports them NOW.
+     *
+     * An art is true for exactly as long as its condition is, so a sample taken
+     * after the last provocation is a sample of nothing. Both strings come from
+     * the same frame; the baseline already carries the run's 内力, so a
+     * difference between them can only ever be an art. See dataset.base.
+     */
+    const sampleActing = async (): Promise<{ live: string; base: string }> =>
+      page.evaluate(() => {
+        const d = document.body.dataset
+        return { live: d.live ?? '', base: d.base ?? '' }
+      })
+    /** Keeps the best evidence any posture produced: a sample where they differ. */
+    let acting = { live: '', base: '' }
+    const keepIfActing = async (): Promise<void> => {
+      const sample = await sampleActing()
+      if (acting.live === '' || (acting.live === acting.base && sample.live !== sample.base)) {
+        acting = sample
+      }
+    }
+
     // 静 — let go and wait. The posture has to be HELD, so releasing for a
     // single frame is not enough, and that is the point.
     await page.mouse.up().catch(() => {})
@@ -663,6 +724,16 @@ async function main(): Promise<void> {
       9000,
     )
     if (sawStill.includes('still')) held.push('静')
+    // Sampled WHILE the posture is held, not once at the end of all three.
+    //
+    // The end-of-run sample was fine while every character carried four arts,
+    // one per condition — something was always lit and something was always
+    // acting. Under 器蕴 a common blade wakes ONE art, so both the strip and
+    // the stats are legitimately unchanged unless the posture held right now
+    // happens to be that art's. Taking the best of three is what makes this a
+    // check on the wiring rather than a coin toss on which art ranked first.
+    let lit = await page.locator('.art-on').count()
+    await keepIfActing()
 
     // 疾 — hold the stick at full deflection in one direction.
     await page.mouse.move(cx, cy)
@@ -674,6 +745,8 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawRunning.includes('running')) held.push('疾')
+    lit = Math.max(lit, await page.locator('.art-on').count())
+    await keepIfActing()
     await page.screenshot({ path: join(OUT, 'arts-running.png') })
 
     // 转 — reverse hard, over and over, without letting go. The flash lasts
@@ -689,19 +762,8 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawTurn.includes('turn')) held.push('转')
-    const lit = await page.locator('.art-on').count()
-
-    // Do the arts actually MOVE a number, or only light a tile?
-    //
-    // This is the check the previous step could not make. Its failure mode is
-    // the quiet one: the seals light, the strip looks alive, and the simulation
-    // goes on reading the untouched baseline. Sampled while the running posture
-    // is still held, because the whole point is that it stops being true the
-    // moment the condition does.
-    const acting = await page.evaluate(() => {
-      const d = document.body.dataset
-      return { live: d.live ?? '', base: d.base ?? '' }
-    })
+    lit = Math.max(lit, await page.locator('.art-on').count())
+    await keepIfActing()
     await page.mouse.up()
 
     // 围 and 危 are situations rather than postures — being surrounded, and
@@ -744,13 +806,39 @@ async function main(): Promise<void> {
     if (wantFull) {
       console.log('full:   standing in the crowd until the expedition ends...')
       const deadline = Date.now() + 260_000
+      // 器蕴, watched across a whole expedition.
+      //
+      // The unit tests prove `attune` returns the right list for a given kit.
+      // They cannot prove that WALKING OVER a better blade rebuilds the kit and
+      // the strip mid-fight, and that is the beat the whole design rests on —
+      // the one that replaced the in-run art treadmill. So the run is sampled:
+      // what the gear granted at the start, and the best it ever granted.
+      const readAttune = async (): Promise<string> =>
+        page.evaluate(() => document.body.dataset.attune ?? '')
+      const attuneStart = await readAttune()
+      let attuneBest = attuneStart
+      const score = (a: string): number => {
+        const [awake, grade] = a.split('/').map(Number)
+        return (awake ?? 0) * 10 + (grade ?? 0)
+      }
       while (Date.now() < deadline) {
         if ((await page.evaluate(() => document.body.dataset.screen)) === 'over') break
         // A level-up freezes the field behind a choice; left unanswered the
         // character would stand safely inside a menu and never die.
         const card = page.locator('.gate .gate-push').first()
         if (await card.isVisible().catch(() => false)) await card.click()
+        const now = await readAttune()
+        if (score(now) > score(attuneBest)) attuneBest = now
         await page.waitForTimeout(1000)
+      }
+      const found = await page.evaluate(() => Number(document.body.dataset.found ?? '0'))
+      if (attuneBest !== attuneStart) {
+        console.log(`attune: gear woke the arts mid-run — ${attuneStart} → ${attuneBest} (awake/grade)`)
+      } else {
+        // Not a failure. At the field drop rate a short expedition can end
+        // without a single piece better than what is worn, and calling that a
+        // bug would be the verifier lying in the other direction.
+        console.log(`attune: held at ${attuneStart} (awake/grade) — ${found} found, none an upgrade`)
       }
 
       const over = await page.locator('.over').isVisible().catch(() => false)

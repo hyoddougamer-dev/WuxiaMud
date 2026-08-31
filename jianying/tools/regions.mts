@@ -37,7 +37,7 @@ import { createRun, updateCombat } from '../src/sim/combat'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { deriveStats } from '../src/sim/loadout'
-import { advanceArt, applyArts, beginProgress, equippedIds } from '../src/sim/arts'
+import { applyArts, attune, equippedIds } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { Motes } from '../src/sim/pickups'
 import { Bolts } from '../src/sim/projectiles'
@@ -158,7 +158,8 @@ const SEEDS = [4242, 90210, 31337]
     // would turn this into a second, worse copy of tools/artsBalance.mts, which
     // flies properly and exists for exactly that.
     const sense = createSense()
-    const progress = beginProgress(equippedIds({}, weapon.id))
+    // 珍 across every slot — a middling real kit. See tools/artsBalance.mts.
+    const carried = attune(equippedIds({}, weapon.id), 2, [2, 2, 2, 2])
     const live = deriveStats(new Map(), { spent, weapon, worn: [] })
 
     const rule = region.rule
@@ -171,7 +172,7 @@ const SEEDS = [4242, 90210, 31337]
       const [ix, iy] = KITE(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
       // Applied from the previous tick's sense, the one-frame lag main.ts has.
-      applyArts(stats, progress.carried, sense.active, live)
+      applyArts(stats, carried, sense.active, live, run.level)
       updatePlayer(
         player,
         ix,
@@ -200,14 +201,9 @@ const SEEDS = [4242, 90210, 31337]
         TICK_S,
       )
       swarm.update(player.x, player.y, run.elapsed, TICK_S, hazards)
-      // 感悟 is now the run's growth, so it is CONSUMED rather than suppressed.
-      // Zeroing it — which is what this line used to do, back when growth came
-      // from three cards this harness deliberately refused — would now measure
-      // a run that cannot grow at all, and report the whole game as broken.
-      while (run.pendingLevelUps > 0) {
-        run.pendingLevelUps--
-        advanceArt(progress)
-      }
+      // Drained rather than suppressed. The 内力 a level grants is folded in
+      // by applyArts above, from run.level, so there is nothing to spend here.
+      run.pendingLevelUps = 0
       updateCombat(
         { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: region.depth },
         TICK_S,

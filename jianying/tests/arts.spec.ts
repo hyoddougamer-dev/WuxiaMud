@@ -12,23 +12,22 @@ import {
   ARTS,
   EQUIPPED_ARTS,
   MAX_ART_LEVEL,
-  MAX_MANUAL_RANK,
   artScale,
-  manualChance,
-  startLevelFor,
   type Art,
 } from '../src/data/arts'
 import { WEAPONS } from '../src/data/weapons'
-import { dropChance } from '../src/data/items'
+import { MAX_RARITY } from '../src/data/rarity'
 import {
-  advanceArt,
+  ATTUNE_PER_GRADE,
+  MIGHT,
   applyArts,
   artActs,
-  beginProgress,
+  artGrade,
+  attune,
+  awakeCount,
   carriedFor,
   equippedIds,
   LIVE_EFFECTS,
-  START_LEVEL,
 } from '../src/sim/arts'
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
 import { createSense, type Conditions } from '../src/sim/conditions'
@@ -224,131 +223,160 @@ describe('the arts acting', () => {
   })
 })
 
-describe('the run progression', () => {
-  it('starts every carried art at grade one', () => {
-    const p = beginProgress(equippedIds({}, 'jian'))
-    expect(p.carried.length).toBe(EQUIPPED_ARTS)
-    for (const c of p.carried) expect(c.level).toBe(START_LEVEL)
+describe('器蕴 — the arts, read off the gear', () => {
+  /** All four slots at one rung, which is how a "full set" is expressed. */
+  const set = (rung: number): number[] => [rung, rung, rung, rung]
+
+  it('wakes one art for a swordsman in rags, never zero', () => {
+    // A common blade is still a blade. Handing a new player an empty strip to
+    // teach them that rarity matters would teach them instead that the game
+    // does nothing.
+    expect(awakeCount(0, 5)).toBe(1)
   })
 
-  it('advances the list in order, cycling', () => {
-    const p = beginProgress(equippedIds({}, 'jian'))
-    const first = p.carried.map((c) => c.art.id)
-    for (let i = 0; i < EQUIPPED_ARTS; i++) {
-      const raised = advanceArt(p)
-      expect(raised?.art.id).toBe(first[i])
-      expect(raised?.level).toBe(START_LEVEL + 1)
-    }
-    // Round two lands back on the head of the list.
-    expect(advanceArt(p)?.art.id).toBe(first[0])
+  it('wakes one more art per rung of the weapon, up to the whole scroll', () => {
+    expect(awakeCount(1, 5)).toBe(2)
+    expect(awakeCount(2, 5)).toBe(3)
+    expect(awakeCount(3, 5)).toBe(4)
+    expect(awakeCount(4, 5)).toBe(5)
   })
 
-  it('skips an art already at the cap rather than wasting the 感悟', () => {
-    // A level-up that appears to do nothing is worse than no level-up: the
-    // player has no way to tell it apart from a bug.
-    const p = beginProgress(equippedIds({}, 'jian'))
-    let raised = advanceArt(p)
-    let guard = 0
-    while (raised && guard++ < 200) raised = advanceArt(p)
-    for (const c of p.carried) expect(c.level).toBe(MAX_ART_LEVEL)
-    // Everything capped: it reports so rather than silently bumping past five.
-    expect(advanceArt(p)).toBeNull()
+  it('never wakes more arts than the scroll has', () => {
+    // 仙 would reach six by the formula, and there are five.
+    expect(awakeCount(MAX_RARITY, 5)).toBe(5)
+    expect(awakeCount(MAX_RARITY, 3)).toBe(3)
   })
 
-  it('falls back to the head of the scroll when nothing is equipped', () => {
-    // The 法 tab is optional by design — a player who never opens it still
-    // walks out with a coherent build, and a save from before it existed still
-    // means something.
+  it('grades every art at one for a set with nothing in it', () => {
+    expect(artGrade([])).toBe(1)
+    expect(artGrade(set(0))).toBe(1)
+  })
+
+  it('lifts the grade one rung of the ladder at a time, all the way to the cap', () => {
+    // The ladder is meant to span exactly the space the rarities span: a full
+    // set at each rung is worth exactly one grade more than the rung below.
+    // Pinning every step rather than "high beats low" — the rarity ladder
+    // itself shipped non-monotone once because only the ends were checked.
+    const grades = [0, 1, 2, 3, 4, 5].map((rung) => artGrade(set(rung)))
+    expect(grades).toEqual([1, 2, 3, 4, 5, 5])
+  })
+
+  it('counts partial sets, so one good piece is felt before the set is finished', () => {
+    // The whole reason the grade is a SUM rather than a minimum: an ARPG in
+    // which a single purple changes nothing until three more arrive is an ARPG
+    // where most drops are noise.
+    expect(artGrade([3, 0, 0, 0])).toBe(1)
+    expect(artGrade([3, 1, 0, 0])).toBe(2)
+    expect(artGrade([ATTUNE_PER_GRADE, 0, 0, 0])).toBe(2)
+  })
+
+  it('never grades past the art cap, whatever a save claims to be wearing', () => {
+    expect(artGrade([99, 99, 99, 99])).toBe(MAX_ART_LEVEL)
+    expect(artGrade([-4, -4, -4, -4])).toBe(1)
+  })
+
+  it('takes the arts from the top of the ranking, in order', () => {
+    // What makes the 法 tab a real decision: with a common blade you are
+    // choosing your ONE art, not being handed whichever the table listed first.
+    const ranked = equippedIds({}, 'jian')
+    expect(attune(ranked, 0, set(0)).map((c) => c.art.id)).toEqual([ranked[0]])
+    expect(attune(ranked, 2, set(0)).map((c) => c.art.id)).toEqual(ranked.slice(0, 3))
+  })
+
+  it('puts every art it wakes at the same grade', () => {
+    const carried = attune(equippedIds({}, 'jian'), 3, set(2))
+    expect(carried.length).toBe(4)
+    for (const c of carried) expect(c.level).toBe(artGrade(set(2)))
+  })
+
+  it('makes a better weapon worth finding twice over', () => {
+    // The one number that appears in both halves of the rule, deliberately:
+    // a great blade wakes another art AND grades every art higher. "The weapon
+    // is the class" is a small promise if you only feel it once.
+    const ranked = equippedIds({}, 'dao')
+    const common = attune(ranked, 0, [0, 2, 2, 2])
+    const divine = attune(ranked, 4, [4, 2, 2, 2])
+    expect(divine.length).toBeGreaterThan(common.length)
+    expect(divine[0]!.level).toBeGreaterThan(common[0]!.level)
+  })
+
+  it('never invents an art for an id it does not know', () => {
+    // Ids arrive from a save file, which is a text file on a device.
+    expect(attune(['no-such-art'], 5, set(5))).toEqual([])
+    const mixed = attune(['jian-point', 'no-such-art', 'spear-thrust'], 5, set(5))
+    expect(mixed.every((c) => ARTS.includes(c.art))).toBe(true)
+  })
+
+  it('ranks the whole scroll, not just the four the hub lets you choose', () => {
+    // The fifth has to be reachable, or the reward for a 神 blade is a rule
+    // with nothing behind it.
     for (const weapon of WEAPONS) {
       const ids = equippedIds({}, weapon.id)
-      expect(ids.length, weapon.id).toBe(EQUIPPED_ARTS)
-      for (const id of ids) {
-        expect(ARTS.find((a) => a.id === id)?.weapon).toBe(weapon.id)
-      }
+      const scroll = ARTS.filter((a) => a.weapon === weapon.id)
+      expect(ids.length, weapon.id).toBe(scroll.length)
+      expect(new Set(ids).size, weapon.id).toBe(scroll.length)
+      for (const id of ids) expect(ARTS.find((a) => a.id === id)?.weapon).toBe(weapon.id)
     }
   })
 
-  it('honours an explicit order, and only that weapon’s arts', () => {
+  it('honours an explicit ranking, and puts the rest of the scroll behind it', () => {
     const spear = ARTS.filter((a) => a.weapon === 'spear').map((a) => a.id)
     const chosen = [spear[3]!, spear[1]!]
     const ids = equippedIds({ spear: chosen }, 'spear')
-    expect(ids).toEqual(chosen)
+    expect(ids.slice(0, 2)).toEqual(chosen)
+    expect(ids.slice(2).sort()).toEqual([spear[0]!, spear[2]!, spear[4]!].sort())
   })
 
-  it('drops an art from a weapon you are not holding', () => {
-    const p = beginProgress(['jian-point', 'spear-thrust'])
-    // beginProgress does not filter by weapon — that is the save parser's job —
-    // but it must never invent an art for an id it does not know.
-    expect(p.carried.every((c) => ARTS.includes(c.art))).toBe(true)
-    expect(beginProgress(['no-such-art']).carried).toEqual([])
+  it('ignores an art ranked for a weapon you are not holding', () => {
+    const ids = equippedIds({ jian: ['spear-thrust', 'jian-flow'] }, 'jian')
+    expect(ids).not.toContain('spear-thrust')
+    expect(ids[0]).toBe('jian-flow')
+  })
+
+  it('never ranks more than the hub can set', () => {
+    const jian = ARTS.filter((a) => a.weapon === 'jian').map((a) => a.id)
+    // A save claiming all five are "chosen" must still leave the fifth as the
+    // tail, or the cap in the hub would be a suggestion.
+    const ids = equippedIds({ jian: [...jian].reverse() }, 'jian')
+    expect(ids.slice(0, EQUIPPED_ARTS)).toEqual([...jian].reverse().slice(0, EQUIPPED_ARTS))
   })
 })
 
+describe('内力 — what a level-up grants now', () => {
+  const carried = attune(equippedIds({}, 'jian'), 0, [0, 0, 0, 0])
 
-describe('秘笈 — the permanent half of an art', () => {
-  it('leaves an art at grade one when nothing has been studied', () => {
-    // The compatibility promise: a save that has never seen a manual plays
-    // exactly as the game did before manuals existed.
-    expect(startLevelFor(0)).toBe(START_LEVEL)
+  it('grants nothing at level one, so a run opens on its baseline', () => {
+    const out = applyArts(base(), carried, nothing(), scratch(), 1)
+    expect(out.slashDamage).toBeCloseTo(base().slashDamage)
+    expect(out.maxHp).toBeCloseTo(base().maxHp)
   })
 
-  it('opens an art one grade higher per manual studied', () => {
-    expect(startLevelFor(1)).toBe(2)
-    expect(startLevelFor(2)).toBe(3)
-    expect(startLevelFor(3)).toBe(4)
+  it('adds flat damage and health per level, and nothing else', () => {
+    const b = base()
+    const out = applyArts(b, [], nothing(), scratch(), 5)
+    expect(out.slashDamage).toBeCloseTo(b.slashDamage + MIGHT.damage * 4)
+    expect(out.maxHp).toBeCloseTo(b.maxHp + MIGHT.maxHp * 4)
+    // Everything a level used to be able to touch through the arts stays put.
+    expect(out.slashInterval).toBeCloseTo(b.slashInterval)
+    expect(out.moveSpeed).toBeCloseTo(b.moveSpeed)
+    expect(out.critEvery).toBe(b.critEvery)
   })
 
-  it('always leaves 感悟 something to do, even at full mastery', () => {
-    // This is the design property, not an implementation detail. If a fully
-    // studied art opened at the cap, a player carrying four of them would
-    // spend a whole expedition earning 感悟 that advanced nothing — the in-run
-    // ramp, which is the entire shape of a survivors-like, would vanish at
-    // exactly the moment they had invested most. See MAX_MANUAL_RANK.
-    expect(startLevelFor(MAX_MANUAL_RANK)).toBeLessThan(MAX_ART_LEVEL)
+  it('cannot compound, however often the permanent block is recomputed', () => {
+    // The bug this shape exists to make impossible. Stats are recomputed
+    // mid-run every time a piece is put on; folding the levels into THAT block
+    // would add them again on every pickup.
+    const b = base()
+    const once = applyArts(b, [], nothing(), scratch(), 7).slashDamage
+    const twice = applyArts(b, [], nothing(), scratch(), 7)
+    applyArts(b, [], nothing(), twice, 7)
+    expect(twice.slashDamage).toBeCloseTo(once)
   })
 
-  it('clamps a nonsense rank instead of trusting it', () => {
-    // Ranks arrive from a save file, which is a text file on a device.
-    expect(startLevelFor(99)).toBeLessThanOrEqual(MAX_ART_LEVEL)
-    expect(startLevelFor(-4)).toBe(START_LEVEL)
-    expect(startLevelFor(1.7)).toBe(2)
-  })
-
-  it('starts a run at the grade the manuals bought', () => {
-    const ids = equippedIds({}, 'jian')
-    const ranks: Record<string, number> = { [ids[0]!]: 2 }
-    const p = beginProgress(ids, (id) => startLevelFor(ranks[id] ?? 0))
-    expect(p.carried[0]!.level).toBe(3)
-    expect(p.carried[1]!.level).toBe(START_LEVEL)
-  })
-
-  it('reaches the cap in fewer 感悟 when the art is already mastered', () => {
-    // The power fantasy, measured: a mastered art does not hit a higher
-    // ceiling, it reaches the same one far sooner. That is what makes a late
-    // build "fast and deadly" where an early one grinds.
-    const ids = equippedIds({}, 'jian').slice(0, 1)
-    const toCap = (rank: number): number => {
-      const p = beginProgress(ids, () => startLevelFor(rank))
-      let steps = 0
-      while (advanceArt(p) !== null) steps++
-      return steps
-    }
-    expect(toCap(MAX_MANUAL_RANK)).toBeLessThan(toCap(0))
-  })
-
-  it('never opens a manual drop rate at or below zero', () => {
-    // A zero chance at depth one would mean the shallowest region could never
-    // teach anything, which quietly makes the early game a dead end.
-    for (let depth = 1; depth <= 8; depth++) {
-      expect(manualChance(depth)).toBeGreaterThan(0)
-    }
-  })
-
-  it('makes a manual scarcer than a piece of equipment at every depth', () => {
-    // Permanent power must cost more than replaceable power, or gear stops
-    // mattering the moment manuals exist.
-    for (let depth = 1; depth <= 8; depth++) {
-      expect(manualChance(depth)).toBeLessThan(dropChance(depth))
-    }
+  it('leaves the baseline untouched, since the copy is what grows', () => {
+    const b = base()
+    const before = b.slashDamage
+    applyArts(b, carried, nothing(), scratch(), 12)
+    expect(b.slashDamage).toBe(before)
   })
 })

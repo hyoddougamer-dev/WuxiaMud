@@ -41,18 +41,14 @@ import { deriveStats } from './sim/loadout'
 import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
-import { advanceArt, applyArts, beginProgress, equippedIds } from './sim/arts'
-import { ARTS, ART_BY_ID, MAX_MANUAL_RANK, type Art } from './data/arts'
+import { MIGHT, applyArts, attune, equippedIds } from './sim/arts'
 import {
   type Character,
-  artStartLevel,
   createCharacter,
   grantXp,
-  manualRank,
   recordRun,
   rewardFor,
   settleFound,
-  studyManual,
 } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
@@ -77,7 +73,7 @@ import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
-import { createHud, type Found, type RunSummary, type StudiedManual } from './ui/hud'
+import { createHud, type Found, type RunSummary } from './ui/hud'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { strings } from './ui/strings'
@@ -177,24 +173,34 @@ async function boot(): Promise<void> {
   const EMPTY_LOADOUT: Map<string, number> = new Map()
 
   /**
-   * No slot is ever "empty at the start" for a 秘笈.
-   *
-   * `settleFound` exempts the first find for a slot the expedition began with
-   * nothing in, so a bad early death cannot leave a new player with no gear at
-   * all. Manuals need no such floor — the swordsman already walks out with
-   * every art on their scroll, just at grade one — so they are settled against
-   * an empty set and the exemption simply never fires.
-   */
-  const EMPTY_SLOTS: ReadonlySet<string> = new Set()
-
-  /**
    * Everything the character permanently brings: bought attributes, the
    * equipped weapon, and the worn armour. Rebuilt whenever the hub changes
    * something, and read once at the start of an expedition.
    */
+  /**
+   * Pieces put on DURING the expedition, by walking over something better.
+   *
+   * Run-local on purpose, and this is the one thing that made the whole design
+   * work. A find has to be wearable the moment it lands — that is the beat the
+   * in-run art treadmill was standing in for, and it is what makes minute eight
+   * differ from minute one now. But equipping it for real would mean writing to
+   * `character.inventory` mid-run, and everything found since the last gate is
+   * still at risk of a death (see settleFound). A piece you were wearing when
+   * you died, that a death then takes, would leave the inventory quietly
+   * disagreeing with itself.
+   *
+   * So the run wears it, the character does not. `settleExpedition` puts on
+   * whatever actually survived, under exactly the rules that already existed.
+   */
+  let runWorn = new Map<Slot, Found>()
+
+  /** What is actually in a slot right now: the run's find, else what is worn. */
+  const inSlot = (slot: Slot): Found | OwnedItem | null =>
+    runWorn.get(slot) ?? equippedIn(character.inventory, slot) ?? null
+
   const currentKit = (): Kit => {
     const school = schoolById(character.origin)
-    const weaponItem = equippedIn(character.inventory, 'weapon')
+    const weaponItem = inSlot('weapon')
     return {
       spent: character.spent,
       weapon: weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId),
@@ -202,17 +208,19 @@ async function boot(): Promise<void> {
       // grants, so the instance IS the thing that goes into the kit. The
       // weapon is excluded because its contribution is the WeaponClass above,
       // not a set of lines.
-      worn: equippedItems(character.inventory).filter((entry) => baseOf(entry)?.slot !== 'weapon'),
+      worn: SLOTS.filter((slot) => slot !== 'weapon')
+        .map((slot) => inSlot(slot))
+        .filter((entry): entry is OwnedItem => entry !== null),
     }
   }
 
   /** The wardrobe styles the equipped armour and weapon add up to. */
   const currentGear = () => {
     const school = schoolById(character.origin)
-    const weaponItem = equippedIn(character.inventory, 'weapon')
+    const weaponItem = inSlot('weapon')
     const weapon = weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId)
     const styleIn = (slot: 'robe' | 'shoulders' | 'head'): string | undefined => {
-      const entry = equippedIn(character.inventory, slot)
+      const entry = inSlot(slot)
       return entry ? (baseOf(entry)?.styleId ?? undefined) : undefined
     }
     return gearFromIds({
@@ -239,39 +247,45 @@ async function boot(): Promise<void> {
    * tiles the player can see are exactly the arts that can fire.
    */
   /**
-   * The run's arts and how far they have come.
+   * The rung of every slot, weapon included — what the arts are attuned from.
    *
-   * `progress.carried` is the four equipped for the weapon in hand, each at the
-   * grade this expedition has raised it to. It is rebuilt at the start of every
-   * run and whenever the weapon changes.
-   *
-   * The grade it STARTS at is no longer always one. That was the treadmill:
-   * every expedition began at the bottom and threw the climb away, so the arts
-   * never got permanently better and the game read as "nothing improves". The
-   * manuals studied for an art now set its opening grade, and 感悟 climbs from
-   * there — see startLevelFor in data/arts.ts.
+   * An empty slot counts as 凡, not as absent, so a swordsman in rags has a
+   * defined grade rather than a special case. See `artGrade` in sim/arts.ts.
    */
-  const artStart = (artId: string): number => artStartLevel(character, artId)
-  let progress = beginProgress(equippedIds(character.arts, kit.weapon.id), artStart)
+  const wornRungs = (): number[] => SLOTS.map((slot) => inSlot(slot)?.rarity ?? 0)
+
+  /**
+   * The arts this kit grants: which, how many awake, at what grade.
+   *
+   * Rebuilt from the gear rather than climbed during the run. Everything about
+   * why is in the 器蕴 section of sim/arts.ts; the short of it is that the two
+   * ladders this replaced — 感悟 during a run and 秘笈 between them — both
+   * climbed the same number and neither was attached to anything the player
+   * could look at.
+   */
+  let carried = attune(equippedIds(character.arts, kit.weapon.id), wornRungs()[0]!, wornRungs())
   const live: Stats = deriveStats(EMPTY_LOADOUT, kit)
   /**
-   * Recomputes the permanent stats AND the scroll, together.
+   * The same numbers with NO condition holding, published for the harness.
    *
-   * They are recomputed in six places — a level-up, a new expedition, a
-   * swordsman swap, a weapon change — and the weapon decides both. Leaving them
-   * as two adjacent lines would eventually mean a sixth site that refreshed one
-   * and not the other, and the symptom of that is arts from a weapon you are no
-   * longer holding.
+   * Its own scratch object and its own frozen empty sense, so computing it
+   * cannot disturb what the simulation is reading. See the dataset.base line.
+   */
+  const resting: Stats = deriveStats(EMPTY_LOADOUT, kit)
+  const NO_CONDITIONS = createSense().active
+  /**
+   * Recomputes the permanent stats AND the arts, together.
+   *
+   * They are recomputed in seven places — a level-up, a new expedition, a
+   * swordsman swap, a weapon change, a piece put on mid-run — and the gear
+   * decides both. Leaving them as two adjacent lines would eventually mean an
+   * eighth site that refreshed one and not the other, and the symptom of that
+   * is arts from a weapon you are no longer holding.
    */
   const refreshKit = (): void => {
     stats = deriveStats(EMPTY_LOADOUT, kit)
-    // A weapon change is a different scroll, so the grades this run earned on
-    // the old one do not carry over. Anything else would let a player bank
-    // grades on one weapon and cash them on another.
-    const wanted = equippedIds(character.arts, kit.weapon.id).join(',')
-    if (progress.carried.map((c) => c.art.id).join(',') !== wanted) {
-      progress = beginProgress(equippedIds(character.arts, kit.weapon.id), artStart)
-    }
+    const rungs = wornRungs()
+    carried = attune(equippedIds(character.arts, kit.weapon.id), rungs[0]!, rungs)
   }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
@@ -567,13 +581,6 @@ async function boot(): Promise<void> {
    */
   let securedFindCount = 0
   /**
-   * 秘笈 picked up this expedition, in the order they were found.
-   *
-   * Held rather than applied, and settled at the end alongside the loot so
-   * that the gate's question — leave with it, or push on — is asked about the
-   * permanent progression too. See `settleExpedition`.
-   */
-  /**
    * Pieces on the ground, by the handle the drop pool carries.
    *
    * The simulation holds a position and a rung; the instance itself lives here,
@@ -581,9 +588,6 @@ async function boot(): Promise<void> {
    * knowing what a Hemp Robe is.
    */
   const onGround = new Map<string, Found>()
-  let manualsThisRun: Art[] = []
-  /** How many of `manualsThisRun` a death cannot take. Mirrors securedFindCount. */
-  let securedManualCount = 0
   /** True only when the run ends by choosing "leave", never by dying. */
   let bankedThisEnd = false
   /**
@@ -599,27 +603,6 @@ async function boot(): Promise<void> {
    */
   const effectiveDepth = (): number => tierEffectiveDepth(region.depth, tier)
 
-  /**
-   * The 秘笈 worth finding right now, best first.
-   *
-   * Carried arts come first because those are the ones this build actually
-   * fires; the rest of the weapon's scroll follows, so a find can still open a
-   * direction the player has not taken. Anything already at MAX_MANUAL_RANK is
-   * left out entirely — a manual for a mastered art is a drop that does
-   * nothing, which is the loot equivalent of a level-up that grants no point.
-   *
-   * Recomputed per drop rather than cached: it changes the moment a manual is
-   * studied, and a stale pool would keep offering the one art already capped.
-   */
-  const manualPool = (): string[] => {
-    const weaponId = kit.weapon.id
-    const carried = equippedIds(character.arts, weaponId)
-    const rest = ARTS.filter((a) => a.weapon === weaponId && !carried.includes(a.id)).map(
-      (a) => a.id,
-    )
-    return [...carried, ...rest].filter((id) => manualRank(character, id) < MAX_MANUAL_RANK)
-  }
-
   const events = {
     hit(x: number, y: number, amount: number, killed: boolean, crit?: boolean): void {
       floaters.hit(x, y, amount, killed, crit)
@@ -631,14 +614,14 @@ async function boot(): Promise<void> {
       floaters.hurt(player.x, player.y, amount)
       banners.show(source, 'danger', `−${Math.round(amount)}`)
     },
-    drop(x: number, y: number, itemId: string): void {
+    drop(x: number, y: number, itemId: string, luck: number): void {
       const item = ITEM_BY_ID.get(itemId)
       if (!item) return
       // The whole roll happens here, on its own seeded stream so that adding
       // the ladder did not shift the enemy sequence a replay expects: which
       // rung, then the lines, then — on 神 and 仙 only — the named power.
       const depth = effectiveDepth()
-      const rarity = rollRarity(depth, dropRng.next())
+      const rarity = rollRarity(depth, dropRng.next(), luck)
       const found: OwnedItem = {
         uid: mintUid(item.id),
         baseId: item.id,
@@ -658,18 +641,6 @@ async function boot(): Promise<void> {
       // third kill would train the player to ignore the banner entirely, and
       // then the purple one would go unread too.
       if (rarity >= 3) banners.show(item.name, 'gold', rarityOf(rarity).name)
-    },
-    manual(x: number, y: number, artId: string): void {
-      const art = ART_BY_ID.get(artId)
-      if (!art) return
-      // Held, not applied. A manual is permanent power, so it settles with the
-      // rest of the expedition's findings — and that means it carries the same
-      // risk everything else found since the last gate carries. Studying it the
-      // instant it drops would quietly exempt the most valuable thing in the
-      // game from the one decision the gate exists to ask.
-      manualsThisRun.push(art)
-      banners.show(art.name, 'gold', strings.manualFound)
-      floaters.found(x, y)
     },
   }
 
@@ -693,8 +664,7 @@ async function boot(): Promise<void> {
     foundThisRun = []
     drops.clear()
     onGround.clear()
-    manualsThisRun = []
-    securedManualCount = 0
+    runWorn = new Map()
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
     securedFindCount = 0
     bankedThisEnd = false
@@ -809,32 +779,25 @@ async function boot(): Promise<void> {
         continue
       }
       kept.push(found)
-      // Anything for an empty slot goes straight on. Making a player visit the
-      // hub to equip their very first weapon would be ceremony for its own sake.
-      const slot = slotOfFind(found) as Slot
-      if (slot && !character.inventory.equipped[slot]) equip(character.inventory, found.uid)
     }
     kept.sort((a, b) => b.rarity - a.rarity)
-    // The 秘笈, under exactly the same rule as the loot — the manual you found
-    // after the last gate is yours only if you chose to leave with it. Reusing
-    // settleFound rather than writing a second rule is deliberate: two
-    // implementations of "what a death keeps" would drift, and the day they
-    // drifted the player would be told one thing and dealt another.
-    const eligibleManuals = settleFound(
-      manualsThisRun,
-      securedManualCount,
-      EMPTY_SLOTS,
-      bankedThisEnd,
-      (art) => art.id,
-    )
-    const studied: StudiedManual[] = []
-    const manualsLost = manualsThisRun.length - eligibleManuals.length
-    for (const art of eligibleManuals) {
-      // A manual for an art already at the cap is reported rather than eaten,
-      // so the screen never shows a find that changed nothing.
-      const took = studyManual(character, art.id)
-      studied.push({ art, rank: manualRank(character, art.id), wasted: !took })
+    // Anything WORN during the run is put on for real, now that it has survived
+    // the settle. The run wore it out of `runWorn`, which the character never
+    // saw — see that declaration. Doing it here rather than at pickup is what
+    // keeps the death rule honest: a piece a death takes was never equipped, so
+    // the inventory can never end up pointing at a uid it no longer holds.
+    for (const found of kept) {
+      const slot = slotOfFind(found) as Slot
+      if (!slot) continue
+      // Empty slot, or worn during the run and survived. The first case is what
+      // stops a player having to visit the hub to equip their very first
+      // weapon; the second is what stops the run's own build evaporating on the
+      // walk home.
+      if (!character.inventory.equipped[slot] || runWorn.get(slot)?.uid === found.uid) {
+        equip(character.inventory, found.uid)
+      }
     }
+    runWorn = new Map()
 
     // One expedition is enough teaching. Coaching that keeps firing after the
     // player has understood the game stops being help and becomes noise they
@@ -852,8 +815,6 @@ async function boot(): Promise<void> {
       kept,
       noRoom,
       forfeited,
-      studied,
-      manualsLost,
     }
   }
 
@@ -869,16 +830,24 @@ async function boot(): Promise<void> {
 
     if (!playing || run.over) return
 
-    // 感悟 spends itself the instant it is earned — see sim/arts.ts. There is
-    // nothing to choose and so nothing to freeze the field for: the three
-    // technique cards this replaced needed a pause because picking one was a
-    // decision; raising the next carried art in order is not.
+    // 内力 — what a level-up is now.
+    //
+    // It used to push the next carried art up a grade, and that was the report
+    // "skills sobem em combate não faz sentido" was about: an art you did not
+    // choose, at a grade you could not keep, announced in a banner you could
+    // not act on. A level is a flat, dull two numbers now (see applyMight), and
+    // the interesting growth inside a run is the piece on the ground.
+    //
+    // The gain in maximum health is handed to CURRENT health too. Raising the
+    // ceiling without raising what stands under it would read as the bar
+    // shrinking at the exact moment the player was told they got stronger.
     while (run.pendingLevelUps > 0) {
       run.pendingLevelUps--
-      const raised = advanceArt(progress)
-      if (raised) {
-        banners.show(`${raised.art.name} ${raised.level - 1} → ${raised.level}`, 'gold')
-      }
+      // The ceiling rises in `live` on the next frame (applyArts folds 内力 in);
+      // what stands under it has to rise with it here, or the bar would appear
+      // to shrink at the exact moment the player was told they got stronger.
+      run.hp += MIGHT.maxHp
+      banners.show(strings.mightGained, 'gold', `${strings.level} ${run.level}`)
     }
 
     // The gate freezes the field exactly like the cards used to: the player is
@@ -892,7 +861,6 @@ async function boot(): Promise<void> {
         // here is secured whether the player then leaves or pushes on. See
         // settleFound in meta/character.ts for the whole rule this feeds.
         securedFindCount = foundThisRun.length
-        securedManualCount = manualsThisRun.length
         ui.showGate(
           tier,
           () => {
@@ -922,7 +890,7 @@ async function boot(): Promise<void> {
     // on a move that depends on the speed art. One frame of lag at 60Hz is
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
     // of the circle. See sim/arts.ts.
-    applyArts(stats, progress.carried, sense.active, live)
+    applyArts(stats, carried, sense.active, live, run.level)
 
     const { x: ix, y: iy } = joystick.state
     // The region bends the player, not the enemies, and that asymmetry is the
@@ -979,8 +947,38 @@ async function boot(): Promise<void> {
       onGround.delete(uid)
       foundThisRun.push(found)
       const base = baseOf(found)
-      if (base) banners.show(base.name, found.rarity >= 3 ? 'gold' : 'plain', rarityOf(found.rarity).name)
       floaters.found(player.x, player.y)
+      if (!base) continue
+      // WORN ON THE SPOT if it is a better rung than what is in that slot.
+      //
+      // This is the beat the in-run art treadmill was standing in for, and it
+      // is the reason a survivors-like still works without one: the purple
+      // sword lands at minute six, you cross to it, and a fourth art wakes
+      // mid-fight because the blade in your hand changed. A find that only
+      // mattered on the walk home would be a find that happened to somebody
+      // else.
+      //
+      // STRICTLY better, so a tie changes nothing. Equal-rung churn would
+      // reshuffle the build every thirty seconds for no gain the player asked
+      // for — and on a weapon that means the whole scroll swapping under them.
+      const slot = base.slot
+      if (found.rarity > (inSlot(slot)?.rarity ?? -1)) {
+        const before = carried.length
+        runWorn.set(slot, found)
+        kit = currentKit()
+        const beforeMax = stats.maxHp
+        refreshKit()
+        // Health follows the ceiling a better robe raises, for the same reason
+        // a level's does: the bar must never appear to shrink on good news.
+        run.hp += Math.max(0, stats.maxHp - beforeMax)
+        // The silhouette IS the equipment here, so a piece put on mid-fight
+        // has to redraw the swordsman or the player would be told they were
+        // wearing something the figure denies.
+        rebuildFigure()
+        banners.show(base.name, 'gold', carried.length > before ? strings.artWoke : strings.wornNow)
+      } else {
+        banners.show(base.name, found.rarity >= 3 ? 'gold' : 'plain', rarityOf(found.rarity).name)
+      }
     }
     updateCombat(
       {
@@ -995,7 +993,6 @@ async function boot(): Promise<void> {
         events,
         depth: effectiveDepth(),
         owned: ownedThisRun,
-        manualPool: manualPool(),
       },
       dt,
     )
@@ -1324,14 +1321,13 @@ async function boot(): Promise<void> {
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, live.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
     ui.setRift(run.riftValue, run.riftTarget)
-    // The four arts actually carried, not the whole scroll of five — and each
-    // WITH its grade, now that 感悟 actually moves it.
+    // Only the arts the gear actually woke, each at the grade the gear set.
     //
-    // Showing five while the simulation ran four would put a tile on screen
-    // that can never fire — the exact class of lie this project keeps having to
-    // dig out. `progress.carried` IS what applyArts reads each frame, so the
-    // strip and the simulation cannot disagree about what is in hand.
-    ui.setScroll(progress.carried)
+    // Showing the whole scroll while the simulation ran two of it would put
+    // tiles on screen that can never fire — the exact class of lie this project
+    // keeps having to dig out. `carried` IS what applyArts reads each frame, so
+    // the strip and the simulation cannot disagree about what is in hand.
+    ui.setScroll(carried)
     ui.setConditions(sense.active)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
@@ -1410,6 +1406,13 @@ async function boot(): Promise<void> {
       // screenshot, and only one of them is a rendering bug.
       document.body.dataset.drops = String(drops.count)
       document.body.dataset.found = String(foundThisRun.length)
+      // The arts the gear is granting right now, as "awake/grade". This is the
+      // one claim of 器蕴 that unit tests cannot reach: they prove `attune`
+      // returns the right list, not that walking over a better blade rebuilds
+      // the kit and the strip mid-fight. See the pickup handler.
+      document.body.dataset.attune =
+        `${carried.length}/${carried[0]?.level ?? 0}`
+      document.body.dataset.worn = SLOTS.map((slot) => inSlot(slot)?.rarity ?? -1).join(',')
       document.body.dataset.px = String(Math.round(player.x))
       document.body.dataset.py = String(Math.round(player.y))
       // Which conditions hold, for the harness. The seals lighting on screen is
@@ -1425,14 +1428,27 @@ async function boot(): Promise<void> {
       // the simulation reads the untouched baseline anyway. A machine can only
       // catch that by comparing a live stat against the permanent one, so both
       // are published. Rounded, because the harness compares strings.
-      document.body.dataset.live =
-        `${live.slashDamage.toFixed(1)},${live.slashInterval.toFixed(3)},` +
-        `${live.slashRange.toFixed(0)},${live.slashHalfAngle.toFixed(2)},` +
-        `${live.moveSpeed.toFixed(0)},${live.orbitBlades},${live.boltInterval.toFixed(2)}`
-      document.body.dataset.base =
-        `${stats.slashDamage.toFixed(1)},${stats.slashInterval.toFixed(3)},` +
-        `${stats.slashRange.toFixed(0)},${stats.slashHalfAngle.toFixed(2)},` +
-        `${stats.moveSpeed.toFixed(0)},${stats.orbitBlades},${stats.boltInterval.toFixed(2)}`
+      //
+      // The baseline is published WITH 内力 folded in — a second copy of `live`
+      // computed with no condition holding — precisely so that a difference
+      // between the two can only ever be the arts. Publishing `stats` raw was
+      // enough while a level-up did nothing to the numbers; now that a level
+      // adds flat damage, a raw baseline would differ from `live` on every run
+      // past level one and the check would pass without a single art firing.
+      // Every channel an art can move, not the seven the sweep uses. Five of
+      // the fourteen effects (crit, echo, push, guard, heal) touch none of the
+      // sweep numbers, so a build whose one awake art was any of those read as
+      // "no stat moved" — the verifier reporting a working feature as broken,
+      // which is worse than no verifier.
+      const vector = (s: Stats): string =>
+        `${s.slashDamage.toFixed(1)},${s.slashInterval.toFixed(3)},` +
+        `${s.slashRange.toFixed(0)},${s.slashHalfAngle.toFixed(2)},` +
+        `${s.moveSpeed.toFixed(0)},${s.orbitBlades},${s.boltInterval.toFixed(2)},` +
+        `${s.critEvery},${s.echoDamage.toFixed(2)},${s.pushForce.toFixed(0)},` +
+        `${s.damageScale.toFixed(2)},${s.healPerKill.toFixed(2)},${s.pickupRadius.toFixed(0)}`
+      document.body.dataset.live = vector(live)
+      applyArts(stats, carried, NO_CONDITIONS, resting, run.level)
+      document.body.dataset.base = vector(resting)
       // Published so a performance report can be turned into a measurement.
       // "It stutters on my phone" is unactionable; "render costs 9ms with 240
       // enemies" points at one loop.

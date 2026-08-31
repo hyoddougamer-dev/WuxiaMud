@@ -43,7 +43,7 @@ import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
-import { advanceArt, applyArts, beginProgress, equippedIds } from '../src/sim/arts'
+import { applyArts, attune, equippedIds } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 import { EQUIPPED_ARTS, MAX_ART_LEVEL } from '../src/data/arts'
@@ -110,7 +110,8 @@ export function play(regionId: string, fly: Pilot, riftTarget: number): Row {
     run.hp = stats.maxHp
     run.riftTarget = riftTarget
     const sense = createSense()
-    const progress = beginProgress(equippedIds({}, weapon.id))
+    // 珍 across every slot — a middling real kit. See tools/artsBalance.mts.
+    const carried = attune(equippedIds({}, weapon.id), 2, [2, 2, 2, 2])
     const rule = region.rule
     const drift = rule.drift ?? 0
     let insight = 0
@@ -121,7 +122,7 @@ export function play(regionId: string, fly: Pilot, riftTarget: number): Row {
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
-      applyArts(stats, progress.carried, sense.active, live)
+      applyArts(stats, carried, sense.active, live, run.level)
       updatePlayer(
         player,
         ix,
@@ -153,7 +154,6 @@ export function play(regionId: string, fly: Pilot, riftTarget: number): Row {
       while (run.pendingLevelUps > 0) {
         run.pendingLevelUps--
         insight++
-        advanceArt(progress)
       }
       updateCombat(
         { run, player, swarm, motes, bolts, hazards, stats: live, rng, depth: region.depth },
