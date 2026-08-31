@@ -8,8 +8,18 @@
  * nothing fires while its condition is false.
  */
 import { describe, expect, it } from 'vitest'
-import { ARTS, EQUIPPED_ARTS, MAX_ART_LEVEL, artScale, type Art } from '../src/data/arts'
+import {
+  ARTS,
+  EQUIPPED_ARTS,
+  MAX_ART_LEVEL,
+  MAX_MANUAL_RANK,
+  artScale,
+  manualChance,
+  startLevelFor,
+  type Art,
+} from '../src/data/arts'
 import { WEAPONS } from '../src/data/weapons'
+import { dropChance } from '../src/data/items'
 import {
   advanceArt,
   applyArts,
@@ -271,5 +281,74 @@ describe('the run progression', () => {
     // but it must never invent an art for an id it does not know.
     expect(p.carried.every((c) => ARTS.includes(c.art))).toBe(true)
     expect(beginProgress(['no-such-art']).carried).toEqual([])
+  })
+})
+
+
+describe('秘笈 — the permanent half of an art', () => {
+  it('leaves an art at grade one when nothing has been studied', () => {
+    // The compatibility promise: a save that has never seen a manual plays
+    // exactly as the game did before manuals existed.
+    expect(startLevelFor(0)).toBe(START_LEVEL)
+  })
+
+  it('opens an art one grade higher per manual studied', () => {
+    expect(startLevelFor(1)).toBe(2)
+    expect(startLevelFor(2)).toBe(3)
+    expect(startLevelFor(3)).toBe(4)
+  })
+
+  it('always leaves 感悟 something to do, even at full mastery', () => {
+    // This is the design property, not an implementation detail. If a fully
+    // studied art opened at the cap, a player carrying four of them would
+    // spend a whole expedition earning 感悟 that advanced nothing — the in-run
+    // ramp, which is the entire shape of a survivors-like, would vanish at
+    // exactly the moment they had invested most. See MAX_MANUAL_RANK.
+    expect(startLevelFor(MAX_MANUAL_RANK)).toBeLessThan(MAX_ART_LEVEL)
+  })
+
+  it('clamps a nonsense rank instead of trusting it', () => {
+    // Ranks arrive from a save file, which is a text file on a device.
+    expect(startLevelFor(99)).toBeLessThanOrEqual(MAX_ART_LEVEL)
+    expect(startLevelFor(-4)).toBe(START_LEVEL)
+    expect(startLevelFor(1.7)).toBe(2)
+  })
+
+  it('starts a run at the grade the manuals bought', () => {
+    const ids = equippedIds({}, 'jian')
+    const ranks: Record<string, number> = { [ids[0]!]: 2 }
+    const p = beginProgress(ids, (id) => startLevelFor(ranks[id] ?? 0))
+    expect(p.carried[0]!.level).toBe(3)
+    expect(p.carried[1]!.level).toBe(START_LEVEL)
+  })
+
+  it('reaches the cap in fewer 感悟 when the art is already mastered', () => {
+    // The power fantasy, measured: a mastered art does not hit a higher
+    // ceiling, it reaches the same one far sooner. That is what makes a late
+    // build "fast and deadly" where an early one grinds.
+    const ids = equippedIds({}, 'jian').slice(0, 1)
+    const toCap = (rank: number): number => {
+      const p = beginProgress(ids, () => startLevelFor(rank))
+      let steps = 0
+      while (advanceArt(p) !== null) steps++
+      return steps
+    }
+    expect(toCap(MAX_MANUAL_RANK)).toBeLessThan(toCap(0))
+  })
+
+  it('never opens a manual drop rate at or below zero', () => {
+    // A zero chance at depth one would mean the shallowest region could never
+    // teach anything, which quietly makes the early game a dead end.
+    for (let depth = 1; depth <= 8; depth++) {
+      expect(manualChance(depth)).toBeGreaterThan(0)
+    }
+  })
+
+  it('makes a manual scarcer than a piece of equipment at every depth', () => {
+    // Permanent power must cost more than replaceable power, or gear stops
+    // mattering the moment manuals exist.
+    for (let depth = 1; depth <= 8; depth++) {
+      expect(manualChance(depth)).toBeLessThan(dropChance(depth))
+    }
   })
 })

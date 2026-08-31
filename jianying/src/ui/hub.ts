@@ -36,6 +36,7 @@ import {
   type Attributes,
   type Character,
   emptyAttributes,
+  manualRank,
   spendPoint,
   xpForCultivation,
 } from '../meta/character'
@@ -57,7 +58,14 @@ import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
 import { packIconSvg, effectIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
-import { CONDITIONS, CONDITION_BY_ID, EQUIPPED_ARTS, artsFor, type Art } from '../data/arts'
+import {
+  CONDITIONS,
+  CONDITION_BY_ID,
+  EQUIPPED_ARTS,
+  MAX_MANUAL_RANK,
+  artsFor,
+  type Art,
+} from '../data/arts'
 import { equippedIds } from '../sim/arts'
 import { palette } from '../render/palette'
 import { strings } from './strings'
@@ -504,6 +512,25 @@ export function createHub(
      * who wants to see what one art alone does should be able to, and the
      * simulation reads whatever is here.
      */
+    /**
+     * The permanent grade an art opens at, as pips — or nothing at all.
+     *
+     * Absent when no manual has been studied, deliberately: a column of empty
+     * markers against thirty arts would read as "you are missing thirty
+     * things" on the very first screen a new player opens. It appears the
+     * moment the ladder starts, which is when it means something.
+     */
+    const manualMark = (artId: string): string => {
+      const rank = character ? manualRank(character, artId) : 0
+      if (rank <= 0) return ''
+      return (
+        `<span class="art-row-manual" title="${strings.opensAt} ${rank + 1}">` +
+        '●'.repeat(rank) +
+        '○'.repeat(Math.max(0, MAX_MANUAL_RANK - rank)) +
+        `</span>`
+      )
+    }
+
     const artRow = (art: Art, place: number): HTMLElement => {
       const on = place > 0
       const cond = CONDITION_BY_ID.get(art.condition)!
@@ -521,6 +548,7 @@ export function createHub(
           <span class="art-row-seal">${cond.seal}</span>
           <span class="art-row-how">${escapeHtml(cond.name)}</span>
         </span>
+        ${manualMark(art.id)}
       `
       row.addEventListener('click', () => {
         if (!character) return
@@ -721,7 +749,19 @@ export function createHub(
       const button = document.createElement('button')
       button.type = 'button'
       button.className = 'tab' + (item.id === tab ? ' tab-on' : '')
-      button.innerHTML = `<span class="tab-seal">${item.seal}</span><span class="tab-name">${item.name}</span>`
+      // Unspent points ride on the tab itself, not just inside it.
+      //
+      // Measured on a real device: a player reached level six carrying SEVEN
+      // unspent points, with Body and Spirit still at zero. Every level they
+      // had earned was sitting in a drawer, which is most of why the game read
+      // as "levels go up and nothing improves". The count was already on the
+      // Swordsman tab — but only once you were already looking at it, and
+      // nothing anywhere else on the screen said to look.
+      const owed = item.id === 'self' && character ? character.points : 0
+      const badge = owed > 0 ? `<span class="tab-owed">${owed}</span>` : ''
+      button.innerHTML =
+        `<span class="tab-seal">${item.seal}${badge}</span>` +
+        `<span class="tab-name">${item.name}</span>`
       button.addEventListener('click', () => {
         if (tab === item.id) return
         tab = item.id

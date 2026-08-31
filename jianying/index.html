@@ -882,6 +882,30 @@
         color: var(--cinnabar);
         opacity: 0.7;
       }
+      /* 秘笈. Gold rather than ink, because this is the only line on the
+         reward screen that makes the NEXT expedition start stronger — it has
+         to win the eye against a list of gear. */
+      .rw-manual {
+        margin-top: 14px;
+        color: var(--gold);
+      }
+      .loot-manual {
+        border-left: 2px solid var(--gold);
+        padding-left: 8px;
+      }
+      .loot-manual b {
+        color: var(--gold);
+      }
+      .manual-pips {
+        font-style: normal;
+        font-size: 10px;
+        letter-spacing: 1px;
+        color: var(--gold);
+        opacity: 0.9;
+      }
+      .manual-capped {
+        opacity: 0.55;
+      }
       /* Rank, as pips rather than a number. An item card is 158px wide and
          already carries a name and a line of effect; "rank 3" would need a word
          of explanation that three dots does not. */
@@ -1027,6 +1051,7 @@
         margin-bottom: 16px;
       }
       .art-row {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 9px;
@@ -1393,6 +1418,34 @@
       .tab-seal {
         font-size: 17px;
         line-height: 1.1;
+        position: relative;
+      }
+      /* Points waiting to be spent, on the tab that spends them. Cinnabar on
+         the one screen that is otherwise all ink, because this is the only
+         badge in the hub and it is meant to be the thing the eye snags on. */
+      .tab-owed {
+        position: absolute;
+        top: -5px;
+        right: -12px;
+        min-width: 15px;
+        padding: 0 3px;
+        border-radius: 8px;
+        background: var(--cinnabar);
+        color: var(--paper);
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 15px;
+        text-align: center;
+      }
+      /* The permanent grade an art opens at. Gold, matching the 秘笈 rows on
+         the reward screen, so the two places that talk about manuals agree. */
+      .art-row-manual {
+        position: absolute;
+        right: 10px;
+        bottom: 6px;
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        color: var(--gold);
       }
       .tab-name {
         font-size: 9.5px;

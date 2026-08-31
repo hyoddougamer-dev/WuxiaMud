@@ -16,6 +16,7 @@ import type { Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
 import { dropChance, rollDrop } from '../data/items'
+import { manualChance } from '../data/arts'
 import { DEFAULT_WEAPON } from '../data/weapons'
 
 /**
@@ -224,6 +225,8 @@ export interface CombatEvents {
   hurt(amount: number, source: string): void
   /** Something dropped equipment at (x, y). */
   drop?(x: number, y: number, itemId: string): void
+  /** Something left a 秘笈 for `artId` at (x, y). */
+  manual?(x: number, y: number, artId: string): void
 }
 
 /** Shortest absolute angular distance between two directions, in radians. */
@@ -324,6 +327,16 @@ export interface CombatContext {
   depth?: number
   /** Item ids already owned, so drops can favour something new. */
   owned?: ReadonlySet<string>
+  /**
+   * Art ids a dropped 秘笈 may be for, best first.
+   *
+   * Supplied by the caller rather than derived here, because WHICH manuals are
+   * worth finding is a question about the swordsman — the weapon in their hand,
+   * the arts they carry, what they have already mastered — and none of that
+   * belongs in the simulation. An empty or absent list simply means no manual
+   * drops, which is how every headless balance harness runs.
+   */
+  manualPool?: readonly string[]
 }
 
 /** Shared, so the hot path does not allocate a set per kill. */
@@ -370,6 +383,28 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
   if (ctx.events?.drop && !e.splinter && (boss || ctx.rng.next() < dropChance(depth))) {
     const item = rollDrop(depth, ctx.rng.next(), ctx.owned ?? EMPTY_OWNED)
     if (item) ctx.events.drop(e.x, e.y, item.id)
+  }
+
+  // A 秘笈, which is the only PERMANENT thing a corpse can leave.
+  //
+  // The boss always leaves one, and that is the design rather than a
+  // generosity: it makes clearing a gate the reliable source of vertical
+  // progression, so the answer to "why fight the boss instead of farming the
+  // easy ring forever" is a number the player can feel rather than a lecture.
+  // The pool is ordered best-first by the caller, and the roll is biased
+  // toward its front for the same reason the item table favours what you do
+  // not own — a manual for an art you never carry is a drop that did nothing.
+  const pool = ctx.manualPool
+  if (
+    ctx.events?.manual &&
+    pool &&
+    pool.length > 0 &&
+    !e.splinter &&
+    (boss || ctx.rng.next() < manualChance(depth))
+  ) {
+    const pick = ctx.rng.next()
+    const index = Math.min(pool.length - 1, Math.floor(pick * pick * pool.length))
+    ctx.events.manual(e.x, e.y, pool[index]!)
   }
 
   // The rift's bar, fed by the same qi that already drops as motes — a kill is

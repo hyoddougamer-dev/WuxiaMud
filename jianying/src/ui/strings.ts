@@ -140,6 +140,17 @@ export const strings = {
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',
 
+  // --- 秘笈, the permanent half of an art ---------------------------------
+  /** Banner when one drops. Named for the art, not the object. */
+  manualFound: 'a manual',
+  manualsStudied: 'Studied',
+  /** The grade the art will now BEGIN an expedition at. */
+  manualGrade: 'now opens at grade',
+  manualMastered: 'already mastered',
+  manualsLost: 'A manual, lost',
+  /** Shown on the arts tab against an art with manuals studied. */
+  opensAt: 'opens at',
+
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',
   understood: 'Understood',

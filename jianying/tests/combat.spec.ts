@@ -13,6 +13,7 @@ import {
   PLAYER_MAX_HP,
   createRun,
   updateCombat,
+  type CombatEvents,
   type RunState,
 } from '../src/sim/combat'
 
@@ -311,6 +312,8 @@ describe('the rift', () => {
      * a boss's own numbers change.
      */
     stopWhen?: (sim: Sim) => boolean,
+    /** Watches drops. Supplying a pool is what enables 秘笈 at all. */
+    extra?: { events?: CombatEvents; manualPool?: readonly string[]; depth?: number },
   ): void {
     const ticks = Math.round(ceilingSeconds / TICK_S)
     for (let i = 0; i < ticks; i++) {
@@ -329,11 +332,54 @@ describe('the rift', () => {
           hazards: sim.hazards,
           stats,
           rng: sim.rng,
+          // Spread rather than assigned: exactOptionalPropertyTypes forbids
+          // handing an optional field an explicit undefined.
+          ...(extra?.events ? { events: extra.events } : {}),
+          ...(extra?.manualPool ? { manualPool: extra.manualPool } : {}),
+          ...(extra?.depth !== undefined ? { depth: extra.depth } : {}),
         },
         TICK_S,
       )
     }
   }
+
+  it('leaves a 秘笈 when the gate boss falls', () => {
+    // The load-bearing promise of the whole progression rework: clearing a
+    // gate is the reliable source of permanent power. If a boss can die
+    // without leaving a manual, the answer to "why fight the boss instead of
+    // farming the easy ring" goes back to being nothing.
+    const sim = newSim()
+    sim.run.riftTarget = 40
+    const manuals: string[] = []
+    const events: CombatEvents = {
+      hit: () => {},
+      hurt: () => {},
+      manual: (_x, _y, artId) => manuals.push(artId),
+    }
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, undefined, {
+      events,
+      manualPool: ['jian-point', 'jian-sweep'],
+    })
+    expect(sim.run.gateCleared).toBe(true)
+    expect(manuals.length).toBeGreaterThan(0)
+    expect(manuals.every((id) => id === 'jian-point' || id === 'jian-sweep')).toBe(true)
+  })
+
+  it('drops no 秘笈 at all when the caller offers no pool', () => {
+    // Every headless balance harness runs without one, and none of them should
+    // start seeing manual drops appear in their measurements.
+    const sim = newSim()
+    sim.run.riftTarget = 40
+    let manuals = 0
+    const events: CombatEvents = {
+      hit: () => {},
+      hurt: () => {},
+      manual: () => manuals++,
+    }
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, undefined, { events })
+    expect(sim.run.gateCleared).toBe(true)
+    expect(manuals).toBe(0)
+  })
 
   it('never queues a boss while the target is left at its default', () => {
     // createRun() leaves riftTarget at Infinity — the harnesses that do not

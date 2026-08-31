@@ -306,7 +306,7 @@ export interface ArtProgress {
   next: number
 }
 
-/** The grade every carried art starts a run at. */
+/** The grade a carried art starts a run at with nothing studied for it. */
 export const START_LEVEL = 1
 
 /**
@@ -314,12 +314,25 @@ export const START_LEVEL = 1
  *
  * Unknown ids are dropped rather than throwing: a save can name an art from a
  * build that renamed one, and losing a slot beats losing the expedition.
+ *
+ * `startLevel` is where the permanent half of an art's grade enters the
+ * simulation — the manuals studied for it (see meta/character.ts). It arrives
+ * as a FUNCTION rather than as the character itself so that this file stays
+ * ignorant of saves, inventories and everything else in meta/: the simulation
+ * needs to know what grade an art begins at, not who is carrying it. Omitted,
+ * every art begins at grade one, which is how the game played before manuals
+ * existed and how every headless balance harness still calls it.
  */
-export function beginProgress(artIds: readonly string[]): ArtProgress {
+export function beginProgress(
+  artIds: readonly string[],
+  startLevel?: (artId: string) => number,
+): ArtProgress {
   const carried: CarriedArt[] = []
   for (const id of artIds) {
     const art = ARTS.find((a) => a.id === id)
-    if (art) carried.push({ art, level: START_LEVEL })
+    if (!art) continue
+    const level = startLevel ? startLevel(id) : START_LEVEL
+    carried.push({ art, level: Math.max(START_LEVEL, Math.min(MAX_ART_LEVEL, Math.floor(level))) })
   }
   return { carried, next: 0 }
 }

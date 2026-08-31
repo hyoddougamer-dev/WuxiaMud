@@ -122,6 +122,57 @@ export const MAX_ART_LEVEL = 5
 export const EQUIPPED_ARTS = 4
 
 /**
+ * How far a 秘笈 can raise an art PERMANENTLY.
+ *
+ * The problem this exists to fix: an art's grade used to be entirely temporary.
+ * Every expedition began at grade one and 感悟 pushed it up during the run, and
+ * then the whole thing was thrown away — so a player who spent an expedition
+ * raising an art to grade five started the next one back at one. There was no
+ * vertical progression in the arts at all, only a treadmill that reset, which
+ * is exactly why the game read as "levels go up and nothing improves".
+ *
+ * A manual is the permanent half. Finding and studying one raises an art's
+ * BASE grade — the grade it walks out of the hub at — and that is what makes a
+ * late build fast where an early one is slow.
+ *
+ * THREE, NOT FOUR, and the missing step is deliberate. At four, a fully
+ * studied art would start at grade five, which is the cap, and 感悟 would have
+ * nothing left to do for it all expedition. Carry four such arts and the entire
+ * in-run ramp — the thing that makes a survivors-like a survivors-like —
+ * disappears at exactly the moment the player has invested most. Stopping at
+ * three leaves every art one grade of headroom forever: a mastered art still
+ * climbs, it just gets there in one step instead of four. That gap IS the
+ * power fantasy, and it costs nothing to keep the run's own arc alive.
+ */
+export const MAX_MANUAL_RANK = 3
+
+/**
+ * The grade an art begins an expedition at, given the manuals studied for it.
+ *
+ * Rank zero — nothing studied — starts at one, which is where every art in the
+ * game started before manuals existed. So a save that has never seen a manual
+ * plays exactly as it did.
+ */
+export function startLevelFor(manualRank: number): number {
+  const rank = Math.max(0, Math.min(MAX_MANUAL_RANK, Math.floor(manualRank)))
+  return Math.min(MAX_ART_LEVEL, 1 + rank)
+}
+
+/**
+ * Chance that felling an ordinary enemy leaves a 秘笈, at a given depth.
+ *
+ * Deliberately scarcer than equipment — a manual is permanent power, and gear
+ * is not — but not so scarce that a shallow expedition is a waste of time. The
+ * real source is the gate: a boss ALWAYS leaves one (see damageEnemy). That is
+ * the point of routing permanent progression through the rift rather than
+ * through the grind — the thing that pays is the fight you chose to have, not
+ * the four hundredth bandit.
+ */
+export function manualChance(depth: number): number {
+  return 0.0035 + Math.max(0, depth - 1) * 0.0009
+}
+
+/**
  * Six scrolls of five.
  *
  * Every weapon covers all five conditions exactly once, which is not a

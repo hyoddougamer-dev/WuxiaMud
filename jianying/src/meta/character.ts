@@ -21,6 +21,7 @@
  * `depth.ts`) — the character grows, and the player is expected to spend that
  * growth on harder ground rather than on an easier version of the same ground.
  */
+import { MAX_MANUAL_RANK, startLevelFor } from '../data/arts'
 import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
 import { DEFAULT_LOOK, type Look } from './look'
@@ -103,6 +104,18 @@ export interface Character {
    * it fourth means it might not.
    */
   arts: Record<string, string[]>
+  /**
+   * Manuals studied, per art id — the permanent half of an art's grade.
+   *
+   * Keyed by art rather than by weapon because a 秘笈 is for one art, and
+   * studying it is not undone by changing weapon: what you learned about the
+   * spear is still learned when you pick the spear back up. Absent means zero,
+   * which is what every save written before manuals existed reads as.
+   *
+   * Capped at MAX_MANUAL_RANK. See `startLevelFor` in data/arts.ts for why the
+   * cap stops one short of the art cap.
+   */
+  manuals: Record<string, number>
   /** Deepest expedition unlocked. Starts at 1. */
   depth: number
   /** Lifetime totals, purely for the hub to have something to show. */
@@ -141,6 +154,7 @@ export function createCharacter(
     points: 1,
     spent: emptyAttributes(),
     arts: {},
+    manuals: {},
     depth: 1,
     runs: 0,
     bestSeconds: 0,
@@ -195,11 +209,27 @@ export interface Reward {
  * time rewards surviving, and Insight rewards actually gathering qi instead of
  * running in circles — without that third term, the optimal expedition would be
  * to walk away from every fight.
+ *
+ * KILLS COUNT ON A CURVE, NOT ONE FOR ONE, and that is the whole repair here.
+ * The first version paid a flat point per kill, which was fine while a run was
+ * a clock. The rift made a run a DISTANCE fed by kills, and kill counts
+ * promptly went from dozens to hundreds — so the same formula quietly turned
+ * into level inflation. Measured, before this change: one Post Road run paid
+ * 374 XP and levels one to four cost exactly 374, so a single first expedition
+ * ended at level four. The doc note two functions up claimed a strong deep run
+ * was worth "roughly half a level"; reality was six times that.
+ *
+ * A square root fixes the shape rather than the magnitude. Grinding the safe
+ * shallow road for six hundred kills used to out-earn a real descent by four to
+ * one; on a curve it does not, because the six hundredth kill is worth a
+ * twentieth of the first. Re-measured across ten recorded expeditions, every
+ * one now lands between 0.17 and 0.63 of a level for a mid-game swordsman —
+ * which is the "half a level" the design always claimed.
  */
 export function rewardFor(result: RunResult): Reward {
-  const kills = result.kills
-  const time = Math.floor(result.seconds / 3)
-  const insight = Math.max(0, result.insight - 1) * 8
+  const kills = Math.round(KILL_WEIGHT * Math.sqrt(Math.max(0, result.kills)))
+  const time = Math.floor(result.seconds / 6)
+  const insight = Math.max(0, result.insight - 1) * INSIGHT_WEIGHT
   const depthBonus = depthReward(result.depth)
   return {
     kills,
@@ -209,6 +239,11 @@ export function rewardFor(result: RunResult): Reward {
     total: Math.round((kills + time + insight) * depthBonus),
   }
 }
+
+/** Points for the square root of the kill count. See `rewardFor`. */
+const KILL_WEIGHT = 5
+/** Points per Insight grade past the first. See `rewardFor`. */
+const INSIGHT_WEIGHT = 4
 
 /**
  * XP multiplier for expedition depth.
@@ -330,6 +365,32 @@ export function settleFound<T extends SettledFind>(
     }
   })
   return kept
+}
+
+/** How many manuals have been studied for `artId`. Absent reads as none. */
+export function manualRank(character: Character, artId: string): number {
+  const rank = character.manuals[artId]
+  return typeof rank === 'number' && rank > 0 ? Math.min(MAX_MANUAL_RANK, Math.floor(rank)) : 0
+}
+
+/**
+ * Studies one 秘笈, raising that art's permanent grade by one.
+ *
+ * Returns false when the art is already at MAX_MANUAL_RANK, so the caller can
+ * say "you already know this one" rather than silently eating the find. A
+ * manual that vanishes into a capped art is the loot equivalent of a level-up
+ * that does nothing, and this game has had one of those already.
+ */
+export function studyManual(character: Character, artId: string): boolean {
+  const current = manualRank(character, artId)
+  if (current >= MAX_MANUAL_RANK) return false
+  character.manuals[artId] = current + 1
+  return true
+}
+
+/** The grade `artId` will begin an expedition at, given what has been studied. */
+export function artStartLevel(character: Character, artId: string): number {
+  return startLevelFor(manualRank(character, artId))
 }
 
 /** Spends one point. Returns false when there is none to spend. */

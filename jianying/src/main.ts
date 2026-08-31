@@ -41,13 +41,17 @@ import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 import { advanceArt, applyArts, beginProgress, equippedIds } from './sim/arts'
+import { ARTS, ART_BY_ID, MAX_MANUAL_RANK, type Art } from './data/arts'
 import {
   type Character,
+  artStartLevel,
   createCharacter,
   grantXp,
+  manualRank,
   recordRun,
   rewardFor,
   settleFound,
+  studyManual,
 } from './meta/character'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
@@ -61,7 +65,7 @@ import { ROSTER_LIMIT, loadCharacter, saveCharacter } from './meta/save'
 import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
-import { createHud, type Found, type RunSummary } from './ui/hud'
+import { createHud, type Found, type RunSummary, type StudiedManual } from './ui/hud'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { strings } from './ui/strings'
@@ -159,6 +163,17 @@ async function boot(): Promise<void> {
   const EMPTY_LOADOUT: Map<string, number> = new Map()
 
   /**
+   * No slot is ever "empty at the start" for a 秘笈.
+   *
+   * `settleFound` exempts the first find for a slot the expedition began with
+   * nothing in, so a bad early death cannot leave a new player with no gear at
+   * all. Manuals need no such floor — the swordsman already walks out with
+   * every art on their scroll, just at grade one — so they are settled against
+   * an empty set and the exemption simply never fires.
+   */
+  const EMPTY_SLOTS: ReadonlySet<string> = new Set()
+
+  /**
    * Everything the character permanently brings: bought attributes, the
    * equipped weapon, and the worn armour. Rebuilt whenever the hub changes
    * something, and read once at the start of an expedition.
@@ -210,10 +225,16 @@ async function boot(): Promise<void> {
    *
    * `progress.carried` is the four equipped for the weapon in hand, each at the
    * grade this expedition has raised it to. It is rebuilt at the start of every
-   * run and whenever the weapon changes, because grades are per-run: what
-   * persists is which four you carry, not how far they got. See sim/arts.ts.
+   * run and whenever the weapon changes.
+   *
+   * The grade it STARTS at is no longer always one. That was the treadmill:
+   * every expedition began at the bottom and threw the climb away, so the arts
+   * never got permanently better and the game read as "nothing improves". The
+   * manuals studied for an art now set its opening grade, and 感悟 climbs from
+   * there — see startLevelFor in data/arts.ts.
    */
-  let progress = beginProgress(equippedIds(character.arts, kit.weapon.id))
+  const artStart = (artId: string): number => artStartLevel(character, artId)
+  let progress = beginProgress(equippedIds(character.arts, kit.weapon.id), artStart)
   const live: Stats = deriveStats(EMPTY_LOADOUT, kit)
   /**
    * Recomputes the permanent stats AND the scroll, together.
@@ -231,7 +252,7 @@ async function boot(): Promise<void> {
     // grades on one weapon and cash them on another.
     const wanted = equippedIds(character.arts, kit.weapon.id).join(',')
     if (progress.carried.map((c) => c.art.id).join(',') !== wanted) {
-      progress = beginProgress(equippedIds(character.arts, kit.weapon.id))
+      progress = beginProgress(equippedIds(character.arts, kit.weapon.id), artStart)
     }
   }
   let run = createRun(kit.weapon.interval)
@@ -521,6 +542,16 @@ async function boot(): Promise<void> {
    * the instant a gate clears, whether the player then banks or pushes on.
    */
   let securedFindCount = 0
+  /**
+   * 秘笈 picked up this expedition, in the order they were found.
+   *
+   * Held rather than applied, and settled at the end alongside the loot so
+   * that the gate's question — leave with it, or push on — is asked about the
+   * permanent progression too. See `settleExpedition`.
+   */
+  let manualsThisRun: Art[] = []
+  /** How many of `manualsThisRun` a death cannot take. Mirrors securedFindCount. */
+  let securedManualCount = 0
   /** True only when the run ends by choosing "leave", never by dying. */
   let bankedThisEnd = false
   /**
@@ -535,6 +566,27 @@ async function boot(): Promise<void> {
    * unlocks past what the base regions already hold. See tierEffectiveDepth.
    */
   const effectiveDepth = (): number => tierEffectiveDepth(region.depth, tier)
+
+  /**
+   * The 秘笈 worth finding right now, best first.
+   *
+   * Carried arts come first because those are the ones this build actually
+   * fires; the rest of the weapon's scroll follows, so a find can still open a
+   * direction the player has not taken. Anything already at MAX_MANUAL_RANK is
+   * left out entirely — a manual for a mastered art is a drop that does
+   * nothing, which is the loot equivalent of a level-up that grants no point.
+   *
+   * Recomputed per drop rather than cached: it changes the moment a manual is
+   * studied, and a stale pool would keep offering the one art already capped.
+   */
+  const manualPool = (): string[] => {
+    const weaponId = kit.weapon.id
+    const carried = equippedIds(character.arts, weaponId)
+    const rest = ARTS.filter((a) => a.weapon === weaponId && !carried.includes(a.id)).map(
+      (a) => a.id,
+    )
+    return [...carried, ...rest].filter((id) => manualRank(character, id) < MAX_MANUAL_RANK)
+  }
 
   const events = {
     hit(x: number, y: number, amount: number, killed: boolean): void {
@@ -557,6 +609,18 @@ async function boot(): Promise<void> {
       banners.show(item.name, 'gold', strings.found)
       floaters.found(x, y)
     },
+    manual(x: number, y: number, artId: string): void {
+      const art = ART_BY_ID.get(artId)
+      if (!art) return
+      // Held, not applied. A manual is permanent power, so it settles with the
+      // rest of the expedition's findings — and that means it carries the same
+      // risk everything else found since the last gate carries. Studying it the
+      // instant it drops would quietly exempt the most valuable thing in the
+      // game from the one decision the gate exists to ask.
+      manualsThisRun.push(art)
+      banners.show(art.name, 'gold', strings.manualFound)
+      floaters.found(x, y)
+    },
   }
 
   const beginExpedition = (chosen: number): void => {
@@ -577,6 +641,8 @@ async function boot(): Promise<void> {
     banners.clear()
     ui.hideGate()
     foundThisRun = []
+    manualsThisRun = []
+    securedManualCount = 0
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.id))
     securedFindCount = 0
     bankedThisEnd = false
@@ -694,6 +760,27 @@ async function boot(): Promise<void> {
         duplicates.push(found)
       }
     }
+    // The 秘笈, under exactly the same rule as the loot — the manual you found
+    // after the last gate is yours only if you chose to leave with it. Reusing
+    // settleFound rather than writing a second rule is deliberate: two
+    // implementations of "what a death keeps" would drift, and the day they
+    // drifted the player would be told one thing and dealt another.
+    const manualSlot = (art: Art): { slot: string } => ({ slot: art.id })
+    const eligibleManuals = settleFound(
+      manualsThisRun.map((art) => ({ item: manualSlot(art), rank: 0, art })),
+      securedManualCount,
+      EMPTY_SLOTS,
+      bankedThisEnd,
+    )
+    const studied: StudiedManual[] = []
+    const manualsLost = manualsThisRun.length - eligibleManuals.length
+    for (const { art } of eligibleManuals) {
+      // A manual for an art already at the cap is reported rather than eaten,
+      // so the screen never shows a find that changed nothing.
+      const took = studyManual(character, art.id)
+      studied.push({ art, rank: manualRank(character, art.id), wasted: !took })
+    }
+
     // One expedition is enough teaching. Coaching that keeps firing after the
     // player has understood the game stops being help and becomes noise they
     // have no way to dismiss mid-fight.
@@ -711,6 +798,8 @@ async function boot(): Promise<void> {
       raised,
       duplicates,
       forfeited,
+      studied,
+      manualsLost,
     }
   }
 
@@ -749,6 +838,7 @@ async function boot(): Promise<void> {
         // here is secured whether the player then leaves or pushes on. See
         // settleFound in meta/character.ts for the whole rule this feeds.
         securedFindCount = foundThisRun.length
+        securedManualCount = manualsThisRun.length
         ui.showGate(
           tier,
           () => {
@@ -839,6 +929,7 @@ async function boot(): Promise<void> {
         events,
         depth: effectiveDepth(),
         owned: ownedThisRun,
+        manualPool: manualPool(),
       },
       dt,
     )

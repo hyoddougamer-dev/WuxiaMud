@@ -22,7 +22,7 @@ import {
 } from './character'
 import { ITEMS, MAX_RANK } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
-import { ARTS, EQUIPPED_ARTS } from '../data/arts'
+import { ARTS, EQUIPPED_ARTS, MAX_MANUAL_RANK } from '../data/arts'
 import { WEAPONS } from '../data/weapons'
 import {
   acquire,
@@ -162,6 +162,25 @@ function parseArts(value: unknown): Record<string, string[]> {
   return out
 }
 
+/**
+ * Manuals studied, per art id, from whatever the save happens to hold.
+ *
+ * Filtered against the real art table for the same reason the carried arts are:
+ * an id that no longer exists would sit in the record forever, invisible and
+ * unusable. Ranks are clamped rather than rejected — a save claiming rank 99
+ * gets the cap, not a lost swordsman.
+ */
+function parseManuals(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (typeof value !== 'object' || value === null) return out
+  for (const [artId, rank] of Object.entries(value as Record<string, unknown>)) {
+    if (!ARTS.some((a) => a.id === artId)) continue
+    const n = int(rank, 0, 0, MAX_MANUAL_RANK)
+    if (n > 0) out[artId] = n
+  }
+  return out
+}
+
 export function parseCharacter(raw: string): Character | null {
   let value: unknown
   try {
@@ -197,6 +216,10 @@ export function parseCharacter(raw: string): Character | null {
     points: int(record.points, 0),
     spent: parseAttributes(record.spent),
     arts: parseArts(record.arts),
+    // Absent in every save written before manuals existed, which reads as an
+    // empty record — and an empty record is exactly "every art starts at grade
+    // one", which is how those saves already played.
+    manuals: parseManuals(record.manuals),
     depth: int(record.depth, 1, 1, MAX_DEPTH),
     runs: int(record.runs, 0),
     bestSeconds: int(record.bestSeconds, 0),

@@ -4,15 +4,19 @@ import { Rng } from '../src/core/rng'
 import {
   ATTRIBUTES,
   type Attributes,
+  artStartLevel,
   createCharacter,
   emptyAttributes,
   grantXp,
+  manualRank,
   recordRun,
   rewardFor,
   settleFound,
   spendPoint,
+  studyManual,
   xpForCultivation,
 } from '../src/meta/character'
+import { MAX_MANUAL_RANK } from '../src/data/arts'
 import {
   MAX_DEPTH,
   REGIONS,
@@ -156,15 +160,42 @@ describe('cultivation curve', () => {
     }
   })
 
-  it('lets an early expedition pay for more than one level', () => {
-    // The opening levels must arrive fast enough that a first-time player sees
+  it('closes the loop on a first expedition — a level, and a point to spend', () => {
+    // The opening level must arrive fast enough that a first-time player sees
     // the loop close — set out, die, gain, spend — inside one sitting. The
-    // input here is a measured headless first expedition, not a guess: the
-    // full-loop harness run scored 228.
+    // input here is a measured headless first expedition, not a guess.
+    //
+    // The bar is ONE level, not two. It was two while kills paid one for one,
+    // and that was the inflation: the same measured run used to buy three
+    // levels on the easiest road. One level plus visible progress on the next
+    // bar is what closing the loop actually needs — see `rewardFor`.
     const c = createCharacter()
     const gain = grantXp(c, rewardFor({ kills: 96, seconds: 190, insight: 9, depth: 1 }).total)
-    expect(gain.levelsGained).toBeGreaterThanOrEqual(2)
-    expect(gain.pointsGained).toBeGreaterThanOrEqual(2)
+    expect(gain.levelsGained).toBeGreaterThanOrEqual(1)
+    expect(gain.pointsGained).toBeGreaterThanOrEqual(1)
+  })
+
+  it('never lets grinding the shallow road out-earn a real descent', () => {
+    // The regression this guards is measured, not hypothetical. With kills paid
+    // one for one, a 634-kill sweep of the safest region paid 744 XP — four
+    // levels — while a 159-kill descent into the Ghost Market paid 562. The
+    // easiest ground in the game was the fastest ladder, which makes every
+    // deeper region decoration.
+    const shallowGrind = rewardFor({ kills: 634, seconds: 222, insight: 5.5, depth: 1 })
+    const realDescent = rewardFor({ kills: 159, seconds: 39, insight: 6, depth: 4 })
+    expect(realDescent.total).toBeGreaterThan(shallowGrind.total)
+  })
+
+  it('pays a mid-game expedition around half a level, as the design claims', () => {
+    // The doc note on xpForCultivation promises "roughly half a level" for a
+    // strong deep run. It was six times that before kills went on a curve, and
+    // nothing checked. Now something does.
+    const c = createCharacter()
+    c.level = 6
+    const before = xpForCultivation(c.level)
+    const strongDeepRun = rewardFor({ kills: 159, seconds: 39, insight: 6, depth: 4 }).total
+    expect(strongDeepRun / before).toBeGreaterThan(0.25)
+    expect(strongDeepRun / before).toBeLessThan(1)
   })
 
   it('slows to roughly a level per expedition by the mid game', () => {
@@ -219,11 +250,23 @@ describe('cultivation curve', () => {
 
 describe('expedition reward', () => {
   it('itemises into terms that add up', () => {
+    // Kills are paid on a square root now — 5·√40 ≈ 32 — so the three rows on
+    // the end screen still sum to the total the player is credited.
     const reward = rewardFor({ kills: 40, seconds: 120, insight: 5, depth: 1 })
-    expect(reward.kills).toBe(40)
-    expect(reward.time).toBe(40)
-    expect(reward.insight).toBe(32)
-    expect(reward.total).toBe(112)
+    expect(reward.kills).toBe(32)
+    expect(reward.time).toBe(20)
+    expect(reward.insight).toBe(16)
+    expect(reward.total).toBe(68)
+  })
+
+  it('pays the hundredth kill far less than the first', () => {
+    // The property, stated directly rather than left implicit in a constant:
+    // ten times the corpses must not mean ten times the cultivation, or the
+    // rift's own kill counts turn into level inflation all over again.
+    const few = rewardFor({ kills: 10, seconds: 0, insight: 1, depth: 1 }).total
+    const many = rewardFor({ kills: 1000, seconds: 0, insight: 1, depth: 1 }).total
+    expect(many).toBeGreaterThan(few)
+    expect(many).toBeLessThan(few * 15)
   })
 
   it('pays for surviving even when nothing was killed', () => {
@@ -1390,5 +1433,66 @@ describe('what a death actually keeps', () => {
         for (const f of out) expect(finds).toContain(f)
       }
     }
+  })
+})
+
+
+describe('秘笈 on the swordsman', () => {
+  it('reads an unstudied art as rank zero rather than undefined', () => {
+    const c = createCharacter()
+    expect(manualRank(c, 'jian-point')).toBe(0)
+    expect(artStartLevel(c, 'jian-point')).toBe(1)
+  })
+
+  it('raises the art one grade per manual, and says so', () => {
+    const c = createCharacter()
+    expect(studyManual(c, 'jian-point')).toBe(true)
+    expect(manualRank(c, 'jian-point')).toBe(1)
+    expect(artStartLevel(c, 'jian-point')).toBe(2)
+  })
+
+  it('refuses a manual for an art already mastered, instead of eating it', () => {
+    // A find that silently changes nothing is the loot equivalent of a
+    // level-up that grants no point. The caller needs to be able to say so.
+    const c = createCharacter()
+    for (let i = 0; i < MAX_MANUAL_RANK; i++) expect(studyManual(c, 'jian-point')).toBe(true)
+    expect(studyManual(c, 'jian-point')).toBe(false)
+    expect(manualRank(c, 'jian-point')).toBe(MAX_MANUAL_RANK)
+  })
+
+  it('keeps manuals for one art from touching another', () => {
+    const c = createCharacter()
+    studyManual(c, 'jian-point')
+    expect(manualRank(c, 'spear-thrust')).toBe(0)
+  })
+
+  it('survives a save written before manuals existed', () => {
+    // The migration that matters: a real save from the shipped build has no
+    // `manuals` key at all, and must come back as a playable swordsman whose
+    // arts simply start at grade one.
+    const before = createCharacter('Wei Zilan')
+    const record = JSON.parse(serialiseCharacter(before)) as Record<string, unknown>
+    delete record.manuals
+    const after = parseCharacter(JSON.stringify(record))
+    expect(after).not.toBeNull()
+    expect(after!.manuals).toEqual({})
+    expect(artStartLevel(after!, 'jian-point')).toBe(1)
+  })
+
+  it('round-trips studied manuals through a save', () => {
+    const c = createCharacter()
+    studyManual(c, 'jian-point')
+    studyManual(c, 'jian-point')
+    const back = parseCharacter(serialiseCharacter(c))
+    expect(manualRank(back!, 'jian-point')).toBe(2)
+  })
+
+  it('clamps a tampered or corrupted rank rather than trusting it', () => {
+    const c = createCharacter()
+    const record = JSON.parse(serialiseCharacter(c)) as Record<string, unknown>
+    record.manuals = { 'jian-point': 999, 'no-such-art': 2 }
+    const back = parseCharacter(JSON.stringify(record))
+    expect(manualRank(back!, 'jian-point')).toBe(MAX_MANUAL_RANK)
+    expect(back!.manuals['no-such-art']).toBeUndefined()
   })
 })
