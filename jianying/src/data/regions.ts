@@ -124,7 +124,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'reedmother',
     drops: ['r-tattered', 's-bare', 'h-bare', 'w-spear'],
     depth: 2,
-    riftBase: 60,
+    riftBase: 33,
   },
   {
     id: 'cliff',

@@ -5,6 +5,7 @@ import { BOSS_EVERY, ENEMY_KINDS, KIND_BY_ID, pickEnemyKind } from '../src/data/
 import { CHARGE_DASH, CHARGE_WINDUP, Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import { MAX_SPEED } from '../src/sim/player'
+import { deriveStats, emptyKit } from '../src/sim/loadout'
 
 const step = (swarm: Swarm, hazards: Hazards, elapsed: number, ticks: number, px = 0, py = 0) => {
   for (let i = 0; i < ticks; i++) swarm.update(px, py, elapsed, TICK_S, hazards)
@@ -217,5 +218,63 @@ describe('boss', () => {
     step(swarm, hazards, BOSS_EVERY, 300)
     // A ring means the answer is to move, not to face.
     expect(hazards.count).toBeGreaterThanOrEqual(6)
+  })
+})
+
+
+describe('the world has to be able to reach you', () => {
+  /**
+   * The bug this exists to make impossible again.
+   *
+   * Played on a device, the game read as "everything is OP, there is no
+   * challenge". The cause was one number nobody had ever compared: the player
+   * moves at 250, and the FASTEST thing in the entire roster was a boss at
+   * 170 — 0.68x. Every ordinary enemy sat between 0.09x and 0.47x. Walking in
+   * a straight line made the swordsman untouchable, so the only way to take
+   * damage was to choose to stand still.
+   *
+   * Worse, a previous pass had already "fixed" boss speed by raising bosses
+   * against EACH OTHER and never against the player, so they stayed
+   * un-catchable and the fix read as done. These tests compare against the
+   * player, which is the only comparison that decides whether there is a game.
+   */
+  const playerSpeed = (): number => deriveStats(new Map(), emptyKit()).moveSpeed
+
+  it('gives the darters something worth the name', () => {
+    // "darter — fast, fragile, arrives early" is the roster's own description.
+    // At 0.38x of the player it described nothing.
+    const darters = ENEMY_KINDS.filter((k) => k.behaviour === 'darter')
+    expect(darters.length).toBeGreaterThan(0)
+    for (const kind of darters) {
+      expect(kind.speed / playerSpeed()).toBeGreaterThan(0.8)
+    }
+  })
+
+  it('lets a boss close on a fleeing player', () => {
+    // A boss that can be walked away from is an optional boss — and the gate
+    // it guards is the spine of the progression now. The Reed Mother is the
+    // documented exception: her fight is about whether you can reach HER while
+    // wading, so she is allowed to be slow.
+    const bosses = ENEMY_KINDS.filter((k) => k.behaviour === 'boss' && k.id !== 'reedmother')
+    expect(bosses.length).toBeGreaterThan(0)
+    for (const kind of bosses) {
+      expect(kind.speed / playerSpeed()).toBeGreaterThan(0.85)
+    }
+  })
+
+  it('still lets a player outrun the ordinary horde', () => {
+    // The other half of the same rule. If the whole field matched the player,
+    // repositioning — the only verb this control scheme has — would stop
+    // working, and several arts fire on conditions like standing still.
+    const horde = ENEMY_KINDS.filter((k) => k.behaviour === 'chaser')
+    for (const kind of horde) {
+      expect(kind.speed / playerSpeed()).toBeLessThan(0.75)
+    }
+  })
+
+  it('never ships a roster nothing in which can catch the player', () => {
+    // The single assertion that would have caught the original bug.
+    const fastest = Math.max(...ENEMY_KINDS.map((k) => k.speed))
+    expect(fastest / playerSpeed()).toBeGreaterThan(0.85)
   })
 })
