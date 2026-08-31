@@ -78,6 +78,23 @@ export interface Region {
   readonly drops: readonly string[]
   /** Position in the world, and the difficulty step. 1-based. */
   readonly depth: number
+  /**
+   * Qi needed to fill this region's rift at tier 1 — see `riftTargetFor` in
+   * data/enemies.ts. MEASURED per region rather than one constant for all
+   * five: `tools/runLength.mts --calibrate` found the qi a clean run earns in
+   * five minutes, and a first pass set `riftBase` straight from that. It was
+   * wrong — that number is roughly what a build earns in its whole LIFE, so a
+   * boss calibrated to it arrives the instant before the player was already
+   * going to die, with no room left to actually fight it. The value here
+   * instead comes from `tools/runLength.mts`'s own binary search: the largest
+   * target at which an unequipped, mid-cultivation swordsman — the same floor
+   * every other balance tool in this project measures — clears the gate about
+   * half the time against the engaged pilot. A real player, with even one
+   * piece of gear from an earlier rift, should clear it more often than that;
+   * a build that only ever kites should almost never clear it at all, which is
+   * the point — see docs/CORRIDAS.md on why fleeing stopped being progress.
+   */
+  readonly riftBase: number
 }
 
 export const REGIONS: readonly Region[] = [
@@ -93,6 +110,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'roadtiger',
     drops: ['r-plain', 's-plain', 'h-topknot', 'w-jian', 'w-dao'],
     depth: 1,
+    riftBase: 547,
   },
   {
     id: 'marsh',
@@ -106,6 +124,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'reedmother',
     drops: ['r-tattered', 's-bare', 'h-bare', 'w-spear'],
     depth: 2,
+    riftBase: 60,
   },
   {
     id: 'cliff',
@@ -119,6 +138,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'cliffwarden',
     drops: ['r-travelling', 's-wide', 'h-hat', 'w-twin'],
     depth: 3,
+    riftBase: 16,
   },
   {
     id: 'market',
@@ -132,6 +152,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'papermaker',
     drops: ['r-court', 's-mantle', 'h-crown', 'w-fan'],
     depth: 4,
+    riftBase: 97,
   },
   {
     id: 'pass',
@@ -145,6 +166,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'warlord',
     drops: ['r-lamellar', 'r-layered', 's-pauldron', 'h-veiled', 'w-great'],
     depth: 5,
+    riftBase: 3,
   },
 ] as const
 

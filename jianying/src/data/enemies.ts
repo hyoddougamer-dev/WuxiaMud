@@ -81,8 +81,19 @@ export interface EnemyKind {
 /**
  * Speeds sit below the player's 250 on purpose. Enemies that outrun the player
  * remove the only defence a one-thumb game has — walking away — and the genre's
- * tension comes from being surrounded, not outpaced. The charger is the single
- * exception, and only for the second or so its dash lasts.
+ * tension comes from being surrounded, not outpaced. The charger is the one
+ * regular exception, and only for the second or so its dash lasts.
+ *
+ * BOSSES ARE A SECOND, DELIBERATE EXCEPTION, and the reason is measured rather
+ * than felt: at the low speeds every boss shipped with (22-62), a rift's own
+ * headless harness found one losing 38 of 960 health over three full minutes
+ * of continuous fighting — a kiting player simply never closes to strike range
+ * against something that much slower, and a boss that cannot be caught cannot
+ * be the end of a rift. Bosses now sit at 140-170: still well under 250, so
+ * outrunning ONE is still possible for a moment, but not forever — see
+ * `chooseAim` in sim/combat.ts, which is the other half of this fix. 母 Mother
+ * of Reeds stays at 22: her fight is explicitly about reaching her at all
+ * while wading, not about her reaching you.
  */
 export const ENEMY_KINDS: readonly EnemyKind[] = [
   {
@@ -184,8 +195,8 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     id: 'warlord',
     name: 'Warlord of the Pass',
     behaviour: 'boss',
-    hp: 1400,
-    speed: 56,
+    hp: 280,
+    speed: 160,
     damage: 22,
     radius: 30,
     unlockAt: 0,
@@ -220,8 +231,8 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     id: 'roadtiger',
     name: 'The Tiger Who Blocks the Road',
     behaviour: 'boss',
-    hp: 900,
-    speed: 62,
+    hp: 480,
+    speed: 170,
     damage: 18,
     radius: 26,
     unlockAt: 0,
@@ -267,7 +278,7 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     id: 'reedmother',
     name: 'Mother of Reeds',
     behaviour: 'boss',
-    hp: 1150,
+    hp: 400,
     // Barely moves. The fight is about whether you can reach her at all while
     // wading — which is exactly the marsh's own question, asked once, loudly.
     speed: 22,
@@ -314,8 +325,8 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     id: 'cliffwarden',
     name: 'Warden of the Broken Cliff',
     behaviour: 'boss',
-    hp: 1250,
-    speed: 48,
+    hp: 350,
+    speed: 150,
     damage: 19,
     radius: 28,
     unlockAt: 0,
@@ -364,8 +375,8 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
     id: 'papermaker',
     name: 'The Paper Maker',
     behaviour: 'boss',
-    hp: 1050,
-    speed: 44,
+    hp: 310,
+    speed: 140,
     damage: 17,
     radius: 27,
     unlockAt: 0,
@@ -416,14 +427,49 @@ export const KIND_BY_ID = new Map(ENEMY_KINDS.map((k) => [k.id, k]))
 export const MAX_ENEMIES = 420
 
 /**
- * Seconds between bosses. The first arrives at the first multiple.
+ * Seconds between bosses, under the OLD clock-driven trigger.
  *
- * Set against measured run lengths, not taste. At 180 the boss was simply
- * unreachable: headless runs end around 90s and even a good player was dying
- * before it appeared, so a fight that had been built and tested was content
- * nobody would ever see. The same measurement pulled every unlock earlier.
+ * Superseded by the rift: a boss now arrives when `RunState.riftValue` — qi
+ * earned by killing — reaches `RunState.riftTarget`, not when a clock reaches
+ * this many seconds. See `sim/combat.ts` and `riftTargetFor` below.
+ *
+ * Kept as a yardstick rather than deleted: `tools/runLength.mts` measures a
+ * rift's fill time IN SECONDS against this figure, because a rift that takes
+ * 38 seconds or 20 minutes to fill is the same defect the clock had, only
+ * wearing different clothes. A few tests also still spawn a boss on demand for
+ * a fixed elapsed time and check its behaviour, which has nothing to do with
+ * either trigger.
  */
 export const BOSS_EVERY = 115
+
+/**
+ * How much harder a rift gets each time the player pushes past its gate.
+ *
+ * Two dials, not one: health climbs faster than the spawn rate, because a
+ * denser field is fair (more targets, more qi, more room to move) while a
+ * field of bullet sponges is not — the same principle `depthHealthScale`
+ * states for regions. `tier` is 1 at the first floor of any rift.
+ */
+export function tierHealthScale(tier: number): number {
+  return 1 + Math.max(0, tier - 1) * 0.24
+}
+
+export function tierSpawnScale(tier: number): number {
+  return 1 + Math.max(0, tier - 1) * 0.1
+}
+
+/**
+ * How much qi a rift needs before its gate opens, at a given tier.
+ *
+ * A region's `riftBase` is measured, not guessed — see the header of
+ * `tools/runLength.mts` for the harness and `docs/CORRIDAS.md` for the
+ * numbers it produced. Growth per tier is gentler than the health curve on
+ * purpose: the gate is meant to keep arriving at roughly the pace a build can
+ * clear it, not to outrun the player's own growth.
+ */
+export function riftTargetFor(riftBase: number, tier: number): number {
+  return Math.round(riftBase * (1 + Math.max(0, tier - 1) * 0.32))
+}
 
 /**
  * Spawns per second at a given point in the run.

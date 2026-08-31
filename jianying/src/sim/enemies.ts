@@ -22,12 +22,13 @@ import {
 } from '../data/regions'
 import type { Hazards } from './hazards'
 import {
-  BOSS_EVERY,
   KIND_BY_ID,
   MAX_ENEMIES,
   type EnemyKind,
   healthScale,
   spawnRate,
+  tierHealthScale,
+  tierSpawnScale,
 } from '../data/enemies'
 
 /** Phases a charger passes through. */
@@ -110,10 +111,21 @@ export class Swarm {
   readonly grid = new SpatialGrid(GRID_CELL)
 
   private spawnCredit = 0
-  /** Index of the next boss wave, so each fires exactly once. */
-  private nextBoss = 1
+  /**
+   * Set by the simulation once `RunState.riftValue` crosses its target — see
+   * `sim/combat.ts`. The swarm no longer decides FOR ITSELF when a boss is
+   * due; it only knows how to place one once told. Consumed on the next
+   * `update()`, which is a one-frame lag nobody can feel at 60Hz.
+   */
+  private bossQueued = false
   /** True while a boss is alive; the ramp eases off during the fight. */
   bossAlive = false
+  /**
+   * How many gates this expedition has pushed past, at the CURRENT floor.
+   * 1 at the first floor of any rift. Read by `place()` and `update()` to
+   * scale health and spawn rate — see `tierHealthScale`/`tierSpawnScale`.
+   */
+  tier = 1
 
   /**
    * The place this expedition is walking.
@@ -188,14 +200,15 @@ export class Swarm {
    * seed, so re-running one seed must produce the same enemies in the same
    * order. Without this, only the first run after launch would reproduce.
    */
-  reset(seed: number, region: Region = this.region): void {
+  reset(seed: number, region: Region = this.region, tier = 1): void {
     this.pool.clear()
     this.grid.clear()
     this.spawnCredit = 0
-    this.nextBoss = 1
+    this.bossQueued = false
     this.bossAlive = false
     this.bossJustArrived = false
     this.region = region
+    this.tier = tier
     this.formationAngle = 0
     this.rng = new Rng(seed)
   }
@@ -205,6 +218,18 @@ export class Swarm {
     const arrived = this.bossJustArrived
     this.bossJustArrived = false
     return arrived
+  }
+
+  /**
+   * Asks for a boss to be placed on the next `update()`.
+   *
+   * Called by `sim/combat.ts` once a rift's gate opens. A no-op while one is
+   * already alive, so a bar that lingers at 100% for a frame or two — it can,
+   * since crossing the target and the boss actually landing are a frame apart
+   * — cannot double-book the fight.
+   */
+  queueBoss(): void {
+    if (!this.bossAlive) this.bossQueued = true
   }
 
   /** Places one enemy of `kind` at a world position. Returns it, or null. */
@@ -222,7 +247,7 @@ export class Swarm {
     e.prevX = x
     e.prevY = y
     e.kind = kind
-    e.maxHp = kind.hp * healthScale(elapsed) * depthHealthScale(this.depth)
+    e.maxHp = kind.hp * healthScale(elapsed) * depthHealthScale(this.depth) * tierHealthScale(this.tier)
     e.hp = e.maxHp
     e.hitFlash = 0
     e.orbitImmunity = 0
@@ -306,7 +331,8 @@ export class Swarm {
     if (period) this.formationAngle += ((Math.PI * 2) / period) * dt
 
     // --- boss schedule -------------------------------------------------
-    if (!this.bossAlive && elapsed >= this.nextBoss * BOSS_EVERY) {
+    // Placed the instant it is asked for, not on a clock — see `queueBoss`.
+    if (!this.bossAlive && this.bossQueued) {
       // Each region keeps its own, and each one asks that region's question.
       const boss = KIND_BY_ID.get(this.region.bossId) ?? KIND_BY_ID.get('warlord')!
       const a = this.rng.next() * Math.PI * 2
@@ -319,8 +345,11 @@ export class Swarm {
       if (placed) {
         this.bossAlive = true
         this.bossJustArrived = true
-        this.nextBoss++
+        this.bossQueued = false
       }
+      // Left true on failure (pool full) so the very next open slot fills it —
+      // a gate that silently never opens because the pool was momentarily
+      // full would be worse than one that opens a tick late.
     }
 
     // --- spawn ---------------------------------------------------------
@@ -328,7 +357,8 @@ export class Swarm {
     // rather than being rounded off every tick. The ramp eases during a boss
     // so the fight is legible instead of being buried under the usual flood.
     const rate =
-      spawnRate(elapsed) * depthSpawnScale(this.depth) * (this.bossAlive ? 0.45 : 1)
+      spawnRate(elapsed) * depthSpawnScale(this.depth) * tierSpawnScale(this.tier) *
+      (this.bossAlive ? 0.45 : 1)
     this.spawnCredit += rate * dt
     while (this.spawnCredit >= 1) {
       this.spawnCredit -= 1

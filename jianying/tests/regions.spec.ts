@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PILOTS, play } from '../tools/runLength.mts'
 import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { ENEMY_KINDS, KIND_BY_ID } from '../src/data/enemies'
@@ -352,7 +353,7 @@ describe('each region fields its own roster', () => {
     const hazards = new Hazards()
     for (const r of REGIONS) {
       const swarm = new Swarm(new Rng(2), r)
-      // One tick past the boss timer is enough to place it.
+      swarm.queueBoss()
       swarm.update(0, 0, 10_000, TICK_S, hazards)
       expect(swarm.bossAlive, r.name).toBe(true)
 
@@ -363,4 +364,31 @@ describe('each region fields its own roster', () => {
       expect(found, r.name).toBe(r.bossId)
     }
   })
+})
+
+describe('the rift, at every region', () => {
+  it('clears at least a third of the time for an unequipped mid-cultivation swordsman', () => {
+    // `riftBase` in data/regions.ts is calibrated to this exact number by
+    // `tools/runLength.mts --calibrate` — this pins the floor so a change to
+    // the roster, the ramp, or a boss's own numbers that quietly breaks a
+    // region fails CI instead of surfacing as "the Pass never clears" three
+    // sessions later. The threshold sits BELOW the calibration target (0.5)
+    // so ordinary seed variance does not make this flaky.
+    const duel = PILOTS[1]![1]
+    for (const region of REGIONS) {
+      const r = play(region.id, duel, region.riftBase)
+      expect(r.cleared, region.name).toBeGreaterThanOrEqual(0.32)
+    }
+  }, 20000)
+
+  it('almost never clears for a swordsman who only ever kites', () => {
+    // The whole point of feeding the bar with kills instead of a clock: a
+    // build that never fights should not be able to finish a rift. Pure
+    // evasion is allowed the rare accident (Cliff's wind can shove a kiting
+    // player into contact) but never a habit.
+    const kite = PILOTS[0]![1]
+    let cleared = 0
+    for (const region of REGIONS) cleared += play(region.id, kite, region.riftBase).cleared
+    expect(cleared / REGIONS.length).toBeLessThan(0.15)
+  }, 20000)
 })

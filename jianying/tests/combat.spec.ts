@@ -271,3 +271,154 @@ describe('combat', () => {
     expect(first(b)).not.toBeCloseTo(first(a), 3)
   })
 })
+
+/**
+ * A trivially overwhelming build, for the rift tests below.
+ *
+ * Those tests are about the STATE MACHINE — does crossing the target queue a
+ * boss, does killing it clear the gate, does pushing carry the build forward —
+ * not about whether a naked swordsman can win a boss fight. `BASE_STATS` is
+ * exactly a naked swordsman, and against it a boss died of old age: the run
+ * timed out on `healthScale` before the fight ever finished, which is a
+ * balance fact about bosses and says nothing about the wiring under test.
+ */
+const OVERWHELMING_STATS = {
+  ...BASE_STATS,
+  // Strong enough to clear the ordinary field fast and eventually fell the
+  // boss too, but not a one-hit kill — the boss stays up for a real stretch
+  // (measured: ~10s at this multiplier), which is what lets the tests below
+  // observe "queued and alive" as a state distinct from "cleared".
+  slashDamage: BASE_STATS.slashDamage * 15,
+  slashRange: BASE_STATS.slashRange * 2,
+}
+
+describe('the rift', () => {
+  /**
+   * Runs until either the gate opens or the run ends, without spending
+   * anything on level-ups. Distinct from `play` above because that helper
+   * clears `pendingLevelUps` every tick and has no reason to know about a
+   * gate — these tests are the ones that need to SEE it.
+   */
+  function playToGate(
+    sim: Sim,
+    ceilingSeconds: number,
+    input: (t: number) => [number, number],
+    stats = BASE_STATS,
+    /**
+     * An extra, real stopping condition beyond "over" and "cleared" — used to
+     * catch the simulation the instant the boss appears, rather than guessing
+     * a ceiling in seconds that would need re-tuning every time `chooseAim` or
+     * a boss's own numbers change.
+     */
+    stopWhen?: (sim: Sim) => boolean,
+  ): void {
+    const ticks = Math.round(ceilingSeconds / TICK_S)
+    for (let i = 0; i < ticks; i++) {
+      if (sim.run.over || sim.run.gateCleared || stopWhen?.(sim)) break
+      const [ix, iy] = input(sim.run.elapsed)
+      updatePlayer(sim.player, ix, iy, TICK_S)
+      sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S, sim.hazards)
+      sim.run.pendingLevelUps = 0
+      updateCombat(
+        {
+          run: sim.run,
+          player: sim.player,
+          swarm: sim.swarm,
+          motes: sim.motes,
+          bolts: sim.bolts,
+          hazards: sim.hazards,
+          stats,
+          rng: sim.rng,
+        },
+        TICK_S,
+      )
+    }
+  }
+
+  it('never queues a boss while the target is left at its default', () => {
+    // createRun() leaves riftTarget at Infinity — the harnesses that do not
+    // care about a rift (artsBalance.mts, most of this file) must see the old
+    // behaviour: kills accumulate somewhere, but nothing ever arrives for it.
+    const sim = newSim()
+    playToGate(sim, 300, SKIRMISH)
+    expect(sim.run.riftValue).toBeGreaterThan(0)
+    expect(sim.swarm.bossAlive).toBe(false)
+    expect(sim.run.gateCleared).toBe(false)
+  })
+
+  it('queues a boss once the target is reached, and clears the gate once it falls', () => {
+    const sim = newSim()
+    // Low enough that ordinary kills reach it quickly, so the test does not
+    // need minutes of simulated combat to prove the wiring.
+    sim.run.riftTarget = 40
+    // Stop the instant the boss is alive — before either of them has had a
+    // chance to land a blow — so "queued and alive" is caught as a real,
+    // observable state distinct from "cleared", without guessing a ceiling in
+    // seconds that combat tuning could silently invalidate.
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS, (s) => s.swarm.bossAlive)
+    expect(sim.run.riftValue).toBeGreaterThanOrEqual(sim.run.riftTarget)
+    expect(sim.swarm.bossAlive).toBe(true)
+    expect(sim.run.gateCleared).toBe(false)
+
+    // Keep fighting until the boss itself falls.
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS)
+    expect(sim.run.gateCleared).toBe(true)
+    expect(sim.swarm.bossAlive).toBe(false)
+  })
+
+  it('freezes the world once the gate is cleared, like a pending level-up', () => {
+    const sim = newSim()
+    sim.run.riftTarget = 40
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS)
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS)
+    expect(sim.run.gateCleared).toBe(true)
+
+    const elapsedAt = sim.run.elapsed
+    const killsAt = sim.run.kills
+    updateCombat(
+      {
+        run: sim.run,
+        player: sim.player,
+        swarm: sim.swarm,
+        motes: sim.motes,
+        bolts: sim.bolts,
+        hazards: sim.hazards,
+        stats: OVERWHELMING_STATS,
+        rng: sim.rng,
+      },
+      TICK_S,
+    )
+    expect(sim.run.elapsed).toBe(elapsedAt)
+    expect(sim.run.kills).toBe(killsAt)
+  })
+
+  it('lets a caller push to a harder floor without ending the run', () => {
+    // The shape `main.ts` uses on "push": reset the bar, raise the tier, keep
+    // the same swordsman — everything that makes a floor a FLOOR rather than a
+    // fresh expedition.
+    const sim = newSim()
+    sim.run.riftTarget = 40
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS)
+    playToGate(sim, 300, SKIRMISH, OVERWHELMING_STATS)
+    expect(sim.run.gateCleared).toBe(true)
+    const killsBeforePush = sim.run.kills
+
+    sim.run.gateCleared = false
+    sim.run.riftValue = 0
+    sim.run.riftTarget = 40
+    sim.swarm.reset(9999, sim.swarm.region, 2)
+    expect(sim.swarm.tier).toBe(2)
+    // What HP a push carries forward is a real design question this test does
+    // not answer — it only proves the STATE MACHINE — so it stands the
+    // swordsman back up rather than asserting an unmade rule.
+    sim.run.hp = OVERWHELMING_STATS.maxHp
+
+    // A longer ceiling than the first floor: `run.elapsed` kept accruing
+    // through the first fight, and `healthScale` reads it, so this boss is
+    // tankier for two compounding reasons — the tier multiplier AND the clock
+    // — not because pushing broke anything.
+    playToGate(sim, 600, SKIRMISH, OVERWHELMING_STATS)
+    expect(sim.run.kills).toBeGreaterThan(killsBeforePush)
+    expect(sim.run.gateCleared).toBe(true)
+  })
+})

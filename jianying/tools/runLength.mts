@@ -1,27 +1,32 @@
 /**
- * How long a corrida actually lasts, and what the player gets out of it.
+ * How long a rift actually takes to fill, and what the player gets out of it.
  *
  *   npx tsx tools/runLength.mts
  *
  * The plan this game was written from promised expeditions of 8 to 15 minutes.
  * Nothing ever measured one, and the first measurement is the reason this file
- * exists: a mid-game swordsman lasts a hundred and thirty seconds on the
- * EASIEST region and under a minute on the deep ones. The run is a third of the
- * length it was designed for, and it dies before its own boss has landed twice.
+ * exists: a mid-game swordsman lasted a hundred and thirty seconds on the
+ * EASIEST region and under a minute on the deep ones, dying before its own
+ * boss had landed twice — a run a third of the length it was designed for.
  *
- * That is not a balance nit. It decides what a corrida IS — how many 感悟 fit
- * inside one, whether a build ever finishes forming, whether a boss can be the
- * end of anything. So it gets a permanent instrument rather than a one-off
- * script, and the target it measures against is written down here where it can
- * be argued with:
+ * That measurement is also why the corrida is a RIFT now rather than a clock.
+ * A gate timed to the clock — 4:30, say — meant four of the five regions could
+ * never once meet their own boss, because their runs simply did not last that
+ * long. A bar fed by KILLS is a distance instead of a clock, and a distance
+ * self-adjusts: the Pass is dense, so its bar fills fast even though runs
+ * there are short. See `RunState.riftValue` in sim/combat.ts and
+ * docs/CORRIDAS.md for the reasoning in full.
  *
- *   LENGTH   ~5 minutes to fill one rift. NOT a timed gate — see
- *            docs/CORRIDAS.md for why a bar fed by kills beat a clock — but a
- *            rift that takes 38 seconds or 20 minutes to fill is the same
- *            defect wearing different clothes, so the clock stays the yardstick.
- *   INSIGHT  16 感悟 by the gate, which is exactly what four arts need to reach
- *            grade five. Finishing the rift finishes the build.
- *   BOSS     reached, once, at the end of the bar rather than every 115 seconds.
+ * This file does two jobs now:
+ *
+ *   MEASURE   how long a rift takes to fill and clear at each region's
+ *             CURRENT `riftBase` (data/regions.ts), against the same yardstick
+ *             the old clock used — a few minutes, not a few seconds.
+ *   CALIBRATE with `--calibrate`, estimate a `riftBase` for every region from
+ *             a clean run (target left at Infinity) and print it, so a change
+ *             to the roster or the ramp can be re-measured rather than
+ *             re-guessed. The value it prints is what belongs in
+ *             data/regions.ts.
  *
  * Two pilots for the same reason `artsBalance.mts` has two: kite never stands
  * still and duel never stops turning, and a single one of them decides the
@@ -31,7 +36,6 @@ import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { REGIONS } from '../src/data/regions'
 import { WEAPONS } from '../src/data/weapons'
-import { BOSS_EVERY } from '../src/data/enemies'
 import { createPlayer, updatePlayer } from '../src/sim/player'
 import { Swarm } from '../src/sim/enemies'
 import { Motes } from '../src/sim/pickups'
@@ -52,7 +56,7 @@ const CEILING = 1200
 
 /** What a finished build costs, in 感悟. Four arts, grade one to five. */
 export const INSIGHT_TO_FINISH = EQUIPPED_ARTS * (MAX_ART_LEVEL - 1)
-/** Roughly how long one rift should take to fill. */
+/** Roughly how long one rift should take to fill and clear. */
 export const TARGET_SECONDS = 300
 
 export type Pilot = (t: number) => [number, number]
@@ -74,13 +78,23 @@ export interface Row {
   secs: number
   insight: number
   kills: number
-  /** Bosses whose arrival the player actually lived to see. */
-  bosses: number
+  /** True once averaged: how often the gate actually opened within CEILING. */
+  cleared: number
+  /** Qi earned by the ceiling — the number `--calibrate` turns into riftBase. */
+  qiAtCeiling: number
 }
 
-export function play(regionId: string, fly: Pilot): Row {
+/**
+ * Plays one region with one pilot, `SEEDS.length` times, and averages.
+ *
+ * `riftTarget`, when finite, is what `RunState.riftTarget` is set to before
+ * play starts — this is what lets the same function both measure a calibrated
+ * region (pass its `riftBase`) and calibrate an uncalibrated one (pass
+ * `Infinity` and read `qiAtCeiling` back out).
+ */
+export function play(regionId: string, fly: Pilot, riftTarget: number): Row {
   const region = REGIONS.find((r) => r.id === regionId)!
-  const out: Row = { secs: 0, insight: 0, kills: 0, bosses: 0 }
+  const out: Row = { secs: 0, insight: 0, kills: 0, cleared: 0, qiAtCeiling: 0 }
 
   for (const seed of SEEDS) {
     const weapon = WEAPONS[0]!
@@ -94,6 +108,7 @@ export function play(regionId: string, fly: Pilot): Row {
     const live = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
+    run.riftTarget = riftTarget
     const sense = createSense()
     const progress = beginProgress(equippedIds({}, weapon.id))
     const rule = region.rule
@@ -102,7 +117,7 @@ export function play(regionId: string, fly: Pilot): Row {
     let t = 0
 
     for (let i = 0; i < Math.round(CEILING / TICK_S); i++) {
-      if (run.over) break
+      if (run.over || run.gateCleared) break
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
@@ -148,43 +163,77 @@ export function play(regionId: string, fly: Pilot): Row {
     out.secs += run.elapsed
     out.insight += insight
     out.kills += run.kills
-    out.bosses += Math.floor(run.elapsed / BOSS_EVERY)
+    out.cleared += run.gateCleared ? 1 : 0
+    out.qiAtCeiling += run.riftValue
   }
   const n = SEEDS.length
-  return { secs: out.secs / n, insight: out.insight / n, kills: out.kills / n, bosses: out.bosses / n }
+  return {
+    secs: out.secs / n,
+    insight: out.insight / n,
+    kills: out.kills / n,
+    cleared: out.cleared / n,
+    qiAtCeiling: out.qiAtCeiling / n,
+  }
 }
 
 // Printing is guarded so `docs/corridas` can IMPORT this file and measure with
 // the same code the table prints. A figure drawn from remembered numbers is a
 // figure that goes stale the first time the ramp is touched.
 if (process.argv[1]?.endsWith('runLength.mts')) {
+  const calibrating = process.argv.includes('--calibrate')
+
+  if (calibrating) {
+    console.log(
+      `Calibrando riftBase. ${SEEDS.length} seeds, espadachim a meio, ${TARGET_SECONDS}s sem alvo — ` +
+        `o 感悟 acumulado nesse tempo é o valor a pôr em data/regions.ts.\n`,
+    )
+    console.log('região              感悟/kite  感悟/duel  riftBase sugerido (média)')
+    for (const region of REGIONS) {
+      const kite = play(region.id, PILOTS[0]![1], Infinity)
+      const duel = play(region.id, PILOTS[1]![1], Infinity)
+      // Capped at TARGET_SECONDS worth of qi even if the harness ran past it —
+      // `qiAtCeiling` is read at whichever came first, `run.over` or the loop
+      // ceiling, and a build that never dies would otherwise keep accumulating
+      // past the window this is meant to measure.
+      const suggested = Math.round((kite.qiAtCeiling + duel.qiAtCeiling) / 2)
+      console.log(
+        `${region.name.padEnd(18)} ${kite.qiAtCeiling.toFixed(0).padStart(9)} ` +
+          `${duel.qiAtCeiling.toFixed(0).padStart(10)}  ${String(suggested).padStart(8)}` +
+          `   riftBase: ${suggested},`,
+      )
+    }
+    process.exit(0)
+  }
+
   console.log(
-    `A corrida, medida. ${SEEDS.length} seeds, espadachim a meio (${Object.entries(SPENT)
+    `A fenda, medida. ${SEEDS.length} seeds, espadachim a meio (${Object.entries(SPENT)
       .filter(([, v]) => v)
       .map(([k, v]) => `${k} ${v}`)
       .join(' ')}), sem equipamento.\n` +
-      `Alvo: ${TARGET_SECONDS}s até ao portão, ${INSIGHT_TO_FINISH} 感悟 lá chegado, um chefe.\n`,
+      `Alvo: ${TARGET_SECONDS}s para encher e limpar, ${INSIGHT_TO_FINISH} 感悟 lá chegado, um chefe.\n`,
   )
 
   for (const [name, fly] of PILOTS) {
     console.log(`piloto "${name}"`)
-    console.log('  região              secs   感悟   kills   chefes   até ao alvo')
+    console.log('  região              secs   感悟   kills   limpou?   até ao alvo')
     for (const region of REGIONS) {
-      const r = play(region.id, fly)
+      const r = play(region.id, fly, region.riftBase)
       const share = (r.secs / TARGET_SECONDS) * 100
       console.log(
         `  ${region.name.padEnd(18)} ${r.secs.toFixed(0).padStart(4)} ` +
           `${r.insight.toFixed(1).padStart(6)} ${r.kills.toFixed(0).padStart(7)} ` +
-          `${r.bosses.toFixed(1).padStart(8)}   ${share.toFixed(0).padStart(3)}%`,
+          `${(r.cleared * 100).toFixed(0).padStart(6)}%   ${share.toFixed(0).padStart(3)}%`,
       )
     }
     console.log()
   }
 
   console.log(
-    'Uma corrida que acaba antes do seu próprio chefe não tem forma nenhuma: não\n' +
-      'tem princípio, meio nem fim, só um contador que pára. E uma build de quatro\n' +
-      `artes precisa de ${INSIGHT_TO_FINISH} 感悟 para ficar feita — abaixo disso o jogador nunca\n` +
-      'chega a ver aquilo que escolheu na aba 法.',
+    'Uma fenda que nunca limpa não tem forma nenhuma: não tem princípio, meio\n' +
+      'nem fim, só um contador que pára. E uma build de quatro artes precisa de\n' +
+      `${INSIGHT_TO_FINISH} 感悟 para ficar feita — abaixo disso o jogador nunca chega a ver\n` +
+      'aquilo que escolheu na aba 法.\n\n' +
+      'Para recalibrar riftBase depois de mexer no roster ou na rampa:\n' +
+      '  npx tsx tools/runLength.mts --calibrate',
   )
 }

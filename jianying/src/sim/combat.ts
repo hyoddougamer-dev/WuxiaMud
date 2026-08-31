@@ -144,6 +144,32 @@ export interface RunState {
   killedBy: string | null
 
   over: boolean
+
+  // --- the rift ---------------------------------------------------------
+  /**
+   * Qi earned by killing, at the current floor. The gate — the fight — opens
+   * once this reaches `riftTarget`. Reset to 0 on every push to a new floor.
+   *
+   * Fed by killing rather than by survival time on purpose: the old boss
+   * timer measured how long the player had lasted, which rewarded running
+   * away from a build that never got to act. A bar fed by kills cannot be
+   * outrun — see docs/CORRIDAS.md for the measurement that forced the change.
+   */
+  riftValue: number
+  /**
+   * Qi needed to open the current floor's gate. Left at `Infinity` by
+   * `createRun` — a caller that never sets it (the balance harnesses, mostly)
+   * gets the old behaviour of no boss ever queuing, for free.
+   */
+  riftTarget: number
+  /**
+   * True from the instant the floor's boss falls until the caller resolves
+   * the choice — bank what was earned, or push to a harder floor carrying the
+   * same build. Freezes the world exactly like `pendingLevelUps`: the player
+   * is choosing, and a crowd closing in while they read the screen would be
+   * indefensible.
+   */
+  gateCleared: boolean
 }
 
 /** `firstSweep` delays the opening sweep by the equipped weapon's interval. */
@@ -177,6 +203,9 @@ export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
     lastHurtBy: null,
     killedBy: null,
     over: false,
+    riftValue: 0,
+    riftTarget: Infinity,
+    gateCleared: false,
   }
 }
 
@@ -205,6 +234,18 @@ function angleBetween(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /**
+ * How far a boss pulls the blade's attention, once one is up.
+ *
+ * Deliberately CLOSE to striking distance rather than to search range. A first
+ * attempt set this to 1.6× TARGET_SEARCH_RANGE and made things worse: the
+ * blade would lock onto a boss still 300 units off and stay there, missing
+ * every nearby chaser while closing the gap — sweeps that used to at least
+ * clear the crowd around the player now hit nothing at all. A boss should win
+ * the aim once the fight is actually reachable, not the moment it exists.
+ */
+const BOSS_FOCUS_RANGE = 190
+
+/**
  * Points the blade at the closest enemy, falling back to the direction of
  * travel when the field is clear.
  *
@@ -212,8 +253,21 @@ function angleBetween(ax: number, ay: number, bx: number, by: number): number {
  * with the simulation: enemies chase, so they sit BEHIND a moving player, and
  * a forward-facing arc swept empty ground. Headless runs scored zero kills
  * across every style except standing perfectly still.
+ *
+ * A BOSS IS PREFERRED OVER ANYTHING NEARER, once it is within reach. Without
+ * this a boss standing in its own crowd is nearly unkillable: "nearest enemy"
+ * keeps re-targeting whichever regular chaser has just pressed closest, and a
+ * headless measurement of the rift found a boss losing 38 of 960 health over
+ * three full minutes of continuous fighting — the swarm around it was
+ * absorbing every sweep. A boss fight is meant to be the moment the blade
+ * commits to one target; "nearest" was quietly refusing to let it.
  */
 function chooseAim(run: RunState, player: Player, swarm: Swarm): void {
+  let bossDist = BOSS_FOCUS_RANGE * BOSS_FOCUS_RANGE
+  let bossX = 0
+  let bossY = 0
+  let bossFound = false
+
   let bestDist = TARGET_SEARCH_RANGE * TARGET_SEARCH_RANGE
   let bestX = 0
   let bestY = 0
@@ -224,6 +278,15 @@ function chooseAim(run: RunState, player: Player, swarm: Swarm): void {
     const dx = e.x - player.x
     const dy = e.y - player.y
     const d2 = dx * dx + dy * dy
+    if (e.kind.behaviour === 'boss') {
+      if (d2 < bossDist) {
+        bossDist = d2
+        bossX = dx
+        bossY = dy
+        bossFound = true
+      }
+      continue
+    }
     if (d2 < bestDist) {
       bestDist = d2
       bestX = dx
@@ -232,7 +295,11 @@ function chooseAim(run: RunState, player: Player, swarm: Swarm): void {
     }
   }
 
-  if (found) {
+  if (bossFound) {
+    const d = Math.sqrt(bossDist) || 1
+    run.aimX = bossX / d
+    run.aimY = bossY / d
+  } else if (found) {
     const d = Math.sqrt(bestDist) || 1
     run.aimX = bestX / d
     run.aimY = bestY / d
@@ -305,6 +372,17 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
     if (item) ctx.events.drop(e.x, e.y, item.id)
   }
 
+  // The rift's bar, fed by the same qi that already drops as motes — a kill is
+  // worth what it was already worth, read a second way. Every kill counts,
+  // splinters included: a splinter is worth less because ITS kind carries less
+  // qi, which is already proportional without a special case here.
+  ctx.run.riftValue += e.kind.qi
+  // The gate opens on the BOSS falling, not on the bar crossing its target a
+  // swing or two earlier — crossing the target only queues the boss (see
+  // updateCombat below). Reaching the number is not the fight; killing what it
+  // summoned is.
+  if (boss) ctx.run.gateCleared = true
+
   // Splitting happens before the corpse is released, since it reads the
   // position that release would recycle.
   ctx.swarm.splitOnDeath(e, ctx.run.elapsed)
@@ -316,9 +394,10 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number): boolean
 /** Advances one tick of combat. */
 export function updateCombat(ctx: CombatContext, dt: number): void {
   const { run, player, swarm, stats } = ctx
-  // A pending level-up freezes the world: the player is choosing, and enemies
-  // walking into them while a menu is open would be indefensible.
-  if (run.over || run.pendingLevelUps > 0) return
+  // A pending level-up or a cleared gate freezes the world: the player is
+  // choosing, and enemies walking into them while a menu is open would be
+  // indefensible.
+  if (run.over || run.pendingLevelUps > 0 || run.gateCleared) return
 
   run.elapsed += dt
   if (run.immunity > 0) run.immunity = Math.max(0, run.immunity - dt)
@@ -523,5 +602,14 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
         break
       }
     }
+  }
+
+  // --- the gate ----------------------------------------------------------
+  // Crossing the target QUEUES the boss; it does not open the gate by itself
+  // — `damageEnemy` sets `gateCleared` only once that boss actually falls. The
+  // one-frame lag before `swarm.update()` next runs and places it is the same
+  // lag `applyArts` already accepts elsewhere in this codebase.
+  if (!run.gateCleared && !swarm.bossAlive && run.riftValue >= run.riftTarget) {
+    swarm.queueBoss()
   }
 }

@@ -155,9 +155,22 @@ describe('splitter', () => {
 })
 
 describe('boss', () => {
-  it('arrives on schedule and only once', () => {
+  it('never arrives on a clock alone — only once queued', () => {
+    // The rift replaced the clock: a boss now has to be ASKED for. A long
+    // headless run with nobody ever calling queueBoss() must stay clean, or
+    // the balance harnesses would be measuring a fight they never asked for.
     const swarm = new Swarm(new Rng(2))
     const hazards = new Hazards()
+    // A fixed, late elapsed — the exact value that used to trigger a boss
+    // outright under the old clock — held for a couple of thousand ticks.
+    step(swarm, hazards, BOSS_EVERY * 5, 2000)
+    expect(swarm.bossAlive).toBe(false)
+  })
+
+  it('arrives once queued, and only once', () => {
+    const swarm = new Swarm(new Rng(2))
+    const hazards = new Hazards()
+    swarm.queueBoss()
     swarm.update(0, 0, BOSS_EVERY, TICK_S, hazards)
     expect(swarm.bossAlive).toBe(true)
 
@@ -178,6 +191,7 @@ describe('boss', () => {
   it('clears the flag when killed, so the next one can come', () => {
     const swarm = new Swarm(new Rng(2))
     const hazards = new Hazards()
+    swarm.queueBoss()
     swarm.update(0, 0, BOSS_EVERY, TICK_S, hazards)
     for (let i = swarm.count - 1; i >= 0; i--) {
       if (swarm.pool.at(i).kind.behaviour === 'boss') swarm.kill(i)
@@ -189,6 +203,7 @@ describe('boss', () => {
     // A boss recycled for distance would simply vanish mid-fight.
     const swarm = new Swarm(new Rng(2))
     const hazards = new Hazards()
+    swarm.queueBoss()
     swarm.update(0, 0, BOSS_EVERY, TICK_S, hazards)
     step(swarm, hazards, BOSS_EVERY, 120, 2000, 2000)
     expect(swarm.bossAlive).toBe(true)
@@ -197,6 +212,7 @@ describe('boss', () => {
   it('fires a ring rather than a single aimed shot', () => {
     const swarm = new Swarm(new Rng(2))
     const hazards = new Hazards()
+    swarm.queueBoss()
     swarm.update(0, 0, BOSS_EVERY, TICK_S, hazards)
     step(swarm, hazards, BOSS_EVERY, 300)
     // A ring means the answer is to move, not to face.

@@ -85,7 +85,7 @@ const heading = (s: string): void => {
 // ===========================================================================
 const measured = new Map<string, Row[]>()
 for (const region of REGIONS) {
-  measured.set(region.id, PILOTS.map(([, fly]) => play(region.id, fly)))
+  measured.set(region.id, PILOTS.map(([, fly]) => play(region.id, fly, region.riftBase)))
 }
 /** The kinder of the two pilots, since the argument should use the best case. */
 const best = (id: string): Row =>
