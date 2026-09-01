@@ -188,19 +188,28 @@ export const STARTING_ITEMS: readonly string[] = ['r-plain', 's-plain', 'h-topkn
 /**
  * Chance that felling an enemy drops something, at a given depth.
  *
- * RAISED, and the reason is a design change rather than generosity. While the
- * arts grew during a run, loot was a reward you read on the way out — a drop or
- * two an expedition was plenty, and more only made the end screen a wall. Loot
- * is now the progression DURING the run as well: the purple sword you find at
- * the halfway mark is what makes minute eight play differently from minute one,
- * and at two finds an expedition that beat almost never lands.
+ * TUNED DOWN, twice now, and the second time by measuring rather than by feel.
  *
- * Measured against a real expedition of ~200 kills: roughly six or seven finds,
- * most of them grey. The ladder does the work of keeping a find special — see
- * data/rarity.ts — rather than the drop rate doing it by starving the player.
+ * It was raised sharply when loot became the in-run progression: the purple
+ * sword at the halfway mark was meant to be what made minute eight differ from
+ * minute one, and at two finds an expedition that beat almost never landed.
+ * That justification is gone — a piece is no longer worn during the run (see
+ * main.ts), so a find is once again something read on the way out, and the
+ * quantity that made the mid-run beat likely just makes the end screen a wall.
+ *
+ * A playtest reported it as too high, so it was measured against the real kill
+ * counts tools/runLength.mts produces rather than adjusted by taste:
+ *
+ *   region              kills   old      new
+ *   The Post Road         264   7.9      3.3   (+1 from the boss)
+ *   The Reed Marsh        107   3.6      1.6
+ *   The Ghost Market      105   4.4      2.0
+ *
+ * Three or four finds on a long expedition, most of them grey. What keeps a
+ * find special is the ladder — see data/rarity.ts — not starving the player.
  */
 export function dropChance(depth: number): number {
-  return 0.03 + Math.max(0, depth - 1) * 0.004
+  return 0.0125 + Math.max(0, depth - 1) * 0.0022
 }
 
 /** The bases that can drop at `depth`. */

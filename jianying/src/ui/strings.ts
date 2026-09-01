@@ -145,10 +145,6 @@ export const strings = {
   wasNotBanked: 'not banked',
 
   // --- 器蕴, the arts as read off the gear --------------------------------
-  /** Banner when a piece is put on mid-run and wakes another art. */
-  artWoke: 'an art wakes',
-  /** Banner when a piece is put on mid-run without waking one. */
-  wornNow: 'worn',
   /** Banner on a level-up. 内力 is flat power, never an art. See applyMight. */
   mightGained: 'Inner force deepens',
   /** Headings on the 法 tab, which now reads the gear rather than a ladder. */

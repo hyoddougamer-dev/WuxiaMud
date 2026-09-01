@@ -15,7 +15,7 @@
 import { ART_BY_ID, MAX_ART_LEVEL, type Art } from '../data/arts'
 import type { CarriedArt } from '../sim/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
-import { conditionIconSvg, effectIconSvg } from '../render/packIcons'
+import { conditionIconSvg, effectIconSvg, itemIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
 import { ITEM_BY_ID } from '../data/items'
 import type { OwnedItem } from '../meta/inventory'
@@ -135,9 +135,15 @@ export function createHud(root: HTMLElement): Hud {
         <div class="over-seal">终</div>
         <div class="over-title">${strings.runOver}</div>
         <div class="over-cause"></div>
+        <!-- The run in two numbers, large. These are what the player actually
+             did; everything below is what it converted into. -->
         <div class="over-rows">
-          <div><span>${strings.survived}</span><b class="over-time">0:00</b></div>
-          <div><span>${strings.felled}</span><b class="over-kills">0</b></div>
+          <div class="over-stat">
+            <b class="over-time">0:00</b><span>${strings.survived}</span>
+          </div>
+          <div class="over-stat">
+            <b class="over-kills">0</b><span>${strings.felled}</span>
+          </div>
         </div>
         <div class="over-reward"></div>
         <button class="over-again" type="button">${strings.toHub}</button>
@@ -212,10 +218,6 @@ export function createHud(root: HTMLElement): Hud {
     pushHandler = null
     handler?.()
   })
-
-  /** One itemised line on the reward breakdown. */
-  const row = (label: string, value: string, cls = ''): string =>
-    `<div class="rw ${cls}"><span>${label}</span><b>${value}</b></div>`
 
   return {
     update(hp, maxHp, elapsed, kills, xp, xpNeeded, insight) {
@@ -352,17 +354,30 @@ export function createHud(root: HTMLElement): Hud {
       overCause.hidden = !summary.killedBy
 
       const { reward, gain } = summary
-      let html = `<div class="rw-head">${strings.cultivationGained}</div>`
-      html += row(strings.fromKills, `+${reward.kills}`)
-      html += row(strings.fromTime, `+${reward.time}`)
-      if (reward.insight > 0) html += row(strings.fromInsight, `+${reward.insight}`)
+
+      // THE CONVERSION, AS A HEADLINE AND A RECEIPT — not four more rows.
+      //
+      // A playtest called this screen "a shopping list, only text", and it was
+      // right: seven label/value rows of identical weight, so nothing led and
+      // the eye had nowhere to land. What a player wants in the first second is
+      // ONE number — what the expedition was worth — and only then where it
+      // came from. So the total is the headline and the breakdown is a strip of
+      // small chips beneath it, which says the same thing in a third of the
+      // height and can be skipped entirely.
+      let html = `<div class="rw-total-block">
+        <b class="rw-total-n">${reward.total}</b>
+        <span class="rw-total-label">${strings.cultivationGained}</span>
+      </div>`
+      const chip = (label: string, value: string): string =>
+        `<span class="rw-chip"><i>${value}</i>${label}</span>`
+      html += '<div class="rw-chips">'
+      html += chip(strings.fromKills, `+${reward.kills}`)
+      html += chip(strings.fromTime, `+${reward.time}`)
+      if (reward.insight > 0) html += chip(strings.fromInsight, `+${reward.insight}`)
       if (reward.depthBonus > 1) {
-        html += row(
-          `${strings.fromDepth} · ${regionAt(summary.depth).name}`,
-          `×${reward.depthBonus.toFixed(1)}`,
-        )
+        html += chip(regionAt(summary.depth).name, `×${reward.depthBonus.toFixed(1)}`)
       }
-      html += row(strings.total, `${reward.total}`, 'rw-total')
+      html += '</div>'
 
       if (gain.levelsGained > 0) {
         html += `<div class="rw-gain">${strings.levelReached} ${summary.level}</div>`
@@ -382,29 +397,46 @@ export function createHud(root: HTMLElement): Hud {
         }</div>`
       }
 
-      // Loot last, because it is the part worth scrolling for. Each row is
-      // coloured by its rung and carries its best line, so the screen can be
-      // skimmed for the one thing worth opening the pack for.
+      /**
+       * One find, as a card rather than a line of text.
+       *
+       * The icon is the same one the pack and the ground mark use, so a piece
+       * is recognisable in all three places without reading its name; the
+       * border is its rung, which is the one property worth seeing from across
+       * the screen. `lost` desaturates it and strikes the name: the whole point
+       * of the death stake is that it is FELT, and a loss rendered as a grey
+       * line of text is not felt.
+       */
+      const lootCard = (entry: Found, lost: boolean): string => {
+        const base = ITEM_BY_ID.get(entry.baseId)
+        if (!base) return ''
+        const tier = rarityOf(entry.rarity)
+        const name = base.slot === 'weapon' ? weaponById(base.styleId).name : base.name
+        const lines = entry.affixes
+          .map((a) => `<span class="loot-line">${affixLine(a)}</span>`)
+          .join('')
+        const power = entry.power ? `<span class="loot-power">${entry.power}</span>` : ''
+        return (
+          `<div class="loot${lost ? ' loot-lost' : ''}" style="--rung:${tier.css}">` +
+          `<div class="loot-icon">${itemIconSvg(base.slot, base.styleId, palette.ink, 0.75, 'loot-svg')}</div>` +
+          `<div class="loot-body">` +
+          `<span class="loot-name">${tier.seal} ${name}</span>` +
+          `<div class="loot-lines">${lines}${power}</div>` +
+          `</div></div>`
+        )
+      }
+
+      // Loot last, because it is the part worth scrolling for.
       if (summary.kept.length > 0) {
         html += `<div class="rw-head rw-found">${strings.found}</div>`
-        for (const entry of summary.kept) {
-          const base = ITEM_BY_ID.get(entry.baseId)
-          if (!base) continue
-          const tier = rarityOf(entry.rarity)
-          const name =
-            base.slot === 'weapon' ? weaponById(base.styleId).name : base.name
-          const line = entry.affixes[0] ? affixLine(entry.affixes[0]) : ''
-          const more = entry.affixes.length > 1 ? ` +${entry.affixes.length - 1}` : ''
-          html +=
-            `<div class="loot" style="border-left-color:${tier.css}">` +
-            `<span style="color:${tier.css}">${tier.seal} ${name}</span>` +
-            `<b>${line}${more}</b></div>`
-        }
+        html += `<div class="loot-grid">`
+        for (const entry of summary.kept) html += lootCard(entry, false)
+        html += `</div>`
       }
       if (summary.noRoom > 0) {
         // A find the pack could not hold is still a find that happened, and
         // saying nothing would look like the game had simply not dropped it.
-        html += `<div class="loot loot-dupe"><span>${strings.packWasFull}</span><b>×${summary.noRoom}</b></div>`
+        html += `<div class="rw-note">${strings.packWasFull} · ×${summary.noRoom}</div>`
       }
       // Forfeited last of all, and named — the whole point of the stake is
       // that it is felt, and a loss the player cannot see is not a stake, it
@@ -412,14 +444,9 @@ export function createHud(root: HTMLElement): Hud {
       // leaves it empty.
       if (summary.forfeited.length > 0) {
         html += `<div class="rw-head rw-lost">${strings.lostToDeath}</div>`
-        for (const entry of summary.forfeited) {
-          const base = ITEM_BY_ID.get(entry.baseId)
-          if (!base) continue
-          const tier = rarityOf(entry.rarity)
-          html +=
-            `<div class="loot loot-lost"><span>${tier.seal} ${base.name}</span>` +
-            `<b>${strings.wasNotBanked}</b></div>`
-        }
+        html += `<div class="loot-grid">`
+        for (const entry of summary.forfeited) html += lootCard(entry, true)
+        html += `</div>`
       }
       overReward.innerHTML = html
 

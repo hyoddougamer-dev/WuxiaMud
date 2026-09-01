@@ -1,0 +1,47 @@
+{
+  "artboards": [
+    { "file": "Bordas.dc.html", "x": 0, "y": 0, "w": 460, "h": 700, "title": "A linguagem das bordas" },
+    { "file": "Main.dc.html", "x": 600, "y": 0, "w": 390, "h": 844, "title": "A · Boneco e mochila" },
+    { "file": "OpcaoB.dc.html", "x": 1110, "y": 0, "w": 390, "h": 844, "title": "B · Grelha densa" },
+    { "file": "OpcaoC.dc.html", "x": 1620, "y": 0, "w": 390, "h": 844, "title": "C · Por slot, o vestido em cima" },
+    { "file": "Ficha.dc.html", "x": 2130, "y": 0, "w": 390, "h": 844, "title": "A ficha do item (nas três)" }
+  ],
+  "annotations": [
+    {
+      "id": "leia-primeiro",
+      "x": 0,
+      "y": -190,
+      "w": 460,
+      "text": "Começa pela esquerda: a linguagem das bordas é comum às três propostas.\nDepois A, B e C são o MESMO inventário desenhado de três maneiras — escolhe uma.\nA ficha do item (à direita) serve as três: é o que abre quando tocas numa peça."
+    },
+    {
+      "id": "opcao-a",
+      "x": 600,
+      "y": -190,
+      "w": 390,
+      "text": "A · BONECO E MOCHILA\nO que trazes vestido ocupa o topo, à volta da figura, com o nome e as linhas legíveis. Em baixo, a mochila em grelha de 4.\n\nA favor: vês num relance o que tens posto e o que tens guardado. É o inventário que toda a gente já sabe usar.\nContra: o topo come 226px, por isso só vês 5 filas da mochila."
+    },
+    {
+      "id": "opcao-b",
+      "x": 1110,
+      "y": -190,
+      "w": 390,
+      "text": "B · GRELHA DENSA\nO vestido reduz-se a quatro fichas pequenas; a mochila é uma grelha de 5 com filtros por slot.\n\nA favor: vês 15 peças de uma vez em vez de 8 — a mochila de 24 cabe em duas telas. Os filtros resolvem 'quero ver só armas'.\nContra: sem o nome à vista, uma peça é só um ícone e uma cor. Exige tocar para saber."
+    },
+    {
+      "id": "opcao-c",
+      "x": 1620,
+      "y": -190,
+      "w": 390,
+      "text": "C · POR SLOT, O VESTIDO EM CIMA\nQuatro secções. Em cada, a peça equipada em grande e as candidatas ao lado — cada uma já a dizer o que MUDA (▲ +2 artes, ▼ −2 artes).\n\nA favor: é o único dos três que responde à pergunta real — 'isto é melhor?' — sem abrir nada.\nContra: mais alto, e uma peça que não serve nenhum slot equipado não tem onde viver."
+    },
+    {
+      "id": "ficha",
+      "x": 2130,
+      "y": -190,
+      "w": 390,
+      "text": "A FICHA DO ITEM\nSobe de baixo, com a mochila esbatida atrás para não perderes o sítio.\n\nAs linhas roladas com o delta contra o que trazes (verde/vermelho). O poder com nome, quando existe. E — o que falta hoje — o que a peça muda nas ARTES, que é a consequência que uma linha de stats não consegue dizer."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

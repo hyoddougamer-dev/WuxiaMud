@@ -550,13 +550,30 @@ describe('the item table, as bases', () => {
     }
   })
 
-  it('drops often enough that loot can BE the in-run progression', () => {
-    // The rate was raised deliberately when loot replaced the in-run art ramp:
-    // at two finds an expedition, "the purple sword you find at the halfway
-    // mark" almost never happens, and that beat is the whole design.
-    const perRun = dropChance(3) * 200
-    expect(perRun).toBeGreaterThan(4)
-    expect(perRun).toBeLessThan(12)
+  it('pays a long expedition a handful of finds, not a bagful', () => {
+    // REPLACED, not retuned, because its premise died. This test used to
+    // assert the rate was HIGH — "loot can BE the in-run progression" — which
+    // was true while a find better than what you carried went on where it fell.
+    // A playtest reversed that: nothing is worn during a run any more (see the
+    // pickup handler in main.ts), so a find is once again read on the way out,
+    // and the quantity that made a mid-run swap likely just fills the end
+    // screen with grey.
+    //
+    // The bounds below are the two failures that actually matter, one on each
+    // side. Under three on the longest run and an expedition can end with
+    // nothing to look at; over six and the pack (24) fills in four runs and the
+    // end screen becomes a list nobody reads.
+    const longRun = dropChance(1) * 264 // The Post Road, measured by runLength.mts
+    expect(longRun).toBeGreaterThan(3)
+    expect(longRun).toBeLessThan(6)
+  })
+
+  it('never lets deeper ground pay worse per kill than shallow ground', () => {
+    // The tilt has been retuned twice. Both times the shape had to survive:
+    // deeper is a better place to hunt, or choosing it is a punishment.
+    for (let depth = 2; depth <= MAX_DEPTH; depth++) {
+      expect(dropChance(depth), `depth ${depth}`).toBeGreaterThan(dropChance(depth - 1))
+    }
   })
 })
 

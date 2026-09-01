@@ -180,25 +180,15 @@ async function boot(): Promise<void> {
    * something, and read once at the start of an expedition.
    */
   /**
-   * Pieces put on DURING the expedition, by walking over something better.
+   * What is worn in a slot.
    *
-   * Run-local on purpose, and this is the one thing that made the whole design
-   * work. A find has to be wearable the moment it lands — that is the beat the
-   * in-run art treadmill was standing in for, and it is what makes minute eight
-   * differ from minute one now. But equipping it for real would mean writing to
-   * `character.inventory` mid-run, and everything found since the last gate is
-   * still at risk of a death (see settleFound). A piece you were wearing when
-   * you died, that a death then takes, would leave the inventory quietly
-   * disagreeing with itself.
-   *
-   * So the run wears it, the character does not. `settleExpedition` puts on
-   * whatever actually survived, under exactly the rules that already existed.
+   * A thin wrapper over the inventory, and it stays a wrapper rather than being
+   * inlined at its four call sites because it briefly was not one: for three
+   * commits a find better than what you carried went on where it fell, and this
+   * function layered that run-local choice over the saved one. That reversed on
+   * a playtest — see the pickup handler — and what is left is the plain read.
    */
-  let runWorn = new Map<Slot, Found>()
-
-  /** What is actually in a slot right now: the run's find, else what is worn. */
-  const inSlot = (slot: Slot): Found | OwnedItem | null =>
-    runWorn.get(slot) ?? equippedIn(character.inventory, slot) ?? null
+  const inSlot = (slot: Slot): OwnedItem | null => equippedIn(character.inventory, slot) ?? null
 
   const currentKit = (): Kit => {
     const school = schoolById(character.origin)
@@ -695,7 +685,6 @@ async function boot(): Promise<void> {
     foundThisRun = []
     drops.clear()
     onGround.clear()
-    runWorn = new Map()
     taughtArts = new Set()
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
     securedFindCount = 0
@@ -813,23 +802,16 @@ async function boot(): Promise<void> {
       kept.push(found)
     }
     kept.sort((a, b) => b.rarity - a.rarity)
-    // Anything WORN during the run is put on for real, now that it has survived
-    // the settle. The run wore it out of `runWorn`, which the character never
-    // saw — see that declaration. Doing it here rather than at pickup is what
-    // keeps the death rule honest: a piece a death takes was never equipped, so
-    // the inventory can never end up pointing at a uid it no longer holds.
+    // Anything for an EMPTY slot goes straight on, and nothing else does.
+    //
+    // Making a player visit the hub to equip their very first weapon would be
+    // ceremony for its own sake. Beyond that the choice is theirs: a rung is
+    // the game's opinion of better, and quietly acting on it is what the
+    // mid-run auto-equip was doing wrong.
     for (const found of kept) {
       const slot = slotOfFind(found) as Slot
-      if (!slot) continue
-      // Empty slot, or worn during the run and survived. The first case is what
-      // stops a player having to visit the hub to equip their very first
-      // weapon; the second is what stops the run's own build evaporating on the
-      // walk home.
-      if (!character.inventory.equipped[slot] || runWorn.get(slot)?.uid === found.uid) {
-        equip(character.inventory, found.uid)
-      }
+      if (slot && !character.inventory.equipped[slot]) equip(character.inventory, found.uid)
     }
-    runWorn = new Map()
 
     // One expedition is enough teaching. Coaching that keeps firing after the
     // player has understood the game stops being help and becomes noise they
@@ -1001,36 +983,31 @@ async function boot(): Promise<void> {
       const base = baseOf(found)
       floaters.found(player.x, player.y)
       if (!base) continue
-      // WORN ON THE SPOT if it is a better rung than what is in that slot.
+      // NOT WORN. A find goes into the pack and is dealt with at the end.
       //
-      // This is the beat the in-run art treadmill was standing in for, and it
-      // is the reason a survivors-like still works without one: the purple
-      // sword lands at minute six, you cross to it, and a fourth art wakes
-      // mid-fight because the blade in your hand changed. A find that only
-      // mattered on the walk home would be a find that happened to somebody
-      // else.
+      // This reverses a decision made three commits ago, on the player's own
+      // report, and the trade is worth writing down because it is a real one.
       //
-      // STRICTLY better, so a tie changes nothing. Equal-rung churn would
-      // reshuffle the build every thirty seconds for no gain the player asked
-      // for — and on a weapon that means the whole scroll swapping under them.
-      const slot = base.slot
-      if (found.rarity > (inSlot(slot)?.rarity ?? -1)) {
-        const before = carried.length
-        runWorn.set(slot, found)
-        kit = currentKit()
-        const beforeMax = stats.maxHp
-        refreshKit()
-        // Health follows the ceiling a better robe raises, for the same reason
-        // a level's does: the bar must never appear to shrink on good news.
-        run.hp += Math.max(0, stats.maxHp - beforeMax)
-        // The silhouette IS the equipment here, so a piece put on mid-fight
-        // has to redraw the swordsman or the player would be told they were
-        // wearing something the figure denies.
-        rebuildFigure()
-        banners.show(base.name, 'gold', carried.length > before ? strings.artWoke : strings.wornNow)
-      } else {
-        banners.show(base.name, found.rarity >= 3 ? 'gold' : 'plain', rarityOf(found.rarity).name)
-      }
+      // The idea was that a piece better than what you carry went on where it
+      // fell: cross the field to the purple sword at minute six and a fourth
+      // art wakes mid-fight. That is a good beat, and it is what made minute
+      // eight differ from minute one once the arts stopped growing during a
+      // run. It measured well and it verified in a browser.
+      //
+      // It is still wrong, for a reason no measurement reaches. The game was
+      // making a build decision on the player's behalf, silently, in the middle
+      // of a fight — swapping the WEAPON meant the whole scroll of arts changed
+      // under a thumb already busy. "Better rung" is the game's opinion of
+      // better, not the player's: a 良 fan with the wrong lines is not an
+      // upgrade over a 凡 jian you built a ranking around. An automatic
+      // improvement you did not ask for is indistinguishable from the game
+      // playing itself, which is the complaint this whole rework started from.
+      //
+      // What replaces the beat is not nothing — the run still grows through
+      // 内力, and the expedition still ends in a real decision at the gate. If
+      // the mid-run change comes back it should come back as a CHOICE, offered
+      // where the game already stops and asks one.
+      banners.show(base.name, found.rarity >= 3 ? 'gold' : 'plain', rarityOf(found.rarity).name)
     }
     updateCombat(
       {

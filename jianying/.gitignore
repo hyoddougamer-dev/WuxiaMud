@@ -6,8 +6,8 @@ shots/
 # canvas editor around the artboards, and is regenerated from design/*.dc.html
 # plus design/canvas.json whenever a mockup changes, so only the sources are
 # worth versioning.
-design/*.html
-!design/*.dc.html
+design/**/*.html
+!design/**/*.dc.html
 *.local
 .DS_Store
 
