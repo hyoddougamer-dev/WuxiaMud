@@ -29,6 +29,7 @@ import {
   hasNamedPower,
   rarityOdds,
   rarityOf,
+  rarityStyle,
   rollRarity,
   type Rarity,
 } from '../src/data/rarity'
@@ -250,5 +251,52 @@ describe('named powers', () => {
 
   it('keeps every rarity tier addressable by id', () => {
     for (const tier of RARITIES) expect(rarityOf(tier.id).seal).toBe(tier.seal)
+  })
+})
+
+describe('how loudly a card is drawn', () => {
+  /**
+   * The ladder a playtest asked for: "as bordas deviam ter mais impacto
+   * consoante o grau". Hue alone was doing the whole job, so 凡 and 仙 were the
+   * same 3px edge in different colours — six shades, not six steps. These pin
+   * the shape of the replacement, because a ladder tuned by eye in a stylesheet
+   * is a ladder that goes non-monotone the first time someone adjusts one row.
+   */
+  it('rises on every channel, at every step', () => {
+    for (let i = 1; i < RARITIES.length; i++) {
+      const lower = RARITIES[i - 1]!.card
+      const upper = RARITIES[i]!.card
+      expect(upper.edge, `edge ${i}`).toBeGreaterThan(lower.edge)
+      expect(upper.wash, `wash ${i}`).toBeGreaterThanOrEqual(lower.wash)
+      expect(upper.glow, `glow ${i}`).toBeGreaterThanOrEqual(lower.glow)
+      expect(upper.weight, `weight ${i}`).toBeGreaterThanOrEqual(lower.weight)
+    }
+  })
+
+  it('leaves the common rung a real border and nothing else', () => {
+    // A common piece is a new player's first upgrade, so it must stay
+    // FINDABLE — but it must not glow, or the loud rungs stop being loud.
+    const common = RARITIES[0]!.card
+    expect(common.edge).toBeGreaterThan(0)
+    expect(common.wash).toBe(0)
+    expect(common.glow).toBe(0)
+  })
+
+  it('keeps the glow for the top three, so most of what drops stays quiet', () => {
+    // 宝 and above is roughly one drop in twenty at depth one. If the glow
+    // started lower it would be on most cards, which is the same as nowhere.
+    const glowing = RARITIES.filter((t) => t.card.glow > 0).map((t) => t.id)
+    expect(glowing).toEqual([3, 4, 5])
+  })
+
+  it('hands every channel to the DOM in one string, so no surface gets half', () => {
+    const style = rarityStyle(rarityOf(5))
+    for (const key of ['--rung:', '--rung-rgb:', '--rung-edge:', '--rung-wash:', '--rung-glow:', '--rung-weight:']) {
+      expect(style, key).toContain(key)
+    }
+    // The rgb triple has to match the packed colour, or the wash and the
+    // border would be two different reds.
+    expect(style).toContain('--rung-rgb:193,39,45')
+    expect(style).toContain('--rung:#c1272d')
   })
 })

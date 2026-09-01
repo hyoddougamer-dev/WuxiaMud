@@ -50,7 +50,7 @@ import {
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
 import { POWER_BY_ID, affixLine } from '../data/affixes'
-import { rarityOf } from '../data/rarity'
+import { rarityOf, rarityStyle } from '../data/rarity'
 import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import {
@@ -246,8 +246,9 @@ export function createHub(
     card.type = 'button'
     card.className = 'item' + (worn ? ' item-worn' : '')
     // The rung is the loudest thing on the card, because it is what a player
-    // reads first and what tells them whether to read the rest at all.
-    card.style.borderLeftColor = tier.css
+    // reads first and what tells them whether to read the rest at all — and it
+    // is loud in three channels now, not only in hue. See rarityStyle.
+    card.setAttribute('style', rarityStyle(tier))
     // A weapon shows how it PLAYS rather than a line, because that is what
     // changes when you equip it — a number on a spear describes the least
     // interesting thing about picking up a spear.
@@ -258,7 +259,7 @@ export function createHub(
     const power = entry.power ? POWER_BY_ID.get(entry.power) : null
     card.innerHTML = `
       ${itemIconSvg(slot, item.styleId, palette.ink, worn ? 0.9 : 0.5, 'item-icon')}
-      <div class="item-name" style="color:${tier.css}">
+      <div class="item-name">
         <span class="item-seal">${tier.seal}</span> ${escapeHtml(item.name)}
       </div>
       <div class="item-line">${escapeHtml(line)}</div>

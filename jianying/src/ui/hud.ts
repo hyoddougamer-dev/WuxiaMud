@@ -20,7 +20,7 @@ import { palette } from '../render/palette'
 import { ITEM_BY_ID } from '../data/items'
 import type { OwnedItem } from '../meta/inventory'
 import { affixLine } from '../data/affixes'
-import { rarityOf } from '../data/rarity'
+import { rarityOf, rarityStyle } from '../data/rarity'
 import { weaponById } from '../data/weapons'
 import type { LevelGain, Reward } from '../meta/character'
 import { regionAt } from '../data/regions'
@@ -417,7 +417,7 @@ export function createHud(root: HTMLElement): Hud {
           .join('')
         const power = entry.power ? `<span class="loot-power">${entry.power}</span>` : ''
         return (
-          `<div class="loot${lost ? ' loot-lost' : ''}" style="--rung:${tier.css}">` +
+          `<div class="loot${lost ? ' loot-lost' : ''}" style="${rarityStyle(tier)}">` +
           `<div class="loot-icon">${itemIconSvg(base.slot, base.styleId, palette.ink, 0.75, 'loot-svg')}</div>` +
           `<div class="loot-body">` +
           `<span class="loot-name">${tier.seal} ${name}</span>` +

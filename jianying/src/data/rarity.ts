@@ -59,6 +59,37 @@ export interface RarityTier {
    * sees purple in their first ten minutes has been robbed of the moment.
    */
   readonly weight: number
+  /**
+   * How loudly a CARD for this rung is drawn: border, wash, glow.
+   *
+   * Hue alone was doing all of this, and a playtest called it: 凡 and 仙 were
+   * the same 3px edge in a different colour, so the ladder read as six shades
+   * rather than as six steps — and grey on aged paper is barely a line at all.
+   * Escalating three channels together is what makes a 仙 land as an EVENT
+   * without needing the player to have learned which hue outranks which.
+   *
+   * The numbers are here, beside the colour, rather than in the stylesheet
+   * because three surfaces read them — the pack, the reward screen, and the
+   * mockups — and a ladder defined three times is a ladder that drifts.
+   *
+   * THE WASH IS THE RESTRAINED CHANNEL, and a screenshot is what set it. The
+   * first pass ran it to 0.18 and the top three cards became flat blocks of
+   * colour — legible, loud, and wrong for a game drawn as ink on paper. The
+   * weight moved into the EDGE and the GLOW instead: a thick stroke and a halo
+   * are seal-and-brush gestures, a colour field is not.
+   */
+  readonly card: CardWeight
+}
+
+export interface CardWeight {
+  /** Border thickness, px. */
+  readonly edge: number
+  /** Alpha of the rung-tinted background wash. 0 leaves the card plain. */
+  readonly wash: number
+  /** Alpha of the outer glow. 0 means none — the bottom half gets no glow. */
+  readonly glow: number
+  /** Font weight for the name. The top rungs read as heavier, not just redder. */
+  readonly weight: number
 }
 
 export const RARITIES: readonly RarityTier[] = [
@@ -67,12 +98,22 @@ export const RARITIES: readonly RarityTier[] = [
   // an expedition, the first pass put a divine at one piece in forty-five runs
   // — a colour most players would never meet. These land it near one in a
   // dozen at depth three, which is still an event.
-  { id: 0, seal: '凡', name: 'Common', colour: 0x6b6459, css: '#6b6459', affixes: 1, potency: 1, weight: 620 },
-  { id: 1, seal: '良', name: 'Fine', colour: 0x3f6b46, css: '#3f6b46', affixes: 2, potency: 1.06, weight: 240 },
-  { id: 2, seal: '珍', name: 'Rare', colour: 0x2f5d8a, css: '#2f5d8a', affixes: 3, potency: 1.14, weight: 100 },
-  { id: 3, seal: '宝', name: 'Precious', colour: 0x6b3f8a, css: '#6b3f8a', affixes: 4, potency: 1.26, weight: 34 },
-  { id: 4, seal: '神', name: 'Divine', colour: 0x8a6d16, css: '#8a6d16', affixes: 4, potency: 1.42, weight: 13 },
-  { id: 5, seal: '仙', name: 'Immortal', colour: 0xc1272d, css: '#c1272d', affixes: 4, potency: 1.62, weight: 3 },
+  // The `card` ladder: every channel rises, none of them jumps. A 凡 keeps a
+  // real border — it must stay findable, it is a new player's first upgrade —
+  // and gains nothing else; the glow starts only at 宝, so three quarters of
+  // what drops stays quiet and the loud ones stay loud.
+  { id: 0, seal: '凡', name: 'Common', colour: 0x6b6459, css: '#6b6459', affixes: 1, potency: 1, weight: 620,
+    card: { edge: 2, wash: 0, glow: 0, weight: 500 } },
+  { id: 1, seal: '良', name: 'Fine', colour: 0x3f6b46, css: '#3f6b46', affixes: 2, potency: 1.06, weight: 240,
+    card: { edge: 3, wash: 0.05, glow: 0, weight: 600 } },
+  { id: 2, seal: '珍', name: 'Rare', colour: 0x2f5d8a, css: '#2f5d8a', affixes: 3, potency: 1.14, weight: 100,
+    card: { edge: 4, wash: 0.07, glow: 0, weight: 600 } },
+  { id: 3, seal: '宝', name: 'Precious', colour: 0x6b3f8a, css: '#6b3f8a', affixes: 4, potency: 1.26, weight: 34,
+    card: { edge: 5, wash: 0.09, glow: 0.16, weight: 700 } },
+  { id: 4, seal: '神', name: 'Divine', colour: 0x8a6d16, css: '#8a6d16', affixes: 4, potency: 1.42, weight: 13,
+    card: { edge: 6, wash: 0.11, glow: 0.26, weight: 700 } },
+  { id: 5, seal: '仙', name: 'Immortal', colour: 0xc1272d, css: '#c1272d', affixes: 4, potency: 1.62, weight: 3,
+    card: { edge: 7, wash: 0.13, glow: 0.38, weight: 800 } },
 ] as const
 
 export const RARITY_BY_ID = new Map(RARITIES.map((r) => [r.id, r]))
@@ -155,4 +196,21 @@ export function rarityOdds(depth: number, luck = 1): number[] {
   const weights = weightsAt(depth, luck)
   const total = weights.reduce((a, b) => a + b, 0)
   return weights.map((w) => w / total)
+}
+
+/**
+ * The CSS custom properties a card for this rung needs, as one string.
+ *
+ * Returned as a style attribute value rather than as an object so that every
+ * surface that draws a card — the pack, the reward screen — sets the ladder
+ * the same way and cannot pick up half of it. The stylesheet does the rest;
+ * see `.item` and `.loot` in index.html.
+ */
+export function rarityStyle(tier: RarityTier): string {
+  const rgb = `${(tier.colour >> 16) & 0xff},${(tier.colour >> 8) & 0xff},${tier.colour & 0xff}`
+  return (
+    `--rung:${tier.css};--rung-rgb:${rgb};` +
+    `--rung-edge:${tier.card.edge}px;--rung-wash:${tier.card.wash};` +
+    `--rung-glow:${tier.card.glow};--rung-weight:${tier.card.weight}`
+  )
 }

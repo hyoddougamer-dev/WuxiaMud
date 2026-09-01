@@ -857,10 +857,25 @@
         text-align: left;
         font: inherit;
         color: var(--ink);
-        background: rgba(255, 252, 244, 0.5);
+        /* THE RUNG, IN THREE CHANNELS. Hue alone made the ladder read as six
+           shades rather than six steps, and grey on aged paper is barely a
+           line. Every one of these comes from data/rarity.ts through
+           rarityStyle(), so the ladder is defined once. */
+        background:
+          linear-gradient(
+            90deg,
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 1.6)),
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 0.35)) 60%,
+            rgba(var(--rung-rgb, 13, 13, 13), 0)
+          ),
+          rgba(255, 252, 244, 0.5);
         border: 1px solid rgba(13, 13, 13, 0.12);
-        border-left: 3px solid rgba(13, 13, 13, 0.14);
+        border-left: var(--rung-edge, 3px) solid var(--rung, rgba(13, 13, 13, 0.14));
         border-radius: 2px;
+        /* Only the top three rungs glow — see the `card` ladder's comment. At
+           0 the shadow is transparent and costs nothing. */
+        box-shadow: 0 0 0 1px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0)),
+          0 2px 10px -2px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
         cursor: pointer;
       }
       /* The item's own shape, so a card is findable without reading it. It sits
@@ -903,7 +918,16 @@
         border-left-color: var(--cinnabar);
       }
       .item-worn {
-        background: rgba(13, 13, 13, 0.9);
+        /* The wash again, over ink instead of paper. Without this the worn
+           card — the one card a player looks at most — was the only place the
+           ladder stopped speaking, because a flat fill overrode it. */
+        background:
+          linear-gradient(
+            90deg,
+            rgba(var(--rung-rgb, 232, 220, 192), calc(var(--rung-wash, 0) * 2.2)),
+            rgba(var(--rung-rgb, 232, 220, 192), 0) 70%
+          ),
+          rgba(13, 13, 13, 0.9);
         color: var(--paper);
       }
       .item:not(.item-worn):active {
@@ -911,6 +935,13 @@
       }
       .item-name {
         font-size: 13px;
+        font-weight: var(--rung-weight, 500);
+        color: var(--rung, var(--ink));
+        /* Two of the six rungs are near the paper's own value (grey) or near
+           the ink's (deep green). Nudging them here keeps ONE definition of
+           each colour while letting the name stay legible on both card
+           backgrounds — the pale one and the near-black worn one. */
+        filter: saturate(0.92) brightness(0.9);
       }
       .item-line {
         margin-top: 3px;
@@ -943,9 +974,20 @@
         gap: 10px;
         padding: 8px 10px;
         border: 1px solid rgba(13, 13, 13, 0.1);
-        border-left: 3px solid var(--rung, rgba(13, 13, 13, 0.2));
+        border-left: var(--rung-edge, 3px) solid var(--rung, rgba(13, 13, 13, 0.2));
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.42);
+        /* Same three-channel ladder as the pack's cards — see `.item`. A find
+           and the same find in the bag must not read as two different objects. */
+        background:
+          linear-gradient(
+            90deg,
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 1.6)),
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 0.35)) 60%,
+            rgba(var(--rung-rgb, 13, 13, 13), 0)
+          ),
+          rgba(255, 255, 255, 0.42);
+        box-shadow: 0 0 0 1px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0)),
+          0 2px 12px -3px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
       }
       .loot-icon {
         flex: none;
@@ -966,7 +1008,7 @@
       .loot-name {
         display: block;
         font-size: 13px;
-        font-weight: 600;
+        font-weight: var(--rung-weight, 600);
         color: var(--rung, var(--ink));
         /* The grey rung is nearly the paper's own value; on a pale card its
            name would vanish. Lifting it here rather than changing the ladder
