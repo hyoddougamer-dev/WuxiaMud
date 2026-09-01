@@ -50,7 +50,11 @@ export function createBanners(root: HTMLElement): Banners {
     el.appendChild(main)
     if (item.sub) {
       const sub = document.createElement('div')
-      sub.className = 'banner-sub'
+      // A SENTENCE is styled differently from a LABEL, and it has to be: the
+      // sub line was built for two or three tracked-out words ("Rare", "not
+      // banked"), and the arts now put a full sentence through it. At 0.2em
+      // letter-spacing a sentence runs off a phone and wraps into a mess.
+      sub.className = item.sub.length > 22 ? 'banner-sub banner-say' : 'banner-sub'
       sub.textContent = item.sub
       el.appendChild(sub)
     }

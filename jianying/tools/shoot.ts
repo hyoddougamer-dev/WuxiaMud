@@ -821,15 +821,45 @@ async function main(): Promise<void> {
         const [awake, grade] = a.split('/').map(Number)
         return (awake ?? 0) * 10 + (grade ?? 0)
       }
+      // Two panels must never be up at once. This is the invariant the
+      // "Leave with it" bug broke: banking set the run over and left the gate
+      // standing, so the reward screen rendered underneath it and the player
+      // read the button as dead. A screenshot of two stacked overlays still
+      // looks like a screen, so only an assertion catches it.
+      let stacked = ''
+      let banked = false
       while (Date.now() < deadline) {
+        const panels = await page.evaluate(() => document.body.dataset.panels ?? '')
+        if (panels.includes('+')) stacked = panels
         if ((await page.evaluate(() => document.body.dataset.screen)) === 'over') break
-        // A level-up freezes the field behind a choice; left unanswered the
-        // character would stand safely inside a menu and never die.
-        const card = page.locator('.gate .gate-push').first()
-        if (await card.isVisible().catch(() => false)) await card.click()
+        // The first gate is BANKED, deliberately: that is the path that was
+        // broken, and the only way to walk it is to take it. Any gate after
+        // this one is pushed through, so a run that somehow continues still
+        // ends rather than standing safely inside a menu forever.
+        const bank = page.locator('.gate .gate-bank').first()
+        const push = page.locator('.gate .gate-push').first()
+        if (!banked && (await bank.isVisible().catch(() => false))) {
+          banked = true
+          await bank.click()
+          await page.waitForTimeout(700)
+          const after = await page.evaluate(() => document.body.dataset.panels ?? '')
+          const gateGone = !(await page.locator('.gate').isVisible().catch(() => false))
+          if (!gateGone || after.includes('+')) {
+            console.error(`gate:   "leave with it" left the gate up — panels="${after}"`)
+            process.exitCode = 1
+          } else {
+            console.log('gate:   banked at tier 1, gate came down, reward screen alone')
+          }
+        } else if (await push.isVisible().catch(() => false)) {
+          await push.click()
+        }
         const now = await readAttune()
         if (score(now) > score(attuneBest)) attuneBest = now
         await page.waitForTimeout(1000)
+      }
+      if (stacked) {
+        console.error(`gate:   two panels up at once — panels="${stacked}"`)
+        process.exitCode = 1
       }
       const found = await page.evaluate(() => Number(document.body.dataset.found ?? '0'))
       if (attuneBest !== attuneStart) {

@@ -12,7 +12,7 @@
  * conversion is itemised. A player who dies at four minutes should be able to
  * read, without asking anyone, exactly what those four minutes bought.
  */
-import { ART_BY_ID, MAX_ART_LEVEL } from '../data/arts'
+import { ART_BY_ID, MAX_ART_LEVEL, type Art } from '../data/arts'
 import type { CarriedArt } from '../sim/arts'
 import { activeSeals, type Conditions } from '../sim/conditions'
 import { conditionIconSvg, effectIconSvg } from '../render/packIcons'
@@ -83,8 +83,17 @@ export interface Hud {
    * drawing a bar that can never fill.
    */
   setRift(value: number, target: number): void
-  /** Sets the arts shown in the strip, each with the grade it has reached. */
-  setScroll(carried: readonly CarriedArt[]): void
+  /**
+   * The arts in hand, and the ones the gear has not woken yet.
+   *
+   * `asleep` is drawn as empty slots rather than left out, and that is the
+   * point of passing it at all. A player carrying a common blade sees ONE tile
+   * and has no way to know that four more exist — so the strip reads as "this
+   * is all there is" instead of as "this is what you have so far". Empty slots
+   * turn the same strip into a promise, and when a better blade fills one
+   * mid-fight the change happens in a place the player was already watching.
+   */
+  setScroll(carried: readonly CarriedArt[], asleep: readonly Art[]): void
   /** Lights the tiles whose condition holds right now. Called every frame. */
   setConditions(active: Conditions): void
   /** Shows the end screen. `onReturn` takes the player back to the hub. */
@@ -254,10 +263,14 @@ export function createHud(root: HTMLElement): Hud {
       if (!playing) rift.hidden = true
     },
 
-    setScroll(carried) {
+    setScroll(carried, asleep) {
       // The whole scroll used to show here regardless of grade; now each tile
-      // is one CARRIED art with the grade this run has actually raised it to.
-      const key = carried.map((c) => `${c.art.id}:${c.level}`).join(',')
+      // is one AWAKE art with the grade the gear has set it to, followed by an
+      // empty slot for each one still asleep.
+      const key =
+        carried.map((c) => `${c.art.id}:${c.level}`).join(',') +
+        '|' +
+        asleep.map((a) => a.id).join(',')
       if (key === lastScroll) return
       lastScroll = key
       lastLit = ''
@@ -285,6 +298,17 @@ export function createHud(root: HTMLElement): Hud {
         artsEl.appendChild(tile)
         return tile
       })
+
+      // The empty slots. No effect icon and no pips — an icon here would say
+      // "you have this, dimly", which is the opposite of true. What they carry
+      // is the CONDITION's pictogram, faint: the shape of the thing this slot
+      // will one day respond to, so the promise is specific rather than blank.
+      for (const art of asleep) {
+        const slot = document.createElement('div')
+        slot.className = 'art art-asleep'
+        slot.innerHTML = conditionIconSvg(art.condition, palette.ink, 1, 'art-cond-icon')
+        artsEl.appendChild(slot)
+      }
     },
 
     setConditions(active) {

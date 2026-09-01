@@ -396,6 +396,16 @@
         letter-spacing: 0.2em;
         color: rgba(13, 13, 13, 0.5);
       }
+      /* A sentence rather than a label — see paint() in ui/banner.ts. Normal
+         tracking, a measure that fits a phone, and room for two lines. */
+      .banner-say {
+        max-width: 19rem;
+        margin: 3px auto 0;
+        letter-spacing: 0.01em;
+        line-height: 1.4;
+        font-size: 12.5px;
+        color: rgba(13, 13, 13, 0.62);
+      }
       .banner-danger .banner-main,
       .banner-danger .banner-sub {
         color: var(--cinnabar);
@@ -943,13 +953,16 @@
       .hud-arts {
         display: flex;
         justify-content: center;
-        gap: 9px;
+        gap: 7px;
         margin-top: 12px;
         pointer-events: none;
       }
+      /* Sized so the whole scroll of FIVE fits a 393px phone with its gaps —
+         5x54 + 4x7 = 298. The strip used to hold only the arts you carried, so
+         it never had to; it now holds the empty slots too. */
       .art {
-        width: 58px;
-        height: 58px;
+        width: 54px;
+        height: 54px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -1001,6 +1014,21 @@
       }
       .art-pip-on {
         background: var(--gold);
+      }
+      /* An art the blade in hand has not woken. An empty socket, not a dim
+         copy of a real tile: dashed rather than solid, no effect icon, no
+         pips. A player carrying a common blade must be able to see at a glance
+         that four more slots exist and that something fills them — otherwise
+         the strip reads as "this is all there is". */
+      .art-asleep {
+        border-style: dashed;
+        border-color: rgba(13, 13, 13, 0.2);
+        background: none;
+      }
+      .art-asleep .art-cond-icon {
+        width: 20px;
+        height: 20px;
+        opacity: 0.17;
       }
       /* Lit. Cinnabar, because in this game cinnabar means "now". */
       .art-on {

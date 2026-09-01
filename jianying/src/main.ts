@@ -30,6 +30,7 @@ import { allRankMarks } from './render/rankMarks'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
 import { createFloaters } from './render/floaters'
 import { mixColor, palette } from './render/palette'
+import { drawDropMark } from './render/dropMark'
 import { createStage } from './render/stage'
 import { CHARGE_WINDUP, Swarm } from './sim/enemies'
 import { Motes } from './sim/pickups'
@@ -42,6 +43,7 @@ import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 import { MIGHT, applyArts, attune, equippedIds } from './sim/arts'
+import { ART_BY_ID, type Art } from './data/arts'
 import {
   type Character,
   createCharacter,
@@ -264,6 +266,8 @@ async function boot(): Promise<void> {
    * could look at.
    */
   let carried = attune(equippedIds(character.arts, kit.weapon.id), wornRungs()[0]!, wornRungs())
+  /** The rest of the weapon's ranking, which the gear has not woken. */
+  let asleep: Art[] = []
   const live: Stats = deriveStats(EMPTY_LOADOUT, kit)
   /**
    * The same numbers with NO condition holding, published for the harness.
@@ -285,7 +289,14 @@ async function boot(): Promise<void> {
   const refreshKit = (): void => {
     stats = deriveStats(EMPTY_LOADOUT, kit)
     const rungs = wornRungs()
-    carried = attune(equippedIds(character.arts, kit.weapon.id), rungs[0]!, rungs)
+    const ordered = equippedIds(character.arts, kit.weapon.id)
+    carried = attune(ordered, rungs[0]!, rungs)
+    // The tail of the ranking the gear did not reach. Shown on the strip as
+    // empty slots — see Hud.setScroll for why they are not simply left out.
+    asleep = ordered
+      .slice(carried.length)
+      .map((id) => ART_BY_ID.get(id))
+      .filter((art): art is Art => art !== undefined)
   }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
@@ -588,6 +599,26 @@ async function boot(): Promise<void> {
    * knowing what a Hemp Robe is.
    */
   const onGround = new Map<string, Found>()
+  /**
+   * Arts already explained this expedition. Reset with everything else.
+   *
+   * Per RUN rather than per save on purpose: the arts you carry change with the
+   * blade in your hand, so an art you last saw six expeditions ago on a
+   * different weapon deserves its line again. It costs one banner.
+   */
+  let taughtArts = new Set<string>()
+  /**
+   * Which slot the piece at `uid` fits, for the mark drawn on the ground.
+   *
+   * The simulation's pool carries a position and a rung and nothing else — it
+   * has no business knowing what a Hemp Robe is (see sim/drops.ts). The
+   * instance lives here, so the renderer asks here. Falls back to the robe's
+   * silhouette, which reads as "a thing you wear" rather than as nothing.
+   */
+  const slotOnGround = (uid: string): string => {
+    const found = onGround.get(uid)
+    return (found ? baseOf(found) : null)?.slot ?? 'robe'
+  }
   /** True only when the run ends by choosing "leave", never by dying. */
   let bankedThisEnd = false
   /**
@@ -665,6 +696,7 @@ async function boot(): Promise<void> {
     drops.clear()
     onGround.clear()
     runWorn = new Map()
+    taughtArts = new Set()
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
     securedFindCount = 0
     bankedThisEnd = false
@@ -853,7 +885,8 @@ async function boot(): Promise<void> {
     // The gate freezes the field exactly like the cards used to: the player is
     // choosing, and a crowd closing in while they read the choice would be
     // indefensible. Shown once per clearing — `run.gateCleared` stays true
-    // until `pushDeeper` or the reward screen (via `run.over`) clears it.
+    // until `pushDeeper` or the reward screen clears it, and BOTH of them now
+    // actually do (see showGameOver below; for a long time only one did).
     if (run.gateCleared) {
       if (!gateUp) {
         gateUp = true
@@ -936,6 +969,25 @@ async function boot(): Promise<void> {
       },
       dt,
     )
+
+    // THE ARTS, TAUGHT AT THE MOMENT THEY FIRE.
+    //
+    // The report was "não se percebe o que os skills fazem", and it survived
+    // the whole 器蕴 rework because the rework answered a different question.
+    // The rule is now readable in the hub; what was never readable is the
+    // EVENT. A tile lighting in the HUD bar is a signal aimed at a player who
+    // is looking at the HUD bar, and nobody is — they are watching the field
+    // with something chasing them.
+    //
+    // So the first time each art fires in an expedition, it says what it is and
+    // what it does, in the banner the player already reads for damage and
+    // finds. Once per art per run: after that the lit tile is enough, and a
+    // message that keeps firing stops being teaching and becomes noise.
+    for (const { art } of carried) {
+      if (!sense.active[art.condition] || taughtArts.has(art.id)) continue
+      taughtArts.add(art.id)
+      banners.show(`${art.seal} ${art.name}`, 'gold', art.blurb)
+    }
 
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
     // Pieces on the ground. The pool asks before handing one over, so a full
@@ -1184,12 +1236,20 @@ async function boot(): Promise<void> {
       const settle = clamp01(d.age / 0.32)
       const rise = easing.outCubic(settle)
       const pulse = 0.86 + Math.sin(time * 3.4 + d.age * 5) * 0.14
-      // The better the rung, the taller and louder the shaft — a grey piece is
-      // a smudge you may walk past, a gold one is visible across the field.
-      const height = (16 + d.rarity * 13) * rise
-      const width = 4 + d.rarity * 1.5
-      const alphaTop = 0.05 + d.rarity * 0.03
-      const alphaFoot = 0.22 + d.rarity * 0.1
+      // The better the rung, the taller the shaft — a grey piece has barely
+      // any, a gold one is visible across the field.
+      //
+      // FAINT, and it took a screenshot to see why. These numbers were tuned
+      // when the piece itself was a small dark lozenge and the shaft was doing
+      // all the work of being seen. The mark now carries a full plaque and a
+      // coloured ring, so the old shaft — opaque, wide-footed — turned every
+      // drop into a traffic cone standing on the field. Its job is now only
+      // "there is something over there", read peripherally, so it is a hint of
+      // colour in the air rather than an object in its own right.
+      const height = (14 + d.rarity * 11) * rise
+      const width = 3 + d.rarity
+      const alphaTop = 0.02 + d.rarity * 0.014
+      const alphaFoot = 0.05 + d.rarity * 0.026
       dropGfx
         .poly([
           dx - width, dy,
@@ -1199,32 +1259,23 @@ async function boot(): Promise<void> {
         ])
         .fill({ color: tier.colour, alpha: alphaTop * pulse })
       dropGfx
-        .ellipse(dx, dy, (7 + d.rarity * 2.2) * pulse, (2.6 + d.rarity * 0.8) * pulse)
+        .ellipse(dx, dy, (8 + d.rarity * 1.8) * pulse, (2.6 + d.rarity * 0.7) * pulse)
         .fill({ color: tier.colour, alpha: alphaFoot })
-      // The mark itself, and it does NOT scale with the rung.
-      //
-      // Screenshotting a real run caught this: a common piece drawn with a
-      // quiet shaft and a small mark read as a smudge among the qi motes, and
-      // "drops feel like nothing" is the exact complaint this whole rework
-      // exists to answer. A common piece is still a piece — it still rolls a
-      // line, and early on it is still an upgrade — so being FINDABLE is the
-      // floor. What the rung buys is how loudly it announces itself from
-      // across the field, not whether it can be seen at all.
-      //
-      // Drawn as an ink lozenge with a paper gap under it, which is the one
-      // shape on the field that is neither a silhouette (upright, tall) nor a
-      // mote (small, round, gold).
-      dropGfx
-        .ellipse(dx, dy + 1, 9, 4)
-        .fill({ color: palette.paperDeep, alpha: 0.85 * rise })
-      dropGfx
-        .ellipse(dx, dy - 4 * rise, 7, 4.5)
-        .fill({ color: palette.ink, alpha: 0.88 * rise })
-      // A rim in the rung's own colour, so the ladder reads on the object
-      // itself and not only in the light above it.
-      dropGfx
-        .ellipse(dx, dy - 4 * rise, 7, 4.5)
-        .stroke({ color: tier.colour, width: 1.6, alpha: (0.5 + d.rarity * 0.1) * rise })
+      // The piece itself — the plaque, the slot's silhouette, the rung's ring.
+      // See render/dropMark.ts for why rarity is not allowed to touch any of
+      // it except the ring's colour.
+      drawDropMark(
+        dropGfx,
+        dx,
+        dy,
+        slotOnGround(d.id),
+        tier.colour,
+        rise,
+        time,
+        // Phased off the position, so a pile of three does not bob in unison
+        // and read as one object.
+        d.x * 0.07 + d.y * 0.11,
+      )
     }
 
     // --- sword qi ------------------------------------------------------
@@ -1327,10 +1378,22 @@ async function boot(): Promise<void> {
     // tiles on screen that can never fire — the exact class of lie this project
     // keeps having to dig out. `carried` IS what applyArts reads each frame, so
     // the strip and the simulation cannot disagree about what is in hand.
-    ui.setScroll(carried)
+    ui.setScroll(carried, asleep)
     ui.setConditions(sense.active)
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
+      // The gate comes down FIRST, whatever route got here.
+      //
+      // This is where the bug lived: banking set `run.over` and left the gate
+      // panel standing, so the reward screen rendered UNDERNEATH it and the
+      // player — reading the same panel they had just tapped — concluded that
+      // "Leave with it" did nothing. It was doing exactly what it said.
+      //
+      // Doing it here rather than only in the bank handler is the point. Every
+      // route to the end screen passes through this line, so no future one can
+      // reintroduce it; the handler that forgets is no longer able to be wrong.
+      ui.hideGate()
+      gateUp = false
       // Cleared before the end screen goes up, or the last banner of the run
       // sits on top of it — an "Insight 7" drawn straight through the seal,
       // which is what shipped in the first version of this screen.
@@ -1413,6 +1476,12 @@ async function boot(): Promise<void> {
       document.body.dataset.attune =
         `${carried.length}/${carried[0]?.level ?? 0}`
       document.body.dataset.worn = SLOTS.map((slot) => inSlot(slot)?.rarity ?? -1).join(',')
+      // Which full-screen panels are up. Published because the bug they had
+      // was invisible to every other check: banking left the gate standing on
+      // top of the reward screen, and a screenshot of two stacked overlays
+      // still looks like a screen. The harness asserts they are never both up.
+      document.body.dataset.panels =
+        `${gateUp ? 'gate' : ''}${gateUp && gameOverShown ? '+' : ''}${gameOverShown ? 'over' : ''}`
       document.body.dataset.px = String(Math.round(player.x))
       document.body.dataset.py = String(Math.round(player.y))
       // Which conditions hold, for the harness. The seals lighting on screen is
