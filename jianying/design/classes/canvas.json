@@ -1,10 +1,45 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 760, "h": 900, "title": "As duas classes" },
-    { "file": "Silhueta.dc.html", "x": 880, "y": 0, "w": 560, "h": 820, "title": "Como se distinguem à vista" },
-    { "file": "Combate.dc.html", "x": 1560, "y": 0, "w": 880, "h": 720, "title": "Em combate" },
-    { "file": "Artes.dc.html", "x": 1560, "y": 900, "w": 880, "h": 900, "title": "功法 · as dez artes" },
-    { "file": "Refactor.dc.html", "x": 2560, "y": 0, "w": 660, "h": 1000, "title": "O refactoring" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 760,
+      "h": 900,
+      "title": "As duas classes"
+    },
+    {
+      "file": "Silhueta.dc.html",
+      "x": 880,
+      "y": 0,
+      "w": 560,
+      "h": 820,
+      "title": "Como se distinguem à vista"
+    },
+    {
+      "file": "Combate.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 880,
+      "h": 850,
+      "title": "Em combate"
+    },
+    {
+      "file": "Artes.dc.html",
+      "x": 1560,
+      "y": 1030,
+      "w": 880,
+      "h": 900,
+      "title": "功法 · as dez artes"
+    },
+    {
+      "file": "Refactor.dc.html",
+      "x": 2560,
+      "y": 0,
+      "w": 660,
+      "h": 1080,
+      "title": "O refactoring"
+    }
   ],
   "annotations": [
     {
@@ -36,5 +71,7 @@
       "text": "O REFACTORING\nO que saiu, o que teve de mudar por baixo, e os dois bugs reais que o corte expôs.\n\nA caixa vermelha no fim é a única coisa que NÃO decidi sozinho: o portão da 官道 favorece o lançador de forma estrutural, e as três saídas custam coisas diferentes. Essa escolha é tua."
     }
   ],
-  "launch": { "view": "canvas" }
+  "launch": {
+    "view": "canvas"
+  }
 }
