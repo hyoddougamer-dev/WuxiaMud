@@ -130,128 +130,23 @@ export const MAX_ART_LEVEL = 5
 export const EQUIPPED_ARTS = 4
 
 /**
- * Six scrolls of five.
+ * Two scrolls of five.
  *
- * Every weapon covers all five conditions exactly once, which is not a
- * decoration: it means no weapon has a dead condition, and a player who
- * changes weapon keeps the same five things to DO while everything those
- * things produce changes. That is the cheapest possible way to make six
- * classes feel different without teaching six control schemes.
+ * Each class covers all five conditions exactly once, which is not a
+ * decoration: it means neither has a dead condition, and a player who changes
+ * class keeps the same five things to DO while everything those things produce
+ * changes. That is the cheapest way to make two classes feel different without
+ * teaching two control schemes.
+ *
+ * THERE WERE SIX SCROLLS AND THIRTY ARTS. Twenty of them are gone with the four
+ * weapons they belonged to. Nothing was salvaged into the survivors: an art
+ * written for a fan reads wrong on a zhanmadao, and keeping it would have
+ * bought content at the price of the thing this cut was for.
  */
 export const ARTS: readonly Art[] = [
-  // --- 剑 jian — 剑意, the precise cut -----------------------------------
-  {
-    id: 'jian-point',
-    seal: '点',
-    name: 'Point',
-    weapon: 'jian',
-    condition: 'still',
-    effect: 'pierce',
-    blurb: 'Planted, the arc narrows and runs through what it hits.',
-  },
-  {
-    id: 'jian-flow',
-    seal: '流',
-    name: 'Flow',
-    weapon: 'jian',
-    condition: 'running',
-    effect: 'rate',
-    blurb: 'At speed, the sweeps come closer together.',
-  },
-  {
-    id: 'jian-shadow',
-    seal: '影',
-    name: 'Shadow',
-    weapon: 'jian',
-    condition: 'turn',
-    effect: 'echo',
-    blurb: 'Turning leaves an echo of the sweep where you stood.',
-  },
-  {
-    id: 'jian-sever',
-    seal: '断',
-    name: 'Sever',
-    weapon: 'jian',
-    condition: 'surrounded',
-    effect: 'crit',
-    blurb: 'Surrounded, the sweep finds the gap and cuts twice as deep.',
-  },
-  {
-    id: 'jian-qi',
-    seal: '剑气',
-    name: 'Sword Qi',
-    weapon: 'jian',
-    condition: 'peril',
-    effect: 'bolt',
-    blurb: 'On low health, the sweep throws qi past its own reach.',
-  },
-
-  // --- 刀 dao — 势, the blade that does not stop -------------------------
-  {
-    id: 'dao-momentum',
-    seal: '势',
-    name: 'Momentum',
-    weapon: 'dao',
-    condition: 'running',
-    effect: 'damage',
-    blurb: 'Damage grows the longer you keep moving.',
-  },
-  {
-    id: 'dao-furl',
-    seal: '卷',
-    name: 'Furl',
-    weapon: 'dao',
-    condition: 'surrounded',
-    effect: 'arc',
-    blurb: 'The arc widens for every enemy standing close.',
-  },
-  {
-    id: 'dao-blood',
-    seal: '血',
-    name: 'Blood',
-    weapon: 'dao',
-    /**
-     * MENDING IS PAIRED WITH STANDING STILL, not with being in peril, and the
-     * swap was forced by measurement rather than taste.
-     *
-     * On 危 this art produced 460-525 seconds against 135 with no arts and 179
-     * with the technique cards — three times any other build in the game. The
-     * cause is structural and no amount of tuning reached it: a mend tied to
-     * LOW HEALTH is a stabilising loop. It only has to match incoming damage at
-     * the threshold it fires below, and the player decides how much damage
-     * comes in. A cooldown moved 525 to 523. Quartering the heal still left
-     * 479. A budget per scrape still left 460, because leaving peril is what
-     * refills it and a kiting player crosses that line constantly.
-     *
-     * On 静 the loop cannot close: mending demands that you stop moving, and
-     * standing still in a crowd is how you die. The art becomes a real decision
-     * made under pressure instead of a floor to sit on — which is what every
-     * other art in this game already is.
-     */
-    condition: 'still',
-    effect: 'heal',
-    blurb: 'Plant your feet and each kill staunches the wound.',
-  },
-  {
-    id: 'dao-press',
-    seal: '压',
-    name: 'Press',
-    weapon: 'dao',
-    condition: 'peril',
-    effect: 'push',
-    blurb: 'On low health, the sweep shoves what it touches away.',
-  },
-  {
-    id: 'dao-armybreaker',
-    seal: '破军',
-    name: 'Army-breaker',
-    weapon: 'dao',
-    condition: 'turn',
-    effect: 'arc',
-    blurb: 'A hard turn carries the blade the whole way round.',
-  },
-
   // --- 斩马刀 great — 重, the weight ------------------------------------
+  // Carried over unchanged from the six-weapon roster. They were the set built
+  // around standing IN the crowd, and that is exactly what this class now is.
   {
     id: 'great-sink',
     seal: '沉',
@@ -298,145 +193,62 @@ export const ARTS: readonly Art[] = [
     blurb: 'The sweep after a turn lands like a felled tree.',
   },
 
-  // --- 双刀 twin — 疾, the short distance --------------------------------
+  // --- 飞刀 feidao — 距, the distance ------------------------------------
+  //
+  // Every effect below reads the SAME stat the zhanmadao's does — see Strike in
+  // data/weapons.ts. On a thrown weapon reach is flight distance and the arc is
+  // the spread of the volley, so `pierce` (narrow and long) becomes a tight,
+  // far-flying line and `arc` becomes a shotgun. One vocabulary, two meanings,
+  // no second implementation to drift.
+  //
+  // The 危 art is the one deliberate mirror-image of the zhanmadao's. Its
+  // answer to being nearly dead is to stand there and take less; a thrower's
+  // answer has to be to LEAVE, or the class is being asked to play against its
+  // own premise at the worst possible moment.
   {
-    id: 'twin-pair',
-    seal: '双',
-    name: 'Pair',
-    weapon: 'twin',
-    condition: 'running',
-    effect: 'echo',
-    blurb: 'At speed, the second blade cuts behind you.',
-  },
-  {
-    id: 'twin-entangle',
-    seal: '缠',
-    name: 'Entangle',
-    weapon: 'twin',
-    condition: 'surrounded',
-    effect: 'rate',
-    blurb: 'The more of them there are, the faster the hands move.',
-  },
-  {
-    id: 'twin-swallow',
-    seal: '燕',
-    name: 'Swallow',
-    weapon: 'twin',
-    condition: 'turn',
-    effect: 'speed',
-    blurb: 'A turn throws you forward out of it.',
-  },
-  {
-    id: 'twin-inch',
-    seal: '寸',
-    name: 'Inch',
-    weapon: 'twin',
-    condition: 'still',
-    effect: 'damage',
-    blurb: 'Planted, everything goes into a cut you must be close to make.',
-  },
-  {
-    id: 'twin-butterfly',
-    seal: '蝶',
-    name: 'Butterfly',
-    weapon: 'twin',
-    condition: 'peril',
-    effect: 'orbit',
-    blurb: 'On low health, the blades leave your hands and circle.',
-  },
-
-  // --- 枪 spear — 远, the reach ------------------------------------------
-  {
-    id: 'spear-thrust',
-    seal: '刺',
-    name: 'Thrust',
-    weapon: 'spear',
+    id: 'feidao-steady',
+    seal: '定',
+    name: 'Steady',
+    weapon: 'feidao',
     condition: 'still',
     effect: 'pierce',
-    blurb: 'Planted, the point runs a line through everything ahead.',
+    blurb: 'Planted, the throw narrows and carries much further.',
   },
   {
-    id: 'spear-sweep',
-    seal: '扫',
-    name: 'Sweep',
-    weapon: 'spear',
-    condition: 'surrounded',
-    effect: 'arc',
-    blurb: 'Surrounded, the shaft comes round instead of forward.',
-  },
-  {
-    id: 'spear-pursue',
-    seal: '追',
-    name: 'Pursue',
-    weapon: 'spear',
+    id: 'feidao-chain',
+    seal: '连',
+    name: 'Chain',
+    weapon: 'feidao',
     condition: 'running',
-    effect: 'range',
-    blurb: 'The faster you go, the further ahead it reaches.',
+    effect: 'rate',
+    blurb: 'At speed the volleys come one on top of another.',
   },
   {
-    id: 'spear-bar',
-    seal: '拦',
-    name: 'Bar',
-    weapon: 'spear',
-    condition: 'turn',
-    effect: 'push',
-    blurb: 'Turning sets the shaft across them and drives them back.',
-  },
-  {
-    id: 'spear-dragon',
-    seal: '龙',
-    name: 'Dragon',
-    weapon: 'spear',
-    condition: 'peril',
-    effect: 'bolt',
-    blurb: 'On low health, the point spits what it cannot reach.',
-  },
-
-  // --- 扇 fan — 变, the change -------------------------------------------
-  {
-    id: 'fan-open',
-    seal: '展',
-    name: 'Open',
-    weapon: 'fan',
-    condition: 'still',
-    effect: 'arc',
-    blurb: 'Planted, the fan opens the whole circle.',
-  },
-  {
-    id: 'fan-wind',
-    seal: '风',
-    name: 'Wind',
-    weapon: 'fan',
-    condition: 'running',
-    effect: 'magnet',
-    blurb: 'At speed, qi comes to you from much further off.',
-  },
-  {
-    id: 'fan-conceal',
-    seal: '藏',
-    name: 'Conceal',
-    weapon: 'fan',
-    condition: 'peril',
-    effect: 'guard',
-    blurb: 'On low health, there is a moment where nothing lands.',
-  },
-  {
-    id: 'fan-scatter',
-    seal: '乱',
-    name: 'Scatter',
-    weapon: 'fan',
-    condition: 'surrounded',
-    effect: 'bolt',
-    blurb: 'Surrounded, the blades leave the fan in every direction.',
-  },
-  {
-    id: 'fan-return',
+    id: 'feidao-return',
     seal: '回',
     name: 'Return',
-    weapon: 'fan',
+    weapon: 'feidao',
     condition: 'turn',
     effect: 'echo',
-    blurb: 'A turn sends the sweep back the way it came.',
+    blurb: 'Turning looses a second volley back the way you came.',
+  },
+  {
+    id: 'feidao-scatter',
+    seal: '散',
+    name: 'Scatter',
+    weapon: 'feidao',
+    condition: 'surrounded',
+    effect: 'arc',
+    blurb: 'Surrounded, the blades leave your hand in a wide fan.',
+  },
+  {
+    id: 'feidao-shadow',
+    seal: '影',
+    name: 'Shadowstep',
+    weapon: 'feidao',
+    condition: 'peril',
+    effect: 'speed',
+    blurb: 'On low health your feet find the gap. You move faster.',
   },
 ] as const
 

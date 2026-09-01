@@ -92,12 +92,26 @@ export interface Row {
  * region (pass its `riftBase`) and calibrate an uncalibrated one (pass
  * `Infinity` and read `qiAtCeiling` back out).
  */
-export function play(regionId: string, fly: Pilot, riftTarget: number): Row {
+export function play(
+  regionId: string,
+  fly: Pilot,
+  riftTarget: number,
+  /**
+   * Which class to measure. Defaults to the first, as it always did.
+   *
+   * It became a parameter the day six weapons became two: with a roster of six
+   * near-identical weapons, measuring one was a fair sample of all of them.
+   * With one sweeper and one thrower it is a sample of half the game, and
+   * calibrating a rift against half the game is how you ship a gate one class
+   * cannot reach.
+   */
+  weaponId: string = WEAPONS[0]!.id,
+): Row {
   const region = REGIONS.find((r) => r.id === regionId)!
   const out: Row = { secs: 0, insight: 0, kills: 0, cleared: 0, qiAtCeiling: 0 }
 
   for (const seed of SEEDS) {
-    const weapon = WEAPONS[0]!
+    const weapon = WEAPONS.find((w) => w.id === weaponId) ?? WEAPONS[0]!
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), region)
     const motes = new Motes()

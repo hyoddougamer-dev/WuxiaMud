@@ -21,13 +21,23 @@
  */
 import type { Loadout } from '../data/techniques'
 import type { OwnedItem } from '../meta/inventory'
-import { DEFAULT_WEAPON, type WeaponClass } from '../data/weapons'
+import { DEFAULT_WEAPON, type Strike, type WeaponClass } from '../data/weapons'
 import { type Attributes, emptyAttributes } from '../meta/character'
 import { BASE_PICKUP_RADIUS } from './pickups'
 import { PLAYER_MAX_HP } from './combat'
 import { MAX_SPEED } from './player'
 
 export interface Stats {
+  /**
+   * How the attack reaches: an arc, or blades that fly. See data/weapons.ts.
+   *
+   * The ONE branch the simulation makes. Everything below is read the same way
+   * by both — reach becomes flight distance, arc becomes the spread of a
+   * volley — so every art works on both classes with no second implementation.
+   */
+  strike: Strike
+  /** Blades per volley. 1 for a sweep. */
+  throwCount: number
   slashDamage: number
   slashInterval: number
   slashRange: number
@@ -205,6 +215,8 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   const weapon = kit.weapon
 
   return {
+    strike: weapon.strike,
+    throwCount: weapon.throwCount,
     slashDamage: weapon.damage + attr.slashDamage + lv('keen') * 4,
     // Multiplicative, so each level is worth the same proportion rather than
     // the first one being nearly everything.

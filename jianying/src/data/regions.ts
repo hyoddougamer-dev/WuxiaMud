@@ -74,7 +74,16 @@ export interface Region {
    */
   readonly roster: readonly string[]
   readonly bossId: string
-  /** Items that drop only here. This is what makes the map a choice. */
+  /**
+   * Bases this region can drop. This is what makes the map a choice.
+   *
+   * BOTH WEAPONS SIT ON THE FIRST ROAD, and nothing deeper drops a weapon at
+   * all. With six of them the roster could afford to gate a class behind depth
+   * 4 — there were five others to meet first. With two, a gated class is a
+   * class most players never see, and the choice between them is the whole
+   * game. Deeper ground pays in rungs and lines instead, which is what the
+   * rarity ladder is for.
+   */
   readonly drops: readonly string[]
   /** Position in the world, and the difficulty step. 1-based. */
   readonly depth: number
@@ -108,9 +117,19 @@ export const REGIONS: readonly Region[] = [
     rule: {},
     roster: ['bandit', 'runner', 'courier'],
     bossId: 'roadtiger',
-    drops: ['r-plain', 's-plain', 'h-topknot', 'w-jian', 'w-dao'],
+    drops: ['r-plain', 's-plain', 'h-topknot', 'w-great', 'w-feidao'],
     depth: 1,
-    riftBase: 547,
+    // RECALIBRATED from 547 when the roster went from six weapons to two, and
+    // the old value was plainly stale even before that: every other region on
+    // this map sits between 3 and 97, and 547 was tuned against a jian that
+    // survived far longer here than either surviving class does.
+    //
+    // Measured with tools/runLength.mts at the duel pilot: the zhanmadao earns
+    // 212 qi and the daggers 231 before the run ends, so 180 is a bar both
+    // reach. See docs/CORRIDAS.md for the imbalance this measurement exposed,
+    // which is a design problem rather than a number: the gate is a single
+    // fast boss, which is the thrower's best fight and the sweeper's worst.
+    riftBase: 180,
   },
   {
     id: 'marsh',
@@ -122,7 +141,7 @@ export const REGIONS: readonly Region[] = [
     rule: { playerSpeed: 0.85 },
     roster: ['bandit', 'drowned', 'leech'],
     bossId: 'reedmother',
-    drops: ['r-tattered', 's-bare', 'h-bare', 'w-spear'],
+    drops: ['r-tattered', 's-bare', 'h-bare'],
     depth: 2,
     riftBase: 33,
   },
@@ -136,7 +155,7 @@ export const REGIONS: readonly Region[] = [
     rule: { drift: 38, driftPeriod: 26 },
     roster: ['archer', 'hawk', 'windbell'],
     bossId: 'cliffwarden',
-    drops: ['r-travelling', 's-wide', 'h-hat', 'w-twin'],
+    drops: ['r-travelling', 's-wide', 'h-hat'],
     depth: 3,
     riftBase: 16,
   },
@@ -150,7 +169,7 @@ export const REGIONS: readonly Region[] = [
     rule: { splitAll: 1, splitInto: 'scrap' },
     roster: ['effigy', 'paperhorse', 'pilgrim'],
     bossId: 'papermaker',
-    drops: ['r-court', 's-mantle', 'h-crown', 'w-fan'],
+    drops: ['r-court', 's-mantle', 'h-crown'],
     depth: 4,
     riftBase: 97,
   },
@@ -164,7 +183,7 @@ export const REGIONS: readonly Region[] = [
     rule: { formationArc: 0.85, formationPeriod: 38 },
     roster: ['brute', 'glaive', 'signal', 'archer'],
     bossId: 'warlord',
-    drops: ['r-lamellar', 'r-layered', 's-pauldron', 'h-veiled', 'w-great'],
+    drops: ['r-lamellar', 'r-layered', 's-pauldron', 'h-veiled'],
     depth: 5,
     riftBase: 3,
   },

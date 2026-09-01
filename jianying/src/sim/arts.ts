@@ -137,6 +137,8 @@ export function carriedFor(weaponId: string, level = 1): CarriedArt[] {
 
 /** Copies `from` into `into`. Fifteen numbers, so the hot loop allocates none. */
 function copyStats(from: Stats, into: Stats): Stats {
+  into.strike = from.strike
+  into.throwCount = from.throwCount
   into.slashDamage = from.slashDamage
   into.slashInterval = from.slashInterval
   into.slashRange = from.slashRange

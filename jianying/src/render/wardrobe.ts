@@ -88,6 +88,16 @@ export interface BladeStyle {
   readonly spread: number
   /** A crossguard of this half-width. */
   readonly guard?: number
+  /**
+   * What carrying this does to the body. See `Stance` below.
+   *
+   * It hangs off the BLADE rather than off the weapon class on purpose: the
+   * blade is the one piece of the class that every screen already resolves —
+   * the hub portrait, the creation preview, the contact sheets, the figure in
+   * play. Putting the stance here meant every one of them started drawing two
+   * distinguishable classes without a single call site changing.
+   */
+  readonly stance: Stance
 }
 
 // --- robes ---------------------------------------------------------------
@@ -249,6 +259,115 @@ export const HEADS: readonly HeadStyle[] = [
   },
 ] as const
 
+/**
+ * How carrying a weapon changes the body that carries it.
+ *
+ * This exists because of a report I could not argue with: the six weapon
+ * portraits were the same character six times, with a different stroke beside
+ * them. The body, the robe, the head, the posture — identical. A class you can
+ * only identify by squinting at the object in its hand is not a class, it is a
+ * stat block with a picture attached.
+ *
+ * The fix has to respect the rule the whole art direction rests on: these
+ * figures have NO interior detail, so a class can only read through its
+ * outline. That rules out the obvious answers — no uniform, no colour scheme,
+ * no emblem. What is left is proportion and what juts out past the body:
+ *
+ *   shoulders  the frame, widened or narrowed
+ *   chest      the mass hanging on that frame
+ *   waist      where the body folds, which reads as heavy or light
+ *   feet       how wide the stance is planted, seen under a short hem
+ *   sheath     a scabbard slung across the back, crossing the whole silhouette
+ *   beltBlades throwing knives at the hip, as spikes outside the hip line
+ *
+ * The last two are the ones that carry it at forty pixels. The first four are
+ * what make the figure feel like a different person up close, in the hub and on
+ * the creation screen, where the choice is actually made.
+ *
+ * IMPORTANT — this MULTIPLIES the player's own choices rather than replacing
+ * them. A broad woman with a zhanmadao is still broader than a lean one with a
+ * zhanmadao, and still narrower than a broad man with one. The class moves the
+ * baseline; the look still moves the figure. Anything that overwrote the look
+ * would take back a choice made at creation, which is the one thing meta/look.ts
+ * exists to prevent.
+ */
+export interface Stance {
+  readonly id: string
+  readonly name: string
+  /** Multiplier on shoulder span. */
+  readonly shoulders: number
+  /** Multiplier on the chest's width. */
+  readonly chest: number
+  /**
+   * Multiplier on how far down the waist sits, clamped so it stays a waist.
+   * Above 1 lengthens the torso, which reads as weight.
+   */
+  readonly waist: number
+  /** Multiplier on how far apart the feet are planted. */
+  readonly feet: number
+  /**
+   * A scabbard slung diagonally across the back, of this length. 0 draws none.
+   *
+   * Empty, because the blade it belongs to is in the swordsman's hands — which
+   * is exactly why it is worth drawing. It is the one mark that says "this
+   * person carries something enormous" while the enormous thing is swung out of
+   * frame, and it crosses the silhouette from below the left hip to past the
+   * right ear, so it survives being forty pixels tall.
+   */
+  readonly sheath: number
+  /** Throwing knives worn at the left hip, this many. */
+  readonly beltBlades: number
+}
+
+export const STANCES = {
+  /**
+   * The baseline. Nothing about a jian or a dao asks the body to change — they
+   * are held in one hand at the hip, which is the posture the figure was drawn
+   * in to begin with.
+   */
+  even: {
+    id: 'even',
+    name: 'Even',
+    shoulders: 1,
+    chest: 1,
+    waist: 1,
+    feet: 1,
+    sheath: 0,
+    beltBlades: 0,
+  },
+  /**
+   * 斩马刀. Everything about this reads as mass. The weapon is heavier than the
+   * arm that swings it, so the arm has to be thicker, the feet have to be
+   * planted, and the torso has to be long enough to swing from.
+   */
+  planted: {
+    id: 'planted',
+    name: 'Planted',
+    shoulders: 1.18,
+    chest: 1.16,
+    waist: 1.14,
+    feet: 1.8,
+    sheath: 52,
+    beltBlades: 0,
+  },
+  /**
+   * 飞刀. The opposite of the above on every axis, deliberately: the two classes
+   * have to be told apart in the fifth of a second a player spends looking at
+   * their own character, and two silhouettes that both merely "differ" are not
+   * enough — they have to differ in OPPOSITE directions.
+   */
+  poised: {
+    id: 'poised',
+    name: 'Poised',
+    shoulders: 0.88,
+    chest: 0.88,
+    waist: 0.84,
+    feet: 0.55,
+    sheath: 0,
+    beltBlades: 3,
+  },
+} as const satisfies Record<string, Stance>
+
 // --- blades --------------------------------------------------------------
 
 export const BLADES: readonly BladeStyle[] = [
@@ -261,6 +380,7 @@ export const BLADES: readonly BladeStyle[] = [
     tipWidth: 0.25,
     count: 1,
     spread: 0,
+    stance: STANCES.even,
   },
   {
     id: 'dao',
@@ -271,6 +391,7 @@ export const BLADES: readonly BladeStyle[] = [
     tipWidth: 0.9,
     count: 1,
     spread: 0,
+    stance: STANCES.even,
   },
   {
     id: 'great',
@@ -282,37 +403,22 @@ export const BLADES: readonly BladeStyle[] = [
     count: 1,
     spread: 0,
     guard: 5,
+    stance: STANCES.planted,
   },
   {
-    id: 'twin',
-    name: 'Twin Blades',
-    reach: 34,
-    bow: -1.2,
-    baseWidth: 2.4,
-    tipWidth: 0.25,
-    count: 2,
-    spread: 0.34,
-  },
-  {
-    id: 'spear',
-    name: 'Long Spear',
-    reach: 76,
-    bow: -0.6,
-    baseWidth: 1.9,
-    tipWidth: 0.3,
-    count: 1,
-    spread: 0,
-    guard: 3,
-  },
-  {
-    id: 'fan',
-    name: 'Iron Fan',
-    reach: 26,
-    bow: -2,
-    baseWidth: 2.2,
-    tipWidth: 1.6,
-    count: 5,
-    spread: 0.2,
+    id: 'feidao',
+    name: 'Flying Daggers',
+    // SHORT, and that is the whole read. A thrown blade is held in the fingers,
+    // not swung from the shoulder, so nothing sticks out past the hand — which
+    // is exactly what makes this silhouette impossible to confuse with the
+    // zhanmadao's from across a phone screen.
+    reach: 17,
+    bow: -0.5,
+    baseWidth: 2.1,
+    tipWidth: 0.2,
+    count: 3,
+    spread: 0.55,
+    stance: STANCES.poised,
   },
 ] as const
 

@@ -45,12 +45,11 @@ export const ITEMS: readonly Item[] = [
   // --- weapons ---------------------------------------------------------
   // No stat line: the weapon IS the change, and adding a number on top would
   // bury the thing the player is meant to notice.
-  { id: 'w-jian', name: 'Straight Jian', slot: 'weapon', styleId: 'jian', depth: 1 },
-  { id: 'w-dao', name: 'Curved Dao', slot: 'weapon', styleId: 'dao', depth: 1 },
-  { id: 'w-twin', name: 'Twin Blades', slot: 'weapon', styleId: 'twin', depth: 2 },
-  { id: 'w-fan', name: 'Iron Fan', slot: 'weapon', styleId: 'fan', depth: 2 },
-  { id: 'w-spear', name: 'Long Spear', slot: 'weapon', styleId: 'spear', depth: 3 },
-  { id: 'w-great', name: 'Heavy Zhanmadao', slot: 'weapon', styleId: 'great', depth: 4 },
+  // Two weapons, both available from the first road. A class you cannot find
+  // until depth 4 is a class most players never meet — which was true of the
+  // zhanmadao for the whole life of the six-weapon roster.
+  { id: 'w-great', name: 'Heavy Zhanmadao', slot: 'weapon', styleId: 'great', depth: 1 },
+  { id: 'w-feidao', name: 'Flying Daggers', slot: 'weapon', styleId: 'feidao', depth: 1 },
 
   // --- robes -------------------------------------------------------------
   {

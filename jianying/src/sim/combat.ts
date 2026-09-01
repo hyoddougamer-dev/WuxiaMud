@@ -10,7 +10,7 @@ import { contactDamage, rouse, type Swarm } from './enemies'
 import type { Player } from './player'
 import type { Motes } from './pickups'
 import type { Bolts } from './projectiles'
-import { BOLT_RADIUS } from './projectiles'
+import { BOLT_RADIUS, BOLT_SPEED } from './projectiles'
 import type { Hazards } from './hazards'
 import type { Stats } from './loadout'
 import type { Rng } from '../core/rng'
@@ -473,6 +473,42 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   // Off means out of peril, which is the only thing that earns the next wind.
   if (stats.healPerKill <= 0) run.healBudget = HEAL_BUDGET
 
+  /**
+   * Looses one volley of thrown blades, fanned about the aim.
+   *
+   * The 飞刀's whole attack. It shares `cut`'s siblings — the crit counter, the
+   * echo — because those are properties of ATTACKING, not of swinging; what it
+   * does not share is the arc, since a thrown blade does not threaten the
+   * wedge it flies through, only the line it flies down. That is the trade the
+   * class is built on, and it is why the daggers cannot simply out-perform the
+   * zhanmadao by standing further away.
+   */
+  const volley = (ax: number, ay: number, damage: number): void => {
+    const n = Math.max(1, Math.round(stats.throwCount))
+    // Flight time from the weapon's reach, so an art that lengthens reach
+    // lengthens the throw. See Bolts.fire.
+    const life = Math.max(0.05, stats.slashRange / BOLT_SPEED)
+    const base = Math.atan2(ay, ax)
+    for (let i = 0; i < n; i++) {
+      // Fanned evenly across the spread, centred on the aim. With one blade
+      // this is the aim exactly; the arts widen or narrow it from there.
+      const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1
+      const angle = base + t * stats.slashHalfAngle
+      ctx.bolts.fire(
+        player.x,
+        player.y - 14,
+        Math.cos(angle),
+        Math.sin(angle),
+        damage,
+        // One body each. A piercing volley would make a packed line strictly
+        // better for the thrower than for the sweeper, which is backwards.
+        1,
+        life,
+        1,
+      )
+    }
+  }
+
   run.slashCooldown -= dt
   if (run.slashCooldown <= 0) {
     run.slashCooldown += stats.slashInterval
@@ -481,14 +517,16 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
     run.slashAimY = aimY
     run.slashCount++
 
-    // 断 — every Nth sweep lands doubled. Counted, never rolled: see
+    // 断 — every Nth blow lands doubled. Counted, never rolled: see
     // Stats.critEvery for why a chance would have cost the run its seed.
     const crit = stats.critEvery > 0 && run.slashCount % stats.critEvery === 0
-    cut(aimX, aimY, crit ? stats.slashDamage * 2 : stats.slashDamage, crit)
+    const damage = crit ? stats.slashDamage * 2 : stats.slashDamage
+    if (stats.strike === 'throw') volley(aimX, aimY, damage)
+    else cut(aimX, aimY, damage, crit)
 
-    // 影 — the cut leaves a copy of itself where you were aiming. Queued rather
-    // than struck twice at once, or it would read as one bigger number instead
-    // of as a second blow.
+    // 影 — the blow leaves a copy of itself where you were aiming. Queued
+    // rather than struck twice at once, or it would read as one bigger number
+    // instead of as a second blow.
     if (stats.echoDelay > 0 && stats.echoDamage > 0) {
       run.echoTimer = stats.echoDelay
       run.echoAimX = aimX
@@ -506,7 +544,11 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       run.slashVisual = SLASH_VISUAL * 0.6
       run.slashAimX = run.echoAimX
       run.slashAimY = run.echoAimY
-      cut(run.echoAimX, run.echoAimY, run.echoDamage)
+      // An echo is a second BLOW, so it takes whichever form this class's blow
+      // takes. A thrown echo that arrived as an arc would be the one place the
+      // two classes quietly became the same weapon again.
+      if (stats.strike === 'throw') volley(run.echoAimX, run.echoAimY, run.echoDamage)
+      else cut(run.echoAimX, run.echoAimY, run.echoDamage)
     }
   }
 

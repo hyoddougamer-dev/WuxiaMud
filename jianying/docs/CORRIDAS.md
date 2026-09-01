@@ -138,3 +138,55 @@ que já dá aquela arma (o pântano ensina lança, o mercado ensina leque — a 
 3. **天象 e 阶.** Dados e aritmética; é aqui que aparece o conteúdo.
 4. **De 30 para 60 artes**, mais os 秘笈 a cair.
 5. **A UI de combate**, quando escolheres entre A, B e C.
+
+---
+
+## 7. O portão da 官道 favorece o lançador — medido, não sentido
+
+*Escrito quando o roster passou de seis armas para duas.*
+
+`data/regions.ts` aponta para aqui. Isto é o que a medição encontrou e que eu
+**não** corrigi sozinho, porque é uma decisão de desenho e não um número.
+
+### O que foi medido
+
+`tools/runLength.mts`, piloto *duel*, 官道, alvo da fenda a 180 qi:
+
+| classe | passa o portão | duração | mortes | qi ganho |
+|---|---|---|---|---|
+| 斩马刀 | **17 %** | 57 s | 88 | 212 |
+| 飞刀 | **100 %** | 54 s | 85 | 231 |
+
+O primeiro instinto foi baixar o dano das facas. Não funciona, e é aí que está
+a informação: a 11, 8, 7, 6 e 5 de dano o resultado é **exatamente o mesmo** —
+100 %, as mesmas mortes, os mesmos segundos. O dano não é a alavanca.
+
+### Porquê
+
+O portão é **um único chefe com 480 de vida a 242 de velocidade**, contra um
+jogador a 250. Isso é:
+
+- o combate ideal do lançador — 250 de alcance, 8 de margem de velocidade,
+  nunca precisa de parar;
+- o pior combate do ceifador — 106 de alcance, tem de ficar colado ~15 segundos
+  a levar dano de contacto para entregar o mesmo total.
+
+Não é um problema de equilíbrio de armas. É que **um chefe único e rápido é um
+teste de cinesia, e só uma das duas classes joga a esse teste**.
+
+### As três saídas, e o que cada uma custa
+
+1. **O chefe traz companhia.** Levas pequenas à volta dele. Dá ao ceifador
+   alguém em quem o arco vale a pena e obriga o lançador a escolher alvos.
+   *Custo:* o portão deixa de ser um duelo, que era metade da intenção.
+2. **O chefe fecha a distância à força** — um salto, ou um sopro que empurra.
+   Tira ao lançador o kite gratuito sem tocar em números.
+   *Custo:* mais simulação, e é a única que precisa de código novo a sério.
+3. **Alcance a sério para o ceifador enquanto ataca** — um passo à frente
+   embutido no golpe, em vez de mais dano.
+   *Custo:* mexe no movimento da classe, que é o que menos quero mexer sem
+   playtest teu.
+
+A minha preferência é a **2**, porque é a única que corrige a causa (a
+distância é grátis) em vez do sintoma. Mas isto muda como a corrida acaba, e
+essa escolha é tua.

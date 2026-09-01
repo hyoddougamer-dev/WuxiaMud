@@ -368,7 +368,17 @@ async function main(): Promise<void> {
 
     // Pick a non-default origin, so the grant is visible in the hub that
     // follows rather than being indistinguishable from a blank character.
-    await page.locator('.origin').nth(2).click()
+    //
+    // The LAST one, not the third. Hard-coding index 2 broke the whole harness
+    // the day the roster went from five schools to two — a run that had nothing
+    // to do with creation died waiting thirty seconds for a card that no longer
+    // exists. A count is data; the harness should read it rather than remember
+    // it. This also asserts the roster is not down to one, since "pick a
+    // non-default school" is meaningless then.
+    const origins = page.locator('.origin')
+    const originCount = await origins.count()
+    if (originCount < 2) throw new Error(`creation offers ${originCount} school(s)`)
+    await origins.nth(originCount - 1).click()
     await page.waitForTimeout(200)
     const chosenName = (await page.locator('.create-input').inputValue()) || '(blank)'
     await page.locator('.create-go').click()

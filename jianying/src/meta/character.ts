@@ -25,6 +25,7 @@ import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
 import { DEFAULT_LOOK, type Look } from './look'
 import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
+import { DEFAULT_SCHOOL } from './schools'
 
 /** The four things a point can be spent on. */
 export type AttributeId = 'body' | 'edge' | 'swift' | 'spirit'
@@ -125,7 +126,11 @@ export function emptyAttributes(): Attributes {
  */
 export function createCharacter(
   name = 'Wanderer',
-  origin = 'mountain',
+  // Taken from the school table rather than written here. It was the literal
+  // 'mountain' for a long time and nothing noticed until that school was
+  // deleted — at which point every fresh character, and every save with an
+  // unreadable origin, fell back to a school this build no longer had.
+  origin = DEFAULT_SCHOOL.id,
   look: Look = DEFAULT_LOOK,
 ): Character {
   return {

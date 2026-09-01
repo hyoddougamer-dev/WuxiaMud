@@ -20,6 +20,14 @@ export interface Bolt {
   life: number
   /** How many more enemies it can cut through. */
   pierce: number
+  /**
+   * 0 for sword qi, 1 for a thrown dagger. Renderer-only.
+   *
+   * The two must never look alike: a qi bolt is an art firing itself, a dagger
+   * is the 飞刀's ordinary attack, and a player who cannot tell them apart
+   * cannot tell which of their own systems is doing the work.
+   */
+  kind: number
 }
 
 const MAX_BOLTS = 220
@@ -34,10 +42,11 @@ export class Bolts {
   constructor() {
     this.pool = new Pool<Bolt>(
       MAX_BOLTS,
-      () => ({ x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, damage: 0, life: 0, pierce: 0 }),
+      () => ({ x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, damage: 0, life: 0, pierce: 0, kind: 0 }),
       (b) => {
         b.life = BOLT_LIFE
         b.pierce = 1
+        b.kind = 0
       },
     )
   }
@@ -50,7 +59,23 @@ export class Bolts {
     this.pool.clear()
   }
 
-  fire(x: number, y: number, dirX: number, dirY: number, damage: number, pierce: number): void {
+  /**
+   * Looses one projectile.
+   *
+   * `life` is how long it flies, which is how a THROWN weapon expresses reach:
+   * the 飞刀's range is a distance, and distance over BOLT_SPEED is a life. An
+   * art that lengthens reach therefore lengthens flight, with no second rule.
+   */
+  fire(
+    x: number,
+    y: number,
+    dirX: number,
+    dirY: number,
+    damage: number,
+    pierce: number,
+    life = BOLT_LIFE,
+    kind = 0,
+  ): void {
     const bolt = this.pool.spawn()
     if (!bolt) return
     bolt.x = x
@@ -60,8 +85,9 @@ export class Bolts {
     bolt.vx = dirX * BOLT_SPEED
     bolt.vy = dirY * BOLT_SPEED
     bolt.damage = damage
-    bolt.life = BOLT_LIFE
+    bolt.life = life
     bolt.pierce = pierce
+    bolt.kind = kind
   }
 
   /** Moves every bolt and retires the expired ones. */

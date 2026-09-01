@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    a { color: #8a6d16; } a:hover { color: #c1272d; }
+  </style>
+</helmet>
+<div style="width: 880px; height: 900px; background: #e8dcc0; color: #0d0d0d; padding: 26px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+  <div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">功法 &nbsp;As artes</div>
+    <div style="font-size: 21px; font-weight: 600; margin-top: 5px;">Trinta artes passam a dez, e a grelha fica cheia</div>
+    <div style="font-size: 12.5px; line-height: 1.55; color: rgba(13,13,13,0.55); margin-top: 8px; max-width: 74ch;">
+      Cinco condições &times; duas classes = dez artes, sem buracos e sem repetições. Não há botão:
+      cada arte tem uma <b>condição</b> que provocas com o polegar que já está no joystick, e
+      dispara-se sozinha enquanto a condição se mantiver.
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 130px 1fr 1fr; gap: 10px 14px;">
+    <div></div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">斩 &nbsp;Zhanmadao</div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; color: #2f5d8a;">飞刀 &nbsp;Flying Daggers</div>
+      <div style="padding-top: 10px;">
+        <div style="font-size: 15px; font-weight: 700;">静</div>
+        <div style="font-size: 11.5px; font-weight: 600; margin-top: 2px;">Still</div>
+        <div style="font-size: 10.5px; line-height: 1.4; color: rgba(13,13,13,0.55); margin-top: 3px;">Planta os pés e para.</div>
+      </div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #0d0d0d; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">沉</div><div style="font-size: 13px; font-weight: 600;">Sink</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #0d0d0d;">dano</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Plantado, o peso entra no corte.</div></div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">定</div><div style="font-size: 13px; font-weight: 600;">Steady</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #2f5d8a;">perfuração</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Plantado, o lançamento estreita e vai muito mais longe.</div></div>
+      <div style="padding-top: 10px;">
+        <div style="font-size: 15px; font-weight: 700;">疾</div>
+        <div style="font-size: 11.5px; font-weight: 600; margin-top: 2px;">Running</div>
+        <div style="font-size: 10.5px; line-height: 1.4; color: rgba(13,13,13,0.55); margin-top: 3px;">Segura a velocidade máxima sem virar.</div>
+      </div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #0d0d0d; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">碾</div><div style="font-size: 13px; font-weight: 600;">Grind</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #0d0d0d;">eco</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">A velocidade, a lâmina volta a passar no mesmo golpe.</div></div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">连</div><div style="font-size: 13px; font-weight: 600;">Chain</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #2f5d8a;">cadência</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">A correr, as salvas vêm umas por cima das outras.</div></div>
+      <div style="padding-top: 10px;">
+        <div style="font-size: 15px; font-weight: 700;">转</div>
+        <div style="font-size: 11.5px; font-weight: 600; margin-top: 2px;">Turning</div>
+        <div style="font-size: 10.5px; line-height: 1.4; color: rgba(13,13,13,0.55); margin-top: 3px;">Inverte com força, pelo caminho por onde vieste.</div>
+      </div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #0d0d0d; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">一斩</div><div style="font-size: 13px; font-weight: 600;">One Cut</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #0d0d0d;">crítico</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">O golpe depois da curva cai como uma árvore.</div></div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">回</div><div style="font-size: 13px; font-weight: 600;">Return</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #2f5d8a;">eco</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Virar solta uma segunda salva por onde vieste.</div></div>
+      <div style="padding-top: 10px;">
+        <div style="font-size: 15px; font-weight: 700;">围</div>
+        <div style="font-size: 11.5px; font-weight: 600; margin-top: 2px;">Surrounded</div>
+        <div style="font-size: 10.5px; line-height: 1.4; color: rgba(13,13,13,0.55); margin-top: 3px;">Deixa-os fechar à tua volta.</div>
+      </div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #0d0d0d; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">裂</div><div style="font-size: 13px; font-weight: 600;">Rend</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #0d0d0d;">alcance</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Cercado, a lâmina precisa de mais espaço e toma-o.</div></div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">散</div><div style="font-size: 13px; font-weight: 600;">Scatter</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #2f5d8a;">arco</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Cercado, as lâminas saem num leque largo.</div></div>
+      <div style="padding-top: 10px;">
+        <div style="font-size: 15px; font-weight: 700;">危</div>
+        <div style="font-size: 11.5px; font-weight: 600; margin-top: 2px;">Peril</div>
+        <div style="font-size: 10.5px; line-height: 1.4; color: rgba(13,13,13,0.55); margin-top: 3px;">Continua a lutar com pouca vida.</div>
+      </div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #0d0d0d; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">山</div><div style="font-size: 13px; font-weight: 600;">Mountain</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #0d0d0d;">guarda</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Com pouca vida, o que te acerta pesa menos.</div></div>
+      <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #2f5d8a; border-radius: 2px; background: rgba(255,252,244,0.55); padding: 10px 12px;"><div style="display: flex; align-items: baseline; gap: 8px;"><div style="font-size: 16px; font-weight: 700;">影</div><div style="font-size: 13px; font-weight: 600;">Shadowstep</div><div style="margin-left: auto; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #2f5d8a;">velocidade</div></div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55); margin-top: 5px;">Com pouca vida os pés encontram a brecha. Andas mais depressa.</div></div>
+  </div>
+
+  <div style="border-top: 1px solid rgba(13,13,13,0.12); padding-top: 14px; font-size: 12px; line-height: 1.55; color: rgba(13,13,13,0.55);">
+    A linha 危 é um <b>espelho deliberado</b>: a resposta do ceifador a estar quase morto é ficar e
+    levar menos; a do lançador tem de ser <i>sair</i>, ou estaríamos a pedir-lhe que jogasse contra a
+    própria premissa no pior momento possível. E cada efeito do 飞刀 lê o <b>mesmo campo</b> que o do
+    zhanmadao — num lançamento, alcance é distância de voo e o arco é a abertura da salva. Um
+    vocabulário, dois sentidos, nenhuma segunda implementação para divergir.
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

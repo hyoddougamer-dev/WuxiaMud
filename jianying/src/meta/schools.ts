@@ -34,22 +34,24 @@ export interface School {
   readonly kit: readonly string[]
 }
 
+/**
+ * TWO SCHOOLS, one per class, and that is the whole reason there are two.
+ *
+ * There were five, across six weapons. Cutting the weapons to two would have
+ * left four of them sharing a class — differing only in three attribute points
+ * and a starting robe, which is precisely the "a school is a label" failure
+ * this screen was rewritten to fix in the first place. A school is where a
+ * player MEETS a class, so there is exactly one door to each.
+ */
 export const SCHOOLS: readonly School[] = [
-  {
-    id: 'mountain',
-    seal: '山门',
-    name: 'Mountain Sect',
-    blurb: 'Twelve years of forms before they let you hold an edge. You are not fast, and you do not break.',
-    weaponId: 'jian',
-    grants: { body: 2, edge: 1 },
-    kit: ['r-plain', 's-plain', 'h-topknot'],
-  },
   {
     id: 'garrison',
     seal: '将门',
     name: 'Frontier Garrison',
-    blurb: 'Raised where the line either holds or it does not. You were taught to swing through, not around.',
-    weaponId: 'dao',
+    blurb:
+      'Raised where the line either holds or it does not. You were taught to swing through, ' +
+      'not around, and to stand where the swinging is worth doing.',
+    weaponId: 'great',
     grants: { body: 3 },
     kit: ['r-lamellar', 's-pauldron', 'h-bare'],
   },
@@ -57,28 +59,12 @@ export const SCHOOLS: readonly School[] = [
     id: 'wanderer',
     seal: '游侠',
     name: 'Wandering Blade',
-    blurb: 'No master, no school, and a great many roads. Two edges, and no patience for a guard.',
-    weaponId: 'twin',
+    blurb:
+      'No master, no school, and a great many roads. You learned early that the safest ' +
+      'place in a fight is the one nobody can reach.',
+    weaponId: 'feidao',
     grants: { swift: 3 },
     kit: ['r-travelling', 's-bare', 'h-bare'],
-  },
-  {
-    id: 'temple',
-    seal: '道观',
-    name: 'Temple Acolyte',
-    blurb: 'Taught to move qi before you were taught to fight. The fan came later, and reluctantly.',
-    weaponId: 'fan',
-    grants: { spirit: 3 },
-    kit: ['r-plain', 's-wide', 'h-crown'],
-  },
-  {
-    id: 'watch',
-    seal: '关隘',
-    name: 'Pass Watch',
-    blurb: 'A spear and a stretch of road nobody else wanted. You learned to keep everything at arm’s length.',
-    weaponId: 'spear',
-    grants: { edge: 2, swift: 1 },
-    kit: ['r-travelling', 's-plain', 'h-hat'],
   },
 ] as const
 

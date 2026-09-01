@@ -1152,8 +1152,37 @@ async function boot(): Promise<void> {
     }
 
     // --- the sweep -----------------------------------------------------
+    //
+    // ONLY the sweeper gets an arc. Drawing one for the thrower was the single
+    // worst thing on screen for that class: `slashRange` is its FLIGHT
+    // distance, 250 units, so the crescent came out as a two-hundred-and-fifty
+    // unit band across most of the screen every half second — and it arrived
+    // where the daggers had not got to yet. The thrower's blow is the daggers.
+    // What it gets here instead is the release: a short flick at the hand,
+    // pointing where the volley just went.
     slashGfx.clear()
-    if (run.slashVisual > 0) {
+    if (run.slashVisual > 0 && live.strike === 'throw') {
+      const life = run.slashVisual / SLASH_VISUAL
+      const angle = Math.atan2(run.slashAimY, run.slashAimX)
+      const ease = easing.outCubic(life)
+      // A wedge from the hand, gone in a fifth of a second. It exists to answer
+      // "did that come out of ME" — nothing more, because the blades in flight
+      // are already carrying the information.
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      const px = -sin
+      const py = cos
+      const near = 10
+      const far = 10 + 26 * ease
+      const w = 5 * (1 - ease * 0.5)
+      slashGfx
+        .poly([
+          wx + cos * near + px * w, wy + sin * near + py * w - 14,
+          wx + cos * far, wy + sin * far - 14,
+          wx + cos * near - px * w, wy + sin * near - py * w - 14,
+        ])
+        .fill({ color: palette.ink, alpha: 0.42 * life })
+    } else if (run.slashVisual > 0) {
       const life = run.slashVisual / SLASH_VISUAL
       const angle = Math.atan2(run.slashAimY, run.slashAimX)
       const ease = easing.outCubic(life)
@@ -1262,6 +1291,31 @@ async function boot(): Promise<void> {
       const bx = lerp(b.prevX, b.x, alpha)
       const by = lerp(b.prevY, b.y, alpha)
       const a = Math.atan2(b.vy, b.vx)
+      // A THROWN BLADE is not sword qi, and it must not be drawn as it. Kind 1
+      // is a dagger the player let go of: a small hard lozenge, tumbling. Kind
+      // 0 is qi released from an art: a wide soft crescent. The `kind` field
+      // was already being set at the fire site and read nowhere, which meant
+      // the whole 飞刀 class was firing crescents — an ink game's way of saying
+      // "you are still playing the swordsman".
+      if (b.kind === 1) {
+        // The tumble is derived from the bolt's own position rather than from
+        // the clock, so a volley of three spins out of phase instead of three
+        // blades turning in lockstep like a machine.
+        const spin = a + (b.x * 0.06 + b.y * 0.05) + time * 13
+        const cos = Math.cos(spin)
+        const sin = Math.sin(spin)
+        const px = -sin
+        const py = cos
+        boltGfx
+          .poly([
+            bx + cos * 9, by + sin * 9,
+            bx + px * 2.1, by + py * 2.1,
+            bx - cos * 4, by - sin * 4,
+            bx - px * 2.1, by - py * 2.1,
+          ])
+          .fill({ color: palette.ink, alpha: 0.92 })
+        continue
+      }
       // Drawn as a short crescent aligned with travel — the same brush
       // vocabulary as the sweep, so the arts read as one hand.
       const pts: number[] = []

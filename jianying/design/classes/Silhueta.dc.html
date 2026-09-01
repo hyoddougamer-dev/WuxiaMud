@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    a { color: #8a6d16; } a:hover { color: #c1272d; }
+  </style>
+</helmet>
+<div style="width: 560px; height: 820px; background: #e8dcc0; color: #0d0d0d; padding: 26px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+  <div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">Como se distinguem</div>
+    <div style="font-size: 21px; font-weight: 600; margin-top: 5px;">Seis canais, e dois deles em direções opostas</div>
+    <div style="font-size: 12.5px; line-height: 1.55; color: rgba(13,13,13,0.55); margin-top: 8px; max-width: 52ch;">
+      Estas figuras não têm interior — são silhuetas de tinta, e essa regra é o que faz o jogo
+      correr a 60fps com 400 inimigos. Por isso uma classe não pode ler-se por uniforme, cor ou
+      emblema. Só por <b>proporção</b> e pelo <b>que sai para fora do corpo</b>.
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 88px 1fr 1fr; gap: 6px 14px; align-items: end; border-bottom: 1px solid rgba(13,13,13,0.14); padding-bottom: 6px;">
+    <div></div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">斩</div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">飞刀</div>
+  </div>
+  <div style="display: grid; grid-template-columns: 88px 62px 62px 1fr; gap: 10px 14px; align-items: baseline;">
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">ombros</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;1.18</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;0.88</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">A moldura. É o canal que mais se lê de frente.</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">tronco</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;1.16</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;0.88</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">A massa pendurada nessa moldura.</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">cintura</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;1.14</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;0.84</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">Onde o corpo dobra — mais baixa lê-se como peso.</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">pés</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;1.80</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">&times;0.55</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">Só se vê sob um manto curto. É o canal mais fraco, e assumo-o.</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">bainha</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">52 u</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">—</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">A espada embainhada às costas, a atravessar a silhueta toda.</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 12px;">facas</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">—</div>
+      <div style="font-size: 12px; font-weight: 600; text-align: right;">3</div>
+      <div style="color: rgba(13,13,13,0.55); font-size: 11.5px; line-height: 1.45;">Na anca esquerda, a espetar para fora da linha do corpo.</div>
+  </div>
+
+  <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #3f6b46; border-radius: 2px; background: rgba(63,107,70,0.05); padding: 14px 16px;">
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; color: #35603c;">O que o teste fixa</div>
+    <div style="font-size: 12.5px; line-height: 1.55; margin-top: 8px;">
+      Medido nos polígonos, não julgado a olho — <code>tests/meta.spec.ts</code>:
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 6px 16px; font-size: 12.5px; margin-top: 12px;">
+      <div style="color: rgba(13,13,13,0.55);">largura à altura dos ombros</div>
+      <div style="font-weight: 600;">斩 10.9</div>
+      <div style="font-weight: 600;">飞刀 8.8</div>
+      <div style="color: rgba(13,13,13,0.55);">largura à altura da anca</div>
+      <div style="font-weight: 600;">斩 10.6</div>
+      <div style="font-weight: 600;">飞刀 12.2</div>
+    </div>
+    <div style="font-size: 12px; line-height: 1.55; color: rgba(13,13,13,0.55); margin-top: 12px;">
+      Duas silhuetas que apenas <i>diferem</i> não chegam a 40 píxeis num telemóvel. Têm de diferir
+      em <b>direções opostas</b>: o ceifador é mais largo em cima, o lançador é mais largo em baixo.
+      É essa inversão que o teste fixa, e é ela que impede a regressão silenciosa que aconteceu com
+      as seis armas.
+    </div>
+  </div>
+
+  <div style="border-top: 1px solid rgba(13,13,13,0.12); padding-top: 14px; font-size: 11.5px; line-height: 1.55; color: rgba(13,13,13,0.55);">
+    A postura <b>multiplica</b> a tua escolha em vez de a substituir. Uma mulher larga com zhanmadao
+    continua mais larga do que uma lean com zhanmadao, e continua mais estreita do que um homem
+    largo com a mesma arma. A classe move a linha de base; o teu boneco continua a mover a figura.
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

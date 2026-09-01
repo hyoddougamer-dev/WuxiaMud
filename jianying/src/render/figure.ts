@@ -10,7 +10,7 @@
  */
 import { Rng } from '../core/rng'
 import { bowedSpine, calligraphic, elliptic, sweep, tapered, type Point, type WidthProfile } from './ink'
-import { DEFAULT_GEAR, type BladeStyle, type Gear } from './wardrobe'
+import { DEFAULT_GEAR, STANCES, type BladeStyle, type Gear } from './wardrobe'
 
 export interface FigureStroke {
   poly: number[]
@@ -136,6 +136,16 @@ export function buildSwordsmanTopDown(
   let tag: { part?: 'robe' | 'cut' } = {}
 
   const { robe, shoulders, head } = gear
+  // The class, expressed as proportion. See STANCES in render/wardrobe.ts for
+  // why this multiplies the player's own look rather than replacing it.
+  const stance = gear.blade.stance ?? STANCES.even
+  const planted = stance.feet
+
+  // Hoisted above the robe, because the chest is measured from it and the chest
+  // is the first mark drawn. It was computed twice from the same expression
+  // before, which meant the stance would have had to be applied in two places
+  // and would eventually have been applied in one.
+  const span = shoulders.span * bearing.shoulders * stance.shoulders
 
   // Where the body's joints sit. Named rather than sprinkled through the marks
   // below, because the head, the neck, the collar and every hat share them: the
@@ -146,9 +156,76 @@ export function buildSwordsmanTopDown(
   // Never below the shoulder bar: a lower collar left a paper sliver across
   // the chest that read as a slash.
   const robeTop = Math.min(robe.top, shoulderY / s + 1)
-  const waistY = robeTop + (robe.bottom - robeTop) * bearing.waist
+  // Clamped, because the stance multiplies it: a waist pushed past the hem is
+  // not a heavy swordsman, it is a robe drawn inside out.
+  const waistFrac = Math.min(0.82, Math.max(0.16, bearing.waist * stance.waist))
+  const waistY = robeTop + (robe.bottom - robeTop) * waistFrac
   const waistWidth = robe.topWidth * bearing.cinch
   const hemWidth = robe.hemWidth * bearing.hem
+
+  // ---- Scabbard ---------------------------------------------------------
+  // FIRST, so the body, the robe and the sleeves all fall over it — which is
+  // what makes it read as slung on the back rather than held across the front.
+  //
+  // The blade it belongs to is in the swordsman's hands, so this is an empty
+  // 鞘, and that is exactly why it earns its place: it is the one mark that
+  // still says "this person carries something enormous" while the enormous
+  // thing is swung out of frame. It crosses the whole silhouette — the chape
+  // clear of the right hip, the mouth past the left ear — so it survives being
+  // drawn forty pixels tall on a phone, which nothing subtler does.
+  //
+  // Slung right-hip to left-shoulder, which is the opposite diagonal to the
+  // blade the portrait puts in the hand. That was not the first attempt and the
+  // first attempt was unusable: run the other way, the scabbard lay ALONG the
+  // drawn blade at almost the same angle, and the pair read as one thick line
+  // with a smudge on it. Crossed, they read as two objects — which they are.
+  if (stance.sheath > 0) {
+    // Fixed endpoints scaled along their own line, so a longer scabbard grows
+    // out of the hip rather than sliding up the back.
+    const low = { x: 13 * s, y: -2 * s }
+    const dx = -22
+    const dy = -48
+    const k = (stance.sheath / Math.hypot(dx, dy)) * s
+    const at = (t: number): Point => ({ x: low.x + dx * k * t, y: low.y + dy * k * t })
+
+    // Three pieces, because two were not enough to stop it reading as an axe.
+    // A thick shaft with a wide bar across its very tip is a hatchet, and that
+    // is exactly what the first version drew — a small blocky head beside the
+    // swordsman's ear. A sheathed sword is a LONG body, a SMALL guard, and then
+    // a grip continuing past it, and it is the third piece that settles it.
+    //
+    // The body: nearly parallel-sided rather than a brush taper, because a
+    // scabbard is an object with edges and a calligraphic profile made it read
+    // as a smear of ink somebody had left on the figure.
+    mark(low, at(0.7), -1.2 * s, elliptic(5 * s), {
+      alpha: 0.9,
+      segments: 20,
+      jitter: 0.4 * s,
+      bleedBy: 0.8 * s,
+    })
+    // The grip, thinner and continuing past the mouth. It is what makes the
+    // whole mark read as a weapon rather than as a rolled mat or a staff.
+    // Blunt, not tapered. A pointed end up by the ear read as a SECOND blade
+    // rather than as the grip of the first one — which is the exact confusion
+    // the scabbard exists to avoid.
+    mark(at(0.76), at(1), 0, (u) => (3 - u * 0.4) * s, {
+      alpha: 0.9,
+      segments: 10,
+      jitter: 0.25 * s,
+      bleedBy: 0.5 * s,
+    })
+    // The guard, between the two and SMALL — just wide enough to separate them.
+    const across = { x: -dy, y: dx }
+    const an = Math.hypot(across.x, across.y)
+    const g = at(0.74)
+    mark(
+      { x: g.x - (across.x / an) * 3.4 * s, y: g.y - (across.y / an) * 3.4 * s },
+      { x: g.x + (across.x / an) * 3.4 * s, y: g.y + (across.y / an) * 3.4 * s },
+      0,
+      elliptic(1.9 * s),
+      { alpha: 0.9, segments: 8, jitter: 0.2 * s, bleedBy: 0.35 * s },
+    )
+  }
 
   // ---- Legs -------------------------------------------------------------
   // Drawn first, so the robe falls over them and only what the hem clears is
@@ -156,10 +233,15 @@ export function buildSwordsmanTopDown(
   // boots under it and a court robe does not, from the same geometry. Before
   // this every figure went to the floor as one mass, which is what made them
   // all read as bells no matter what the hem did.
+  //
+  // How far apart they are planted comes from the STANCE, so a zhanmadao is
+  // braced and a knife-thrower is light on their feet. It only reads under a
+  // hem short enough to show a boot — which is the honest limit of this
+  // channel, and why it is the least of the six the stance moves.
   for (const side of [-1, 1]) {
     mark(
-      { x: side * 3.4 * s, y: -16 * s },
-      { x: side * 3.2 * s, y: -1.2 * s },
+      { x: side * 3.4 * planted * s, y: -16 * s },
+      { x: side * 3.2 * planted * s, y: -1.2 * s },
       0,
       calligraphic(5.4 * s, 0.9, 0.55),
       { alpha: 0.95, segments: 12, jitter: 0.45 * s, bleedBy: 0.6 * s },
@@ -167,8 +249,8 @@ export function buildSwordsmanTopDown(
     // A foot: short, flat, and pointing away from the centre line. Without it
     // the legs end in mid-air and the figure hovers.
     mark(
-      { x: side * 1.6 * s, y: -1.4 * s },
-      { x: side * 7 * s, y: -0.5 * s },
+      { x: side * 1.6 * planted * s, y: -1.4 * s },
+      { x: side * 7 * planted * s, y: -0.5 * s },
       0.8 * s,
       elliptic(2.5 * s),
       { alpha: 0.95, segments: 10, jitter: 0.25 * s, bleedBy: 0.5 * s },
@@ -195,7 +277,7 @@ export function buildSwordsmanTopDown(
   // chest is about a third wider than the shoulder half-span; that it now comes
   // from the shoulder item is correct rather than a coupling to regret, since
   // pauldrons and a mantle genuinely do broaden a torso.
-  const chest = Math.max(robe.topWidth, shoulders.span * bearing.shoulders * 1.5)
+  const chest = Math.max(robe.topWidth, span * 1.5) * stance.chest
   mark(
     { x: 0, y: robeTop * s },
     { x: 0, y: waistY * s },
@@ -257,8 +339,8 @@ export function buildSwordsmanTopDown(
 
   // ---- Shoulders and sleeves --------------------------------------------
   // Elliptic, not calligraphic: a brush profile keeps most of its width at the
-  // ends, which turned the shoulders into a hard rectangle.
-  const span = shoulders.span * bearing.shoulders
+  // ends, which turned the shoulders into a hard rectangle. `span` is hoisted
+  // above the robe, since the chest is measured from it.
 
   // A mantle sits behind everything, so it reads as cloth the arms hang over.
   // At 0.55 it came out mid-grey and read as a rendering fault rather than as a
@@ -392,6 +474,25 @@ export function buildSwordsmanTopDown(
       { alpha: 0.8, segments: 14, jitter: 0.3 * s },
     )
     tag = {}
+  }
+
+  // ---- Knives at the hip -------------------------------------------------
+  // The 飞刀 half of the same problem the scabbard solves. Thrown blades are
+  // small, so no ONE of them changes a silhouette — a row of them jutting past
+  // the hip line does, and it reads at a glance as the opposite of a scabbard:
+  // many small things where the other class has one enormous one.
+  //
+  // Left hip, because the sword hand is the right one. Angled down and out, so
+  // the spikes break the hip's outline instead of lying along it.
+  for (let i = 0; i < stance.beltBlades; i++) {
+    const y = (waistY - 2 + i * 3.1) * s
+    mark(
+      { x: -waistWidth * 0.3 * s, y },
+      { x: (-waistWidth * 0.3 - 9.5) * s, y: y + 4.2 * s },
+      0.4 * s,
+      calligraphic(2.6 * s, 0.9, 0.16),
+      { alpha: 0.92, segments: 8, jitter: 0.2 * s, bleedBy: 0.4 * s },
+    )
   }
 
   // ---- Hair -------------------------------------------------------------

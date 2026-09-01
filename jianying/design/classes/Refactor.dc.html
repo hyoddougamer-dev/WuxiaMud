@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    a { color: #8a6d16; } a:hover { color: #c1272d; }
+  </style>
+</helmet>
+<div style="width: 660px; height: 1000px; background: #e8dcc0; color: #0d0d0d; padding: 26px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+  <div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">O refactoring</div>
+    <div style="font-size: 21px; font-weight: 600; margin-top: 5px;">O que saiu, e o que teve de mudar por baixo</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 44px 44px 1.5fr; gap: 9px 14px; align-items: baseline;">
+    <div></div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">antes</div>
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">agora</div>
+    <div></div>
+      <div style="font-size: 12.5px;">armas</div><div style="font-size: 12.5px; text-align: right; color: rgba(13,13,13,0.55); text-decoration: line-through;">6</div><div style="font-size: 12.5px; text-align: right; font-weight: 700;">2</div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55);">Os quatro cortados eram traços diferentes na mesma personagem.</div>
+      <div style="font-size: 12.5px;">artes</div><div style="font-size: 12.5px; text-align: right; color: rgba(13,13,13,0.55); text-decoration: line-through;">30</div><div style="font-size: 12.5px; text-align: right; font-weight: 700;">10</div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55);">Nenhuma foi salva para as sobreviventes: uma arte escrita para um leque lê-se mal num zhanmadao.</div>
+      <div style="font-size: 12.5px;">escolas</div><div style="font-size: 12.5px; text-align: right; color: rgba(13,13,13,0.55); text-decoration: line-through;">5</div><div style="font-size: 12.5px; text-align: right; font-weight: 700;">2</div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55);">Uma por classe. Quatro escolas a partilhar duas armas repetiria o erro de "escola é uma etiqueta".</div>
+      <div style="font-size: 12.5px;">lâminas no guarda-roupa</div><div style="font-size: 12.5px; text-align: right; color: rgba(13,13,13,0.55); text-decoration: line-through;">6</div><div style="font-size: 12.5px; text-align: right; font-weight: 700;">4</div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55);">jian e dao ficam — o jian é o fallback de <code>bladeOf</code>.</div>
+      <div style="font-size: 12.5px;">testes</div><div style="font-size: 12.5px; text-align: right; color: rgba(13,13,13,0.55); text-decoration: line-through;">275</div><div style="font-size: 12.5px; text-align: right; font-weight: 700;">335</div><div style="font-size: 11.5px; line-height: 1.45; color: rgba(13,13,13,0.55);">Seis premissas morreram com o corte e foram <b>substituídas</b>, não afinadas.</div>
+  </div>
+
+  <div style="border-top: 1px solid rgba(13,13,13,0.12); padding-top: 14px;">
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">Três alterações estruturais</div>
+    <div style="display: flex; flex-direction: column; gap: 11px; margin-top: 11px;">
+      <div style="font-size: 12.5px; line-height: 1.55;">
+        <b>1 · <code>Strike</code> entra em <code>Stats</code>.</b> O combate passa a ter uma função
+        <code>volley()</code> ao lado de <code>cut()</code>, e o eco ramifica também — um eco lançado
+        é uma salva, não um arco. Era ali que as duas classes voltavam silenciosamente a ser a mesma arma.
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.55;">
+        <b>2 · <code>Bolt</code> ganha <code>kind</code> e <code>life</code>.</b> O alcance de uma arma
+        de arremesso passa a ser tempo de voo, e o desenho passa a saber se está a desenhar qi ou uma faca.
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.55;">
+        <b>3 · <code>Stance</code> pendura-se na lâmina.</b> Escolha deliberada: a lâmina é a única
+        peça da classe que <i>todos</i> os ecrãs já resolvem — o retrato do hub, a pré-visualização da
+        criação, as folhas de contacto, a figura em jogo. Pôr a postura ali fez com que todos eles
+        começassem a desenhar duas classes distinguíveis <b>sem uma única chamada mudar</b>.
+      </div>
+    </div>
+  </div>
+
+  <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #8a6d16; border-radius: 2px; background: rgba(138,109,22,0.06); padding: 14px 16px;">
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16;">Dois bugs reais que o corte expôs</div>
+    <div style="font-size: 12.5px; line-height: 1.55; margin-top: 9px;">
+      <b>·</b> <code>createCharacter</code> tinha a origem <code>'mountain'</code> escrita à mão.
+      Apagar essa escola fazia com que <i>toda</i> a personagem nova — e todo o save ilegível — caísse
+      numa escola que a build já não tem.
+    </div>
+    <div style="font-size: 12.5px; line-height: 1.55; margin-top: 9px;">
+      <b>·</b> O <code>官道</code> estava calibrado a 547 de qi. Todas as outras regiões do mapa estão
+      entre 3 e 97. Medido com <code>tools/runLength.mts</code>: 180 é a fasquia que as duas classes
+      alcançam.
+    </div>
+  </div>
+
+  <div style="border: 1px solid rgba(13,13,13,0.14); border-left: 3px solid #c1272d; border-radius: 2px; background: rgba(193,39,45,0.05); padding: 14px 16px;">
+    <div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; color: #c1272d;">Em aberto — é uma decisão tua, não um número</div>
+    <div style="display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px 14px; font-size: 12px; margin-top: 10px;">
+      <div style="color: rgba(13,13,13,0.55);"></div><div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">passa</div><div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">mortes</div><div style="font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: #8a6d16; text-align: right;">qi</div>
+      <div>斩马刀</div><div style="text-align: right; font-weight: 700; color: #c1272d;">17 %</div><div style="text-align: right;">88</div><div style="text-align: right;">212</div>
+      <div>飞刀</div><div style="text-align: right; font-weight: 700; color: #3f6b46;">100 %</div><div style="text-align: right;">85</div><div style="text-align: right;">231</div>
+    </div>
+    <div style="font-size: 12px; line-height: 1.55; margin-top: 11px;">
+      Baixar o dano das facas não resolve: a 11, 8, 7, 6 e 5 de dano o resultado é <b>exatamente o
+      mesmo</b>. O portão é um chefe <b>único</b> com 480 de vida a 242 de velocidade contra um jogador
+      a 250 — o combate ideal do lançador e o pior do ceifador, que tem de ficar colado ~15 segundos.
+      Não é equilíbrio de armas; é que um chefe único e rápido é um teste a que só uma das duas
+      classes joga. As três saídas estão em <code>docs/CORRIDAS.md</code> §7.
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

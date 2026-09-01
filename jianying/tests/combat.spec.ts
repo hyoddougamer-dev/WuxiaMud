@@ -221,15 +221,23 @@ describe('combat', () => {
     // Surrounded by a crowd, the player must not take every enemy's damage on
     // the same tick. Without the immunity window the health bar empties in a
     // fraction of a second, faster than the player can read what hit them.
-    // Standing still, the sweep holds the crowd off for roughly the first
-    // half-minute before bodies start getting through, so this samples after
-    // that grace period.
+    //
+    // THE SAMPLE IS SHORTER THAN IT WAS, and the reason is worth writing down.
+    // It stood still for 45 seconds and asserted the swordsman was hurt but
+    // alive — which held while the default weapon was a quick jian. The
+    // default is the zhanmadao now, and standing still in a crowd for
+    // three quarters of a minute holding a two-second-per-swing weapon is
+    // simply death. That is the class working, not the cap failing.
+    //
+    // So this measures the cap and nothing else: a window long enough for
+    // bodies to reach the player, short enough that surviving it is not the
+    // claim being made.
     const sim = newSim()
-    play(sim, 45, STAND_STILL)
-    expect(sim.run.hp).toBeGreaterThan(0)
+    play(sim, 22, STAND_STILL)
     expect(sim.run.hp).toBeLessThan(PLAYER_MAX_HP)
-    // However dense the crowd, damage is bounded by the immunity window.
-    const maxHits = Math.ceil(45 / HURT_IMMUNITY) + 1
+    // However dense the crowd, damage is bounded by the immunity window. This
+    // is the assertion; the health left over is not.
+    const maxHits = Math.ceil(22 / HURT_IMMUNITY) + 1
     expect(PLAYER_MAX_HP - sim.run.hp).toBeLessThanOrEqual(maxHits * 20)
   })
 

@@ -18,6 +18,7 @@ import {
   type Region,
 } from '../src/data/regions'
 import { ROUSED, Swarm, contactDamage, rouse } from '../src/sim/enemies'
+import { WEAPONS } from '../src/data/weapons'
 import { Hazards } from '../src/sim/hazards'
 import { MAX_SPEED, createPlayer, updatePlayer } from '../src/sim/player'
 
@@ -380,13 +381,18 @@ describe('the rift, at every region', () => {
     // bar (519-598 qi against 547) at ninety-six seconds and then loses to the
     // boss it summoned. Whether you survive the gate is the challenge; whether
     // you can get to it is the calibration, and only the second belongs here.
+    // BOTH CLASSES, because a bar only one of them can reach is a bar that
+    // deletes the other. This became a real risk the day the roster went from
+    // six near-identical weapons to one sweeper and one thrower.
     const duel = PILOTS[1]![1]
     for (const region of REGIONS) {
-      const r = play(region.id, duel, region.riftBase)
-      const reached = r.cleared > 0 || r.qiAtCeiling >= region.riftBase * 0.8
-      expect(reached, region.name).toBe(true)
+      for (const weapon of WEAPONS) {
+        const r = play(region.id, duel, region.riftBase, weapon.id)
+        const reached = r.cleared > 0 || r.qiAtCeiling >= region.riftBase * 0.8
+        expect(reached, `${region.name} with ${weapon.name}`).toBe(true)
+      }
     }
-  }, 20000)
+  }, 40000)
 
   it('no longer lets pure evasion outlast fighting', () => {
     // The bug this replaces a weaker test for. Measured on a device the game

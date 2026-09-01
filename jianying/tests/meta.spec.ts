@@ -355,8 +355,17 @@ describe('attributes feed combat', () => {
   it('produces finite stats for an empty and a maxed character alike', () => {
     for (const spent of [emptyAttributes(), attrs({ body: 80, edge: 80, swift: 80, spirit: 80 })]) {
       const stats = deriveStats(new Map([['keen', 6]]), kit(spent))
-      for (const value of Object.values(stats)) {
-        expect(Number.isFinite(value)).toBe(true)
+      // Every NUMBER, which is now not every field: `strike` is the one
+      // discriminator on the block (see data/weapons.ts) and is a string. The
+      // point of this test is that no arithmetic path produces a NaN, so it
+      // checks the numbers and asserts the shape of what it skipped rather
+      // than quietly widening to "anything goes".
+      for (const [key, value] of Object.entries(stats)) {
+        if (key === 'strike') {
+          expect(value === 'sweep' || value === 'throw', key).toBe(true)
+          continue
+        }
+        expect(Number.isFinite(value), key).toBe(true)
       }
     }
   })
@@ -417,9 +426,9 @@ describe('schools', () => {
   })
 
   it('applies its grant onto the attribute spread', () => {
-    const temple = SCHOOL_BY_ID.get('temple')!
-    const spent = applySchool(temple, emptyAttributes())
-    expect(spent.spirit).toBe(temple.grants.spirit)
+    const wanderer = SCHOOL_BY_ID.get('wanderer')!
+    const spent = applySchool(wanderer, emptyAttributes())
+    expect(spent.swift).toBe(wanderer.grants.swift)
     expect(spent.body).toBe(0)
     // The source spread is not mutated — creation applies this to a fresh
     // character, and a shared mutable default would leak between them.
@@ -491,27 +500,50 @@ describe('weapons', () => {
     // clear the starting enemy is not a difficulty curve, it is a wall.
     //
     // Stated as TIME rather than as one sweep, which is what the first version
-    // of this test got wrong: twin blades deal 7 against a 10hp bandit, so they
-    // need two sweeps — but at 0.27s each that is 0.54s, quicker than the
-    // jian's single 0.46s swing. Sweeps are not the unit the player feels.
+    // of this test got wrong: a fast short weapon needing two blows can still
+    // beat a slow one needing a single swing. Blows are not the unit the
+    // player feels; seconds are.
+    //
+    // THE BAR IS PER CLASS NOW, and it has to be. The zhanmadao's whole
+    // premise is that it is slow — a bar it could pass would be a bar that
+    // says the slow class must not be slow. What matters is that neither
+    // class leaves a new player swinging at the first bandit for an
+    // uncomfortable time, and "uncomfortable" is a different number when one
+    // blow also threatens seven other bodies.
     const bandit = 10
+    const CEILING: Record<string, number> = { sweep: 1.1, throw: 0.7 }
     for (const school of SCHOOLS) {
       const weapon = WEAPON_BY_ID.get(school.weaponId)!
       const stats = deriveStats(new Map(), { spent: emptyAttributes(), weapon, worn: [] })
-      const sweeps = Math.ceil(bandit / stats.slashDamage)
-      const ttk = sweeps * stats.slashInterval
-      expect(ttk, `${weapon.name} takes ${ttk.toFixed(2)}s`).toBeLessThanOrEqual(0.7)
+      // A volley puts every blade on a single body only when they all connect;
+      // against the opening bandit, on open ground, one does.
+      const perBlow = stats.slashDamage
+      const blows = Math.ceil(bandit / perBlow)
+      const ttk = blows * stats.slashInterval
+      expect(ttk, `${weapon.name} takes ${ttk.toFixed(2)}s`).toBeLessThanOrEqual(
+        CEILING[weapon.strike]!,
+      )
     }
   })
 
-  it('drives the sweep through deriveStats', () => {
-    const spear = WEAPON_BY_ID.get('spear')!
-    const fan = WEAPON_BY_ID.get('fan')!
-    const withSpear = deriveStats(new Map(), { spent: emptyAttributes(), weapon: spear, worn: [] })
-    const withFan = deriveStats(new Map(), { spent: emptyAttributes(), weapon: fan, worn: [] })
-    // Reach against coverage — the two ends of the roster.
-    expect(withSpear.slashRange).toBeGreaterThan(withFan.slashRange * 2)
-    expect(withFan.slashHalfAngle).toBeGreaterThan(withSpear.slashHalfAngle * 4)
+  it('drives the attack through deriveStats, and carries the class with it', () => {
+    const great = WEAPON_BY_ID.get('great')!
+    const feidao = WEAPON_BY_ID.get('feidao')!
+    const withGreat = deriveStats(new Map(), { spent: emptyAttributes(), weapon: great, worn: [] })
+    const withDaggers = deriveStats(new Map(), { spent: emptyAttributes(), weapon: feidao, worn: [] })
+
+    // The one branch the simulation makes has to survive the derivation, or
+    // the thrower silently swings an invisible arc. See Stats.strike.
+    expect(withGreat.strike).toBe('sweep')
+    expect(withDaggers.strike).toBe('throw')
+    expect(withDaggers.throwCount).toBeGreaterThan(1)
+    expect(withGreat.throwCount).toBe(1)
+
+    // Distance against coverage — the two ends of the game. The daggers reach
+    // more than twice as far; the zhanmadao threatens a wedge an order of
+    // magnitude wider than the volley's spread.
+    expect(withDaggers.slashRange).toBeGreaterThan(withGreat.slashRange * 2)
+    expect(withGreat.slashHalfAngle).toBeGreaterThan(withDaggers.slashHalfAngle * 4)
   })
 })
 
@@ -679,13 +711,13 @@ describe('the v1 -> v2 migration', () => {
   // became a roster — precisely so it would only ever change once.
 
   it('reads a v1 file, which was the bare character with bare item ids', () => {
-    const c = createCharacter('Bai', 'temple')
+    const c = createCharacter('Bai', 'wanderer')
     grantXp(c, 900)
 
     // Exactly what a v1 build wrote: the character, with owned as bare ids.
     const v1 = JSON.stringify({
       ...c,
-      inventory: { owned: ['r-plain', 'w-jian'], equipped: { robe: 'r-plain' } },
+      inventory: { owned: ['r-plain', 'w-great'], equipped: { robe: 'r-plain' } },
     })
 
     const roster = parseRoster(v1)!
@@ -696,7 +728,7 @@ describe('the v1 -> v2 migration', () => {
     expect(back.level).toBe(c.level)
     // Every piece survives, as a rolled instance carrying one line — a bare id
     // described a piece whose line came from a table that no longer holds one.
-    expect(back.inventory.owned.map((e) => e.baseId).sort()).toEqual(['r-plain', 'w-jian'])
+    expect(back.inventory.owned.map((e) => e.baseId).sort()).toEqual(['r-plain', 'w-great'])
     expect(back.inventory.owned.every((e) => e.affixes.length === 1)).toBe(true)
     // The equipped slot pointed at a BASE id; it must come forward pointing at
     // the instance that base became, or the swordsman loads undressed.
@@ -707,7 +739,7 @@ describe('the v1 -> v2 migration', () => {
   it('carries a v2 rank forward as a bigger line, not a lost one', () => {
     // The promise those ranks made to the player who earned them: a rank 4 robe
     // stays a better robe than a rank 0 one across the migration.
-    const c = createCharacter('Bai', 'temple')
+    const c = createCharacter('Bai', 'wanderer')
     const withRank = (rank: number): number => {
       const raw = JSON.stringify({
         ...c,
@@ -719,8 +751,8 @@ describe('the v1 -> v2 migration', () => {
   })
 
   it('round-trips a v2 roster', () => {
-    const a = createCharacter('Bai', 'temple')
-    const b = createCharacter('Qin', 'mountain')
+    const a = createCharacter('Bai', 'wanderer')
+    const b = createCharacter('Qin', 'garrison')
     const robe: OwnedItem = {
       uid: mintUid('r-plain'),
       baseId: 'r-plain',
@@ -730,8 +762,8 @@ describe('the v1 -> v2 migration', () => {
       depth: 4,
     }
     const spear: OwnedItem = {
-      uid: mintUid('w-spear'),
-      baseId: 'w-spear',
+      uid: mintUid('w-feidao'),
+      baseId: 'w-feidao',
       rarity: 4,
       affixes: [{ kind: 'edge', amount: 12 }],
       power: 'frost',
@@ -760,7 +792,7 @@ describe('the v1 -> v2 migration', () => {
   it('pulls an out-of-range active index back into the roster', () => {
     // A hand-edited or truncated file must not index past the end and leave the
     // hub with nothing to draw.
-    const c = createCharacter('Bai', 'temple')
+    const c = createCharacter('Bai', 'wanderer')
     const back = parseRoster(JSON.stringify({ v: 2, active: 9, swordsmen: [c] }))!
     expect(back.active).toBe(0)
   })
@@ -775,7 +807,7 @@ describe('the v1 -> v2 migration', () => {
 
   it('never keeps more swordsmen than the roster allows', () => {
     const many = Array.from({ length: ROSTER_LIMIT + 4 }, (_, i) =>
-      createCharacter(`Bai ${i}`, 'temple'),
+      createCharacter(`Bai ${i}`, 'wanderer'),
     )
     const back = parseRoster(serialiseRoster({ active: 0, swordsmen: many }))!
     expect(back.swordsmen).toHaveLength(ROSTER_LIMIT)
@@ -1114,11 +1146,11 @@ describe('the ladder, worn', () => {
 
 describe('save', () => {
   it('round-trips a character', () => {
-    const c = createCharacter('Bai', 'temple')
+    const c = createCharacter('Bai', 'wanderer')
     // Creation hands over the school's kit, so a real character always owns
     // something. An empty inventory means "written before equipment existed",
     // which parsing deliberately repairs — see the migration test below.
-    for (const baseId of ['r-plain', 's-wide', 'h-crown', 'w-fan']) {
+    for (const baseId of ['r-plain', 's-wide', 'h-crown', 'w-feidao']) {
       const entry: OwnedItem = {
         uid: mintUid(baseId),
         baseId,
@@ -1146,7 +1178,7 @@ describe('save', () => {
     // swordsman with no weapon would look exactly like their progress had been
     // eaten.
     const back = parseCharacter(
-      JSON.stringify({ name: 'Lu', origin: 'watch', level: 6, runs: 4 }),
+      JSON.stringify({ name: 'Lu', origin: 'garrison', level: 6, runs: 4 }),
     )!
     expect(back.inventory.owned.length).toBeGreaterThan(0)
     expect(back.inventory.equipped.weapon).toBeDefined()
@@ -1155,7 +1187,7 @@ describe('save', () => {
     const wornWeapon = back.inventory.owned.find((e) => e.uid === back.inventory.equipped.weapon)!
     const weapon = ITEM_BY_ID.get(wornWeapon.baseId)!
     // And the weapon it hands over is the one their school actually uses.
-    expect(weapon.styleId).toBe(SCHOOL_BY_ID.get('watch')!.weaponId)
+    expect(weapon.styleId).toBe(SCHOOL_BY_ID.get('garrison')!.weaponId)
   })
 
   it('does not hand a tutorial to a save that predates the field', () => {
@@ -1277,7 +1309,7 @@ describe('depth holds permanent power in check', () => {
 
 describe('appearance', () => {
   it('survives a save round-trip', () => {
-    const c = createCharacter('Bai', 'temple', { seed: 4242, build: 2, sash: 3, bearing: 1, pigment: 2 })
+    const c = createCharacter('Bai', 'wanderer', { seed: 4242, build: 2, sash: 3, bearing: 1, pigment: 2 })
     expect(parseCharacter(serialiseCharacter(c))!.look).toEqual(c.look)
   })
 
@@ -1319,6 +1351,41 @@ describe('appearance', () => {
     expect(buildSwordsmanTopDown(7, 1, gear, 1.4).height).toBe(
       buildSwordsmanTopDown(7, 1, gear, 0.8).height,
     )
+  })
+
+  it('draws the two classes as two different bodies, not one body twice', () => {
+    // The report this exists for: the weapon portraits were "a mesma
+    // personagem seis vezes, com um traço diferente ao lado". Every one of them
+    // passed the test below — the SVG strings differed, because the blade
+    // differed — while the swordsman holding it was byte-identical. So string
+    // inequality is not the bar. The bar is that the BODY differs, measured
+    // where a player actually looks.
+    //
+    // `buildSwordsmanTopDown` excludes the held blade by construction (the
+    // renderer rotates that separately), so everything measured here is the
+    // figure itself.
+    const widest = (blade: string, lo: number, hi: number): number => {
+      const figure = buildSwordsmanTopDown(7, 1, gearFromIds({ blade }))
+      let max = 0
+      for (const stroke of figure.body) {
+        for (let i = 0; i < stroke.poly.length; i += 2) {
+          const y = stroke.poly[i + 1]!
+          if (y >= lo && y <= hi) max = Math.max(max, Math.abs(stroke.poly[i]!))
+        }
+      }
+      return max
+    }
+    // Shoulders: the zhanmadao is braced, the daggers are not.
+    const shoulderBand = [-34, -26] as const
+    expect(widest('great', ...shoulderBand)).toBeGreaterThan(
+      widest('feidao', ...shoulderBand) * 1.15,
+    )
+    // Hip: and the other way round, because the thrower wears their blades
+    // there. Two silhouettes that merely DIFFER are not enough at forty pixels
+    // — they have to differ in opposite directions, and this is the assertion
+    // that says so.
+    const hipBand = [-18, -10] as const
+    expect(widest('feidao', ...hipBand)).toBeGreaterThan(widest('great', ...hipBand) * 1.1)
   })
 
   it('draws every school as a different silhouette in the DOM', () => {

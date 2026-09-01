@@ -47,7 +47,27 @@ function only(...active: Array<Art['condition']>): Conditions {
   return c
 }
 
-const artFor = (effect: string): Art => ARTS.find((a) => a.effect === effect)!
+const artFor = (effect: string): Art | undefined => ARTS.find((a) => a.effect === effect)
+
+/** The same, for the tests that need one and would be meaningless without. */
+const mustArtFor = (effect: string): Art => {
+  const art = artFor(effect)
+  if (!art) throw new Error(`no art uses the ${effect} effect any more`)
+  return art
+}
+
+/**
+ * Effects the simulation can act on that NO art currently uses.
+ *
+ * Written down rather than skipped silently. Cutting six weapons to two took
+ * twenty arts with them, and five working levers lost their only caller in the
+ * process. They are kept, not deleted, because each one already has a declared
+ * future use: `greed` is magnet, `tide` is push and `vigil` is heal among the
+ * named powers in data/affixes.ts, and orbit and bolt are what a third class
+ * would most naturally be built from. Listing them here means the day one is
+ * wired up, this test starts covering it without anybody remembering to.
+ */
+const UNUSED_EFFECTS = ['bolt', 'heal', 'magnet', 'orbit', 'push'] as const
 
 describe('the arts acting', () => {
   it('changes nothing while no condition holds', () => {
@@ -55,7 +75,7 @@ describe('the arts acting', () => {
     // If any of it leaked into the idle state it would be a passive bonus with
     // a decoration on top, which is the design this replaced.
     const b = base()
-    const out = applyArts(b, carriedFor('jian'), nothing(), scratch())
+    const out = applyArts(b, carriedFor('great'), nothing(), scratch())
     expect(out).toEqual(b)
   })
 
@@ -122,18 +142,27 @@ describe('the arts acting', () => {
         expect(o.healPerKill).toBeGreaterThan(0)
       },
     }
+    // Every lever the simulation owns still has a check written for it, used
+    // or not — dropping the check with the art would leave the lever
+    // unexercised the day something calls it again.
     expect(Object.keys(CHECKS).sort()).toEqual([...LIVE_EFFECTS].sort())
 
+    const covered: string[] = []
     for (const [effect, check] of Object.entries(CHECKS)) {
       const art = artFor(effect)
+      if (!art) continue
+      covered.push(effect)
       const b = base()
       const out = applyArts(b, [{ art, level: 1 }], only(art.condition), scratch())
       check(b, out)
     }
+    // And the ones with no art are exactly the ones we said they were.
+    const missing = [...LIVE_EFFECTS].filter((e) => !covered.includes(e)).sort()
+    expect(missing).toEqual([...UNUSED_EFFECTS].sort())
   })
 
   it('scales with the grade', () => {
-    const art = artFor('damage')
+    const art = mustArtFor('damage')
     const b = base()
     const one = applyArts(b, [{ art, level: 1 }], only(art.condition), scratch()).slashDamage
     const three = applyArts(b, [{ art, level: 3 }], only(art.condition), scratch()).slashDamage
@@ -150,23 +179,34 @@ describe('the arts acting', () => {
     expect(out.slashHalfAngle).toBeLessThan(Math.PI)
   })
 
-  it('stacks when two conditions hold at once', () => {
-    // A posture and a situation can be true together by design — see
-    // sim/conditions.ts — and a build that lines both up on one stat should
-    // feel like it did.
-    const a = artFor('damage')
-    const b2 = ARTS.find((x) => x.effect === 'damage' && x.id !== a.id)!
+  it('stacks when two arts move the same stat at once', () => {
+    // WHAT THIS PINS CHANGED, and it is worth saying why it was kept.
+    //
+    // It used to use two `damage` arts, which a single scroll really could
+    // carry. It cannot any more: each of the two scrolls covers its five
+    // conditions with five DIFFERENT effects, so within one class no two arts
+    // ever touch the same stat. The pair below is therefore cross-scroll and
+    // unreachable in play today.
+    //
+    // The test stays because it pins `applyArts`'s contract rather than a
+    // build: the accumulate-don't-replace rule is what a third class, or a
+    // named power that grants an art, would immediately depend on — and it is
+    // the kind of thing that silently becomes "last one wins" during a
+    // refactor with nothing to catch it.
+    const [a, b2] = ARTS.filter((x) => x.effect === 'echo')
+    expect(a && b2, 'two echo arts to stack').toBeTruthy()
     const b = base()
-    const one = applyArts(b, [{ art: a, level: 1 }], only(a.condition), scratch()).slashDamage
+    const one = applyArts(b, [{ art: a!, level: 1 }], only(a!.condition), scratch()).echoDamage
     const both = applyArts(
       b,
       [
-        { art: a, level: 1 },
-        { art: b2, level: 1 },
+        { art: a!, level: 1 },
+        { art: b2!, level: 1 },
       ],
-      only(a.condition, b2.condition),
+      only(a!.condition, b2!.condition),
       scratch(),
-    ).slashDamage
+    ).echoDamage
+    expect(one).toBeGreaterThan(0)
     expect(both).toBeGreaterThan(one)
   })
 
@@ -278,13 +318,13 @@ describe('器蕴 — the arts, read off the gear', () => {
   it('takes the arts from the top of the ranking, in order', () => {
     // What makes the 法 tab a real decision: with a common blade you are
     // choosing your ONE art, not being handed whichever the table listed first.
-    const ranked = equippedIds({}, 'jian')
+    const ranked = equippedIds({}, 'great')
     expect(attune(ranked, 0, set(0)).map((c) => c.art.id)).toEqual([ranked[0]])
     expect(attune(ranked, 2, set(0)).map((c) => c.art.id)).toEqual(ranked.slice(0, 3))
   })
 
   it('puts every art it wakes at the same grade', () => {
-    const carried = attune(equippedIds({}, 'jian'), 3, set(2))
+    const carried = attune(equippedIds({}, 'great'), 3, set(2))
     expect(carried.length).toBe(4)
     for (const c of carried) expect(c.level).toBe(artGrade(set(2)))
   })
@@ -293,7 +333,7 @@ describe('器蕴 — the arts, read off the gear', () => {
     // The one number that appears in both halves of the rule, deliberately:
     // a great blade wakes another art AND grades every art higher. "The weapon
     // is the class" is a small promise if you only feel it once.
-    const ranked = equippedIds({}, 'dao')
+    const ranked = equippedIds({}, 'feidao')
     const common = attune(ranked, 0, [0, 2, 2, 2])
     const divine = attune(ranked, 4, [4, 2, 2, 2])
     expect(divine.length).toBeGreaterThan(common.length)
@@ -303,7 +343,7 @@ describe('器蕴 — the arts, read off the gear', () => {
   it('never invents an art for an id it does not know', () => {
     // Ids arrive from a save file, which is a text file on a device.
     expect(attune(['no-such-art'], 5, set(5))).toEqual([])
-    const mixed = attune(['jian-point', 'no-such-art', 'spear-thrust'], 5, set(5))
+    const mixed = attune(['great-sink', 'no-such-art', 'feidao-chain'], 5, set(5))
     expect(mixed.every((c) => ARTS.includes(c.art))).toBe(true)
   })
 
@@ -320,30 +360,30 @@ describe('器蕴 — the arts, read off the gear', () => {
   })
 
   it('honours an explicit ranking, and puts the rest of the scroll behind it', () => {
-    const spear = ARTS.filter((a) => a.weapon === 'spear').map((a) => a.id)
-    const chosen = [spear[3]!, spear[1]!]
-    const ids = equippedIds({ spear: chosen }, 'spear')
+    const feidao = ARTS.filter((a) => a.weapon === 'feidao').map((a) => a.id)
+    const chosen = [feidao[3]!, feidao[1]!]
+    const ids = equippedIds({ feidao: chosen }, 'feidao')
     expect(ids.slice(0, 2)).toEqual(chosen)
-    expect(ids.slice(2).sort()).toEqual([spear[0]!, spear[2]!, spear[4]!].sort())
+    expect(ids.slice(2).sort()).toEqual([feidao[0]!, feidao[2]!, feidao[4]!].sort())
   })
 
   it('ignores an art ranked for a weapon you are not holding', () => {
-    const ids = equippedIds({ jian: ['spear-thrust', 'jian-flow'] }, 'jian')
-    expect(ids).not.toContain('spear-thrust')
-    expect(ids[0]).toBe('jian-flow')
+    const ids = equippedIds({ great: ['feidao-chain', 'great-grind'] }, 'great')
+    expect(ids).not.toContain('feidao-chain')
+    expect(ids[0]).toBe('great-grind')
   })
 
   it('never ranks more than the hub can set', () => {
-    const jian = ARTS.filter((a) => a.weapon === 'jian').map((a) => a.id)
+    const great = ARTS.filter((a) => a.weapon === 'great').map((a) => a.id)
     // A save claiming all five are "chosen" must still leave the fifth as the
     // tail, or the cap in the hub would be a suggestion.
-    const ids = equippedIds({ jian: [...jian].reverse() }, 'jian')
-    expect(ids.slice(0, EQUIPPED_ARTS)).toEqual([...jian].reverse().slice(0, EQUIPPED_ARTS))
+    const ids = equippedIds({ great: [...great].reverse() }, 'great')
+    expect(ids.slice(0, EQUIPPED_ARTS)).toEqual([...great].reverse().slice(0, EQUIPPED_ARTS))
   })
 })
 
 describe('内力 — what a level-up grants now', () => {
-  const carried = attune(equippedIds({}, 'jian'), 0, [0, 0, 0, 0])
+  const carried = attune(equippedIds({}, 'great'), 0, [0, 0, 0, 0])
 
   it('grants nothing at level one, so a run opens on its baseline', () => {
     const out = applyArts(base(), carried, nothing(), scratch(), 1)
