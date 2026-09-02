@@ -6,13 +6,17 @@
   "description": "剑影 Jianying - a wuxia survivors-like for mobile",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test",
     "shoot": "tsx tools/shoot.ts",
-    "cap:sync": "cap sync android"
+    "cap:sync": "cap sync android",
+    "apk": "bash ci/apk-local.sh",
+    "install:phone": "adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
