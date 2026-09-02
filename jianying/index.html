@@ -624,14 +624,28 @@
         position: relative;
         z-index: 1;
       }
-      /* The wet edge. Small on purpose: at scale 3 the figure came apart into
-         a fringe, which is a different mistake from the one being fixed. */
+      /* The wet edge, and the paper the figure is reserved out of.
+         Reported as "o preview do character parece desfocar no fundo", which is
+         two faults with one look: the brush filter was softening the outline at
+         the same time as the posterised painting was rising to meet the
+         figure's own value. They met in the middle and the figure stopped being
+         in front of anything.
+         The displacement drops to 1.1 — enough for a bristled edge, not enough
+         to fray it — and a paper glow is laid behind. That glow is not a
+         graphic trick borrowed from elsewhere: reserving a halo of bare paper
+         around the subject is exactly what an ink painter does, and it is why a
+         figure in a real 水墨 never dissolves into its own wash. */
       .create-stage .portrait-svg {
-        filter: url(#ink-brush);
+        filter: url(#ink-brush)
+          drop-shadow(0 0 10px rgba(232, 220, 192, 0.85))
+          drop-shadow(0 0 24px rgba(232, 220, 192, 0.5));
       }
+      /* Bigger. At 186×214 inside a full-width painting the swordsman was a
+         detail in somebody else's landscape, which is backwards on the screen
+         where he is being made. */
       .create-stage .portrait-svg {
-        width: 186px;
-        height: 214px;
+        width: 236px;
+        height: 272px;
       }
       .create-caption {
         display: flex;
@@ -671,26 +685,31 @@
         display: none;
       }
       .create-note {
-        margin: -4px 0 8px;
-        font-size: 11.5px;
-        line-height: 1.45;
-        color: rgba(13, 13, 13, 0.45);
+        margin: -2px 0 12px;
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: rgba(13, 13, 13, 0.55);
       }
 
       /* --- bearing: the three things equipment cannot overwrite --------- */
       .look-row {
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 8px;
+        gap: 12px;
+        margin-bottom: 10px;
       }
+      /* 76px and never wrapping. At 54 the longest label — "YOU ARE" — broke
+         over two lines while every other row stayed on one, so the five rows
+         no longer shared a baseline and the whole block read as misaligned.
+         A label column is only a column while every label fits in it. */
       .look-label {
         flex: none;
-        width: 54px;
-        font-size: 11px;
+        width: 76px;
+        white-space: nowrap;
+        font-size: 12px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(13, 13, 13, 0.42);
+        color: rgba(13, 13, 13, 0.55);
       }
       .look-chips {
         display: flex;
@@ -840,19 +859,19 @@
 
       /* --- character creation ------------------------------------------ */
       .create-title {
-        font-size: 22px;
+        font-size: 24px;
         letter-spacing: 0.03em;
       }
       .create-sub {
-        margin-top: 4px;
-        font-size: 12px;
-        line-height: 1.45;
-        color: rgba(13, 13, 13, 0.5);
+        margin-top: 6px;
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: rgba(13, 13, 13, 0.58);
       }
       .create-section {
-        margin: 20px 0 8px;
-        font-size: 11px;
-        letter-spacing: 0.24em;
+        margin: 26px 0 10px;
+        font-size: 11.5px;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
         color: rgba(13, 13, 13, 0.45);
       }
@@ -2311,7 +2330,7 @@
              exactly the ragged edge the filter exists to make. -->
         <filter id="ink-brush" x="-12%" y="-12%" width="124%" height="124%">
           <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="3" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.8"
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.1"
             xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </defs>

@@ -105,6 +105,17 @@ export function createCreator(root: HTMLElement): CreateScreen {
             <div class="create-sub">${strings.createSub}</div>
           </div>
 
+          <!-- THE WEAPON FIRST. It went last for a long time and the reason
+               was sound at the time: with five schools, putting them first
+               buried "man or woman" and the dye under five cards. With TWO
+               schools that argument is gone and the opposite one holds — the
+               weapon is the choice that decides how the whole game plays, and
+               it was sitting at the bottom of a scroll under five rows of
+               appearance chips. What a screen asks first is what it says
+               matters most. -->
+          <div class="create-section">${strings.yourSchool}</div>
+          <div class="create-origins"></div>
+
           <div class="create-section">${strings.yourName}</div>
           <div class="create-name">
             <input class="create-input" type="text" maxlength="24"
@@ -112,18 +123,9 @@ export function createCreator(root: HTMLElement): CreateScreen {
             <button class="create-roll" type="button" aria-label="${strings.rollName}">↻</button>
           </div>
 
-          <!-- Who you are comes BEFORE where you trained. The first version put
-               the school picker first and buried "man or woman" and the dye
-               under five school cards, at the bottom of a long scroll — which
-               is the wrong order for the two questions a player expects to be
-               asked first, and the wrong order for the two that change the
-               figure most visibly. -->
           <div class="create-section">${strings.yourBearing}</div>
           <div class="create-note">${strings.bearingNote}</div>
           <div class="create-looks"></div>
-
-          <div class="create-section">${strings.yourSchool}</div>
-          <div class="create-origins"></div>
         </div>
         <div class="create-foot">
           ${onCancel ? `<button class="create-back" type="button">${strings.back}</button>` : ''}
