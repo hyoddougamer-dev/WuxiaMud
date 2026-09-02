@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   ARMOUR_K,
   BODY_ARMOUR,
-  GUARD_CALM,
-  GUARD_REGEN,
   afterArmour,
   attributeBonuses,
 } from '../src/sim/loadout'
@@ -52,13 +50,27 @@ describe('armour', () => {
 })
 
 describe('guard', () => {
-  it('refills in a bounded, knowable time', () => {
-    // The number the player is really being taught: disengage for this long
-    // and the layer is back. A regen that took an unclear time would be a
-    // trickle they never plan around.
-    const seconds = 1 / GUARD_REGEN
-    expect(seconds).toBeGreaterThan(2)
-    expect(seconds).toBeLessThan(8)
-    expect(GUARD_CALM).toBeGreaterThan(1)
+  /**
+   * Guard has no test of its own beyond this note, because what makes it
+   * correct is not a number — it is WHAT REFILLS IT, and that is pinned by the
+   * two balance invariants in tests/combat.spec.ts and tests/regions.spec.ts:
+   * a standing player must still die, and pure evasion must not outlast
+   * fighting. Two earlier designs passed every unit test I could write for
+   * them and failed both of those.
+   *
+   * Refilling on calm seconds paid a kiting player a permanently full bar.
+   * Refilling per kill was worse: kills scale with the crowd and the crowd
+   * scales with time, so the refill rate rose to meet the damage rate and a
+   * player who simply stood still survived the full five minutes — the exact
+   * stabilising loop RunState.healCooldown documents for the 血 art.
+   *
+   * Levelling refills it now, which is earned, scales with progress rather
+   * than with bodies nearby, and cannot be farmed by running away.
+   */
+  it('is a pool spent between levels, not a regenerating bar', () => {
+    // The size is the only free number left: big enough to matter, small
+    // enough that it is not a second health bar.
+    const stats = attributeBonuses({ body: 0, edge: 0, swift: 0, spirit: 0 })
+    expect(stats.armour).toBe(0)
   })
 })

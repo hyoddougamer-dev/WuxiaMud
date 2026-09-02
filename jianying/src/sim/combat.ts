@@ -12,7 +12,7 @@ import type { Motes } from './pickups'
 import type { Bolts } from './projectiles'
 import { BOLT_RADIUS, BOLT_SPEED } from './projectiles'
 import type { Hazards } from './hazards'
-import { GUARD_CALM, GUARD_REGEN, afterArmour, type Stats } from './loadout'
+import { afterArmour, type Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
 import { dropChance, rollDrop } from '../data/items'
@@ -71,9 +71,9 @@ const ORBIT_RECHARGE = 0.4
 
 export interface RunState {
   hp: number
-  /** Guard remaining. Absorbs damage before health and grows back. */
+  /** Guard remaining. Absorbs damage before health; refilled by felling. */
   guard: number
-  /** Seconds since the last blow landed, for guard regrowth. */
+  /** Seconds since the last blow landed. Read by the HUD, not by guard. */
   calm: number
   elapsed: number
   kills: number
@@ -429,13 +429,7 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
   run.elapsed += dt
   if (run.immunity > 0) run.immunity = Math.max(0, run.immunity - dt)
 
-  // Guard grows back after a spell of not being hit. `calm` is reset inside
-  // takeDamage rather than here, so any future source of damage interrupts the
-  // regrowth by construction instead of by remembering to.
   run.calm += dt
-  if (run.calm >= GUARD_CALM && run.guard < stats.guard) {
-    run.guard = Math.min(stats.guard, run.guard + stats.guard * GUARD_REGEN * dt)
-  }
   if (run.slashVisual > 0) run.slashVisual = Math.max(0, run.slashVisual - dt)
   if (run.novaVisual > 0) run.novaVisual = Math.max(0, run.novaVisual - dt)
 
@@ -453,6 +447,9 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       run.xp -= xpForLevel(run.level)
       run.level++
       run.pendingLevelUps++
+      // Guard back in full. This is its ONLY refill — see the note on it in
+      // sim/loadout.ts for the two designs the harness rejected first.
+      run.guard = stats.guard
     }
   }
 

@@ -106,11 +106,34 @@ export function play(
    * cannot reach.
    */
   weaponId: string = WEAPONS[0]!.id,
+  /**
+   * How long to let a run go before giving up on it, in seconds.
+   *
+   * A parameter because the balance tests need a much shorter one than this
+   * tool does: measuring pure survival with no gate means every run goes the
+   * full distance, and at the module's own 1200s that is minutes of simulation
+   * per region — fine for a tool somebody runs on purpose, far too slow for a
+   * suite that has to stay runnable.
+   */
+  ceiling: number = CEILING,
+  /**
+   * How many seeds to average over. Fewer is noisier and much faster.
+   *
+   * The balance tests need this. Once a late crowd is on the grid the
+   * simulation runs at a few thousand ticks a second, so six seeds of a
+   * four-minute window is a couple of minutes of wall clock PER ASSERTION —
+   * which turned a seven-second suite into a several-minute one the moment
+   * those tests started measuring survival instead of time-to-clear. Their
+   * bounds are loose enough to survive the extra noise. This tool keeps all
+   * six, because a number somebody is going to paste into regions.ts should
+   * not be the cheap version.
+   */
+  seeds: readonly number[] = SEEDS,
 ): Row {
   const region = REGIONS.find((r) => r.id === regionId)!
   const out: Row = { secs: 0, insight: 0, kills: 0, cleared: 0, qiAtCeiling: 0 }
 
-  for (const seed of SEEDS) {
+  for (const seed of seeds) {
     const weapon = WEAPONS.find((w) => w.id === weaponId) ?? WEAPONS[0]!
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), region)
@@ -131,7 +154,7 @@ export function play(
     let insight = 0
     let t = 0
 
-    for (let i = 0; i < Math.round(CEILING / TICK_S); i++) {
+    for (let i = 0; i < Math.round(ceiling / TICK_S); i++) {
       if (run.over || run.gateCleared) break
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
@@ -180,7 +203,7 @@ export function play(
     out.cleared += run.gateCleared ? 1 : 0
     out.qiAtCeiling += run.riftValue
   }
-  const n = SEEDS.length
+  const n = seeds.length
   return {
     secs: out.secs / n,
     insight: out.insight / n,

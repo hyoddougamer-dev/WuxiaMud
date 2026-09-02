@@ -137,10 +137,32 @@ export const BODY_ARMOUR = 4
  */
 export const ARMOUR_K = 6
 
-/** Seconds without being hit before guard starts coming back. */
-export const GUARD_CALM = 4
-/** Fraction of maximum guard returned per second, once calm. */
-export const GUARD_REGEN = 0.25
+/**
+ * Guard refills ONLY on levelling up. Nothing else gives it back.
+ *
+ * Two versions of this were wrong before the harness settled it, and both were
+ * wrong for reasons this codebase had already written down.
+ *
+ * The first regrew guard after four seconds without being hit. That pays a
+ * kiting player a permanently full bar while a player who stands and fights
+ * never sees it return, and the measurement was blunt: at the same rift target
+ * the kiting pilot cleared 100% of runs against the engaged pilot's 50%, in a
+ * game whose own design note says kiting should almost never clear the gate.
+ *
+ * The second regrew it per enemy felled, which looked like the opposite
+ * incentive and was in fact worse. `RunState.healCooldown` documents exactly
+ * this trap for the 血 art: a mend tied to kills is a STABILISING LOOP,
+ * because kills scale with the crowd and the crowd scales with time, so the
+ * refill rate rises to meet the damage rate and never falls behind. It made a
+ * player who simply stood still survive the full five minutes. Magnitude
+ * cannot beat a feedback loop, and I walked into the same one the file warns
+ * about a hundred lines above.
+ *
+ * Levelling is the event that breaks it: it is earned, it scales with the run
+ * making PROGRESS rather than with how many bodies happen to be nearby, and it
+ * cannot be farmed by running away, since fleeing earns less qi. Guard is a
+ * pool you spend between levels and get back for advancing.
+ */
 
 /**
  * What actually lands after armour.
