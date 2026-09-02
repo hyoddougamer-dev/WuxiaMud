@@ -190,3 +190,38 @@ teste de cinesia, e só uma das duas classes joga a esse teste**.
 A minha preferência é a **2**, porque é a única que corrige a causa (a
 distância é grátis) em vez do sintoma. Mas isto muda como a corrida acaba, e
 essa escolha é tua.
+
+---
+
+## 8. "As classes estão OP" — o que a medição diz, e é mais interessante
+
+*Relatado depois de jogar: 200 mortes em 1:32, e a sensação de que as classes
+começam demasiado fortes. Medido antes de mexer em nada.*
+
+`tools/runLength.mts`, 6 seeds, espadachim a meio sem equipamento:
+
+| região | segundos | mortes | limpou a fenda? |
+|---|---|---|---|
+| 官道 The Post Road | 57 | 88 | 17 % |
+| 芦荡 The Reed Marsh | 53 | 41 | 67 % |
+| 断崖 The Broken Cliff | 29 | 17 | 100 % |
+| 鬼市 The Ghost Market | 35 | 141 | 83 % |
+| 关隘 The Pass | 19 | 11 | 100 % |
+
+**As duas coisas são verdade ao mesmo tempo**, e é por isso que o relato de
+"confusão" está certo:
+
+- os inimigos morrem depressa de mais — 1.5 a 4 mortes por segundo, e nenhum
+  deles chega a ser uma ameaça individual;
+- e o jogador também morre depressa. A intenção escrita era uma corrida de
+  **300 segundos**; nenhuma região passa dos 57. A morte vem por dano de
+  contacto acumulado, não por um erro concreto.
+
+A causa está na frase que fecha o relato: *"não tendo como escapar de ataques"*.
+Não há esquiva, não há recuo, não há nada que se faça no momento em que se está
+prestes a levar dano. O único recurso é já não estar ali — o que o 飞刀 pode
+fazer e o 斩马刀, com 106 de alcance, não.
+
+Não é um número para afinar. É a mesma lacuna que a §7 encontrou no portão, vista
+de outro lado: **o jogo não tem verbo defensivo**. Enquanto não tiver, subir a
+vida dos inimigos só torna as corridas mais longas e igualmente passivas.

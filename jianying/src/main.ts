@@ -37,7 +37,7 @@ import { Motes } from './sim/pickups'
 import { Bolts } from './sim/projectiles'
 import { Hazards } from './sim/hazards'
 import { Drops } from './sim/drops'
-import { ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
+import { HURT_IMMUNITY, ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
 import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
@@ -505,6 +505,15 @@ async function boot(): Promise<void> {
     for (const stroke of bladeStrokes) {
       bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
     }
+    // The weapon turns about the BUTT of its grip, not about the middle of the
+    // blade. `buildBlade` puts the origin at the fist with the haft running
+    // behind it, so rotating about the origin swung that haft through the
+    // swordsman's own body — pointing right put the pommel out through their
+    // left ribs, pointing up drove it down through the skirt. Reported as the
+    // hold looking wrong, and it was. Moving the pivot back by the grip's
+    // length hangs the whole weapon off the hands, which is where a person
+    // holds one.
+    bladeGfx.pivot.x = -(gear.blade.grip ?? 0)
     bodyGfx.clear()
     // Rank marks last, over the body, in gold — see render/rankMarks.ts. The
     // figure has to exist before they can hang off it, so they are collected
@@ -1367,8 +1376,34 @@ async function boot(): Promise<void> {
     swordsman.x = wx
     swordsman.y = wy + bob
     swordsman.rotation = clamp01(ratio) * (player.vx / live.moveSpeed) * 0.13
-    // Flash the swordsman while immune, so being hit is legible.
-    swordsman.alpha = run.immunity > 0 && Math.floor(time * 14) % 2 === 0 ? 0.45 : 1
+
+    // --- being hit ------------------------------------------------------
+    // This was a 14 Hz square wave over the whole 0.85s immunity window: the
+    // entire swordsman, blade and sash included, blinked on and off twelve
+    // times per hit. Reported as "fica bugada visualmente e stutter", and that
+    // reading is exactly right — a figure flickering at that rate is what a
+    // broken sprite looks like, not what being hit looks like. It also fought
+    // the one thing the player must not lose track of while hurt, which is
+    // where they are.
+    //
+    // Two signals now, and both DECAY with the immunity that remains, so the
+    // feedback answers "how much longer am I safe?" instead of just strobing:
+    //
+    //   the first fifth of a second is a cinnabar flash — the impact itself,
+    //   short and unmissable, the same red the damage numbers use;
+    //
+    //   the rest is a soft shimmer that fades out with the window. It never
+    //   drops below two thirds opacity, so the figure is legible throughout.
+    const hurt = run.immunity > 0 ? run.immunity / HURT_IMMUNITY : 0
+    if (hurt > 0) {
+      const impact = Math.max(0, (hurt - 0.78) / 0.22)
+      // From cinnabar back to no tint over that first fifth of a second.
+      swordsman.tint = mixColor(0xffffff, palette.cinnabar, impact)
+      swordsman.alpha = 1 - 0.3 * hurt * (0.5 + 0.5 * Math.sin(time * 34))
+    } else {
+      swordsman.tint = 0xffffff
+      swordsman.alpha = 1
+    }
 
     shadow.x = wx
     shadow.y = wy
@@ -1380,7 +1415,13 @@ async function boot(): Promise<void> {
     const aimY = run.aimY
     bladeGfx.rotation = Math.atan2(aimY, aimX)
     bladeGfx.y = BLADE_PIVOT_Y
-    bladeGfx.scale.x = 0.5 + 0.5 * Math.abs(aimX)
+    // Foreshortening: a weapon pointed at or away from the camera covers less
+    // ground on screen than one held across it. At 0.5 the shortening was too
+    // deep for a weapon this long — a 斩马刀 aimed straight up collapsed to a
+    // stub about as wide as it was tall, which reads as a different object
+    // rather than as the same object turned. Two thirds is enough to sell the
+    // turn and leaves the blade recognisable at every angle.
+    bladeGfx.scale.x = 0.66 + 0.34 * Math.abs(aimX)
     bladeGfx.zIndex = aimY < 0 ? -1 : 2
 
     sashRng.snapshot = 1337
