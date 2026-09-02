@@ -575,10 +575,18 @@
          stays a painting and everything below it is clean paper.
          `cover` on a band this shape crops to the image's bottom half, which is
          exactly the half with the horizon, the sun, the gate and the road. */
-      .create-stage {
+      /* The painting lives on ::before and not on the element itself, because a
+         filter on the element would take the swordsman standing in front of it
+         with it — and the swordsman needs the OTHER filter. */
+      .create-stage::before {
+        content: '';
+        position: absolute;
+        inset: 0;
         background-image: var(--road-art);
         background-size: cover;
         background-position: 50% 100%;
+        filter: url(#ink-poster);
+        pointer-events: none;
       }
       /* Fades the band's foot into the page, so the painting ends the way ink
          ends — into the paper — instead of at a ruled line. */
@@ -615,6 +623,11 @@
       .create-caption {
         position: relative;
         z-index: 1;
+      }
+      /* The wet edge. Small on purpose: at scale 3 the figure came apart into
+         a fringe, which is a different mistake from the one being fixed. */
+      .create-stage .portrait-svg {
+        filter: url(#ink-brush);
       }
       .create-stage .portrait-svg {
         width: 186px;
@@ -2272,6 +2285,37 @@
     <div id="hud"></div>
     <div id="ui"></div>
     <div id="hint"></div>
+    <!-- 墨 — the two filters that make one picture out of two languages.
+         Reported, and correctly: a hard-edged vector cut-out laid on a soft
+         painted wash reads as pasted, because the two disagree about EDGES and
+         about TONE, not about subject. Rendering all five combinations side by
+         side settled it — the pair below is the one where they meet.
+
+         POSTER steps the painting down to flat tones and strips its texture,
+         which is the half the vector figure does not have. BRUSH pushes the
+         figure's outline around with fractal noise, which is the half the
+         painting does not have. Either alone narrows the gap; together they
+         close it. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <filter id="ink-poster" color-interpolation-filters="sRGB">
+          <feColorMatrix type="saturate" values="0" />
+          <feComponentTransfer>
+            <feFuncR type="discrete" tableValues="0.06 0.34 0.62 0.86 0.93" />
+            <feFuncG type="discrete" tableValues="0.06 0.32 0.58 0.82 0.89" />
+            <feFuncB type="discrete" tableValues="0.05 0.26 0.48 0.70 0.76" />
+          </feComponentTransfer>
+        </filter>
+        <!-- The box is grown 12% each way: displacement pushes pixels OUTSIDE
+             the source bounds, and a filter region left at its default clips
+             exactly the ragged edge the filter exists to make. -->
+        <filter id="ink-brush" x="-12%" y="-12%" width="124%" height="124%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="3" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.8"
+            xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
     <div id="boot">
       <div class="seal">剑影</div>
       <div class="sub">Jiànyǐng</div>
