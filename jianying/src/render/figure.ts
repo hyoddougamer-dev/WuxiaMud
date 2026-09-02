@@ -163,70 +163,6 @@ export function buildSwordsmanTopDown(
   const waistWidth = robe.topWidth * bearing.cinch
   const hemWidth = robe.hemWidth * bearing.hem
 
-  // ---- Scabbard ---------------------------------------------------------
-  // FIRST, so the body, the robe and the sleeves all fall over it — which is
-  // what makes it read as slung on the back rather than held across the front.
-  //
-  // The blade it belongs to is in the swordsman's hands, so this is an empty
-  // 鞘, and that is exactly why it earns its place: it is the one mark that
-  // still says "this person carries something enormous" while the enormous
-  // thing is swung out of frame. It crosses the whole silhouette — the chape
-  // clear of the right hip, the mouth past the left ear — so it survives being
-  // drawn forty pixels tall on a phone, which nothing subtler does.
-  //
-  // Slung right-hip to left-shoulder, which is the opposite diagonal to the
-  // blade the portrait puts in the hand. That was not the first attempt and the
-  // first attempt was unusable: run the other way, the scabbard lay ALONG the
-  // drawn blade at almost the same angle, and the pair read as one thick line
-  // with a smudge on it. Crossed, they read as two objects — which they are.
-  if (stance.sheath > 0) {
-    // Fixed endpoints scaled along their own line, so a longer scabbard grows
-    // out of the hip rather than sliding up the back.
-    const low = { x: 13 * s, y: -2 * s }
-    const dx = -22
-    const dy = -48
-    const k = (stance.sheath / Math.hypot(dx, dy)) * s
-    const at = (t: number): Point => ({ x: low.x + dx * k * t, y: low.y + dy * k * t })
-
-    // Three pieces, because two were not enough to stop it reading as an axe.
-    // A thick shaft with a wide bar across its very tip is a hatchet, and that
-    // is exactly what the first version drew — a small blocky head beside the
-    // swordsman's ear. A sheathed sword is a LONG body, a SMALL guard, and then
-    // a grip continuing past it, and it is the third piece that settles it.
-    //
-    // The body: nearly parallel-sided rather than a brush taper, because a
-    // scabbard is an object with edges and a calligraphic profile made it read
-    // as a smear of ink somebody had left on the figure.
-    mark(low, at(0.7), -1.2 * s, elliptic(5 * s), {
-      alpha: 0.9,
-      segments: 20,
-      jitter: 0.4 * s,
-      bleedBy: 0.8 * s,
-    })
-    // The grip, thinner and continuing past the mouth. It is what makes the
-    // whole mark read as a weapon rather than as a rolled mat or a staff.
-    // Blunt, not tapered. A pointed end up by the ear read as a SECOND blade
-    // rather than as the grip of the first one — which is the exact confusion
-    // the scabbard exists to avoid.
-    mark(at(0.76), at(1), 0, (u) => (3 - u * 0.4) * s, {
-      alpha: 0.9,
-      segments: 10,
-      jitter: 0.25 * s,
-      bleedBy: 0.5 * s,
-    })
-    // The guard, between the two and SMALL — just wide enough to separate them.
-    const across = { x: -dy, y: dx }
-    const an = Math.hypot(across.x, across.y)
-    const g = at(0.74)
-    mark(
-      { x: g.x - (across.x / an) * 3.4 * s, y: g.y - (across.y / an) * 3.4 * s },
-      { x: g.x + (across.x / an) * 3.4 * s, y: g.y + (across.y / an) * 3.4 * s },
-      0,
-      elliptic(1.9 * s),
-      { alpha: 0.9, segments: 8, jitter: 0.2 * s, bleedBy: 0.35 * s },
-    )
-  }
-
   // ---- Legs -------------------------------------------------------------
   // Drawn first, so the robe falls over them and only what the hem clears is
   // ever seen. That is the point: a travelling coat cut to mid-calf now shows
@@ -677,11 +613,32 @@ export function buildBlade(
   const s = scale
   const out: FigureStroke[] = []
 
-  const width: WidthProfile = (t) =>
-    (style.baseWidth - t * (style.baseWidth - style.tipWidth)) * s
+  // The blade's outline along its length.
+  //
+  // Two shapes, not one, and the difference is the whole reason a zhanmadao
+  // reads as a zhanmadao. Without `taper` this is a straight ramp from base to
+  // tip — a triangle, which the eye reads as a spike no matter how wide its
+  // base is, because hardly any of the length sits at full width. With it, the
+  // blade holds close to its width until `taper` and only then comes to a
+  // point, which is a slab: mass first, edge second.
+  const width: WidthProfile = (t) => {
+    if (style.taper === undefined || style.taper <= 0) {
+      return (style.baseWidth - t * (style.baseWidth - style.tipWidth)) * s
+    }
+    const shoulder = style.taper
+    if (t <= shoulder) {
+      // Barely narrows over the body — enough to not read as a plank, not
+      // enough to read as a taper.
+      return style.baseWidth * (1 - (t / shoulder) * 0.12) * s
+    }
+    const u = (t - shoulder) / (1 - shoulder)
+    const from = style.baseWidth * 0.88
+    return (from + u * (style.tipWidth - from)) * s
+  }
 
-  // Fanned about the hand, so twin blades and a fan are the same code with a
-  // different count — the silhouette that results is completely different.
+  // Fanned about the hand, so three thrown knives and one greatsword are the
+  // same code with a different count — the silhouette that results is
+  // completely different.
   const half = (style.count - 1) / 2
   for (let i = 0; i < style.count; i++) {
     const angle = (i - half) * style.spread
@@ -698,18 +655,52 @@ export function buildBlade(
     if (bleedPoly.length >= 6) out.push({ poly: bleedPoly, alpha: 0.14 })
     const poly = sweep(spine, width, rng, 0.2 * s)
     if (poly.length >= 6) out.push({ poly, alpha: 0.95 })
+
+    // ---- The grip -------------------------------------------------------
+    // Runs BEHIND the hand, opposite the blade. Nothing drew a handle at all
+    // before, and on a two-handed weapon that is most of the silhouette
+    // missing: a 斩马刀 is a long haft with a blade on the end, and without the
+    // haft it is a stick somebody is holding by the middle for no reason.
+    if (style.grip) {
+      const butt = {
+        x: -style.grip * s * cos,
+        y: -style.grip * s * sin,
+      }
+      const gripPoly = sweep(
+        bowedSpine({ x: 4 * s * cos, y: 4 * s * sin }, butt, 0, 10),
+        () => style.baseWidth * 0.3 * s + 1.1 * s,
+        rng,
+        0.18 * s,
+      )
+      if (gripPoly.length >= 6) out.push({ poly: gripPoly, alpha: 0.95 })
+
+      if (style.pommel) {
+        const pommel = sweep(
+          bowedSpine(
+            { x: butt.x - 1.2 * s * cos, y: butt.y - 1.2 * s * sin },
+            { x: butt.x - 2.2 * s * cos, y: butt.y - 2.2 * s * sin },
+            0,
+            6,
+          ),
+          elliptic(style.pommel * 2 * s),
+          rng,
+          0.15 * s,
+        )
+        if (pommel.length >= 6) out.push({ poly: pommel, alpha: 0.95 })
+      }
+    }
   }
 
   // A crossguard: short, perpendicular, and the one mark that separates a
   // heavy blade from a long one at a glance.
   if (style.guard) {
     const guard = bowedSpine(
-      { x: 7 * s, y: -style.guard * s },
-      { x: 7 * s, y: style.guard * s },
+      { x: 5 * s, y: -style.guard * s },
+      { x: 5 * s, y: style.guard * s },
       0,
       8,
     )
-    const guardPoly = sweep(guard, elliptic(2.6 * s), rng, 0.2 * s)
+    const guardPoly = sweep(guard, elliptic(3 * s), rng, 0.2 * s)
     if (guardPoly.length >= 6) out.push({ poly: guardPoly, alpha: 0.9 })
   }
 

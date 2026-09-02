@@ -149,10 +149,25 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // and thinnest thing in the wardrobe, which is the distinction that
     // matters, at the cost of its literal length. This is a portrait, and
     // portraits foreshorten.
-    const fit = Math.min(1, 46 / gear.blade.reach)
+    // The WHOLE weapon has to fit, haft included. Fitting on `reach` alone put
+    // a two-handed sword's grip through the figure's knees and off the bottom
+    // of the card, because the grip runs behind the hand and was not in the sum.
+    const grip = gear.blade.grip ?? 0
+    const fit = Math.min(1, 52 / (gear.blade.reach + grip))
+    // Steep — nearly vertical rather than the old 62°. At a shallower angle the
+    // blade lay ACROSS the body and the haft crossed the skirt, which is how a
+    // weapon is carried by somebody walking, not how it is shown in a portrait.
+    // Held close to upright it stands beside the swordsman and its whole length
+    // is legible, which is the one thing a portrait of a class has to do.
+    // Slid ALONG the weapon's own axis, not sideways. The offset used to be on
+    // the local y, which after the rotation runs across the blade — so the
+    // whole sword drifted off to one side of the fist and read as planted in
+    // the ground next to somebody rather than held. Moving along local x puts
+    // the grip in the hand and lifts the pommel off the floor, which is where
+    // a pommel belongs on a weapon that is being carried.
     parts.push(
       `<g transform="translate(${hand.x.toFixed(1)},${hand.y.toFixed(1)}) ` +
-        `rotate(-62) scale(${fit.toFixed(3)}) translate(-7,3)">`,
+        `rotate(-78) scale(${fit.toFixed(3)}) translate(${(grip * 0.62).toFixed(1)},2)">`,
     )
     for (const stroke of marks) parts.push(strokeToPolygon(stroke, ink))
     parts.push('</g>')

@@ -89,6 +89,29 @@ export interface BladeStyle {
   /** A crossguard of this half-width. */
   readonly guard?: number
   /**
+   * Where the point starts, as a fraction along the blade. 0 tapers the whole
+   * length, which is a needle.
+   *
+   * This is what separates a BROAD blade from a long one, and its absence is
+   * why the zhanmadao was reported as reading like a pole. A single linear ramp
+   * from base to tip is a triangle: however wide you make its base, the eye
+   * sees a spike, because almost none of the length is actually at full width.
+   * A greatsword is a slab that holds its width and then comes to a point in
+   * the last fifth, and that shape cannot be expressed as a ramp.
+   */
+  readonly taper?: number
+  /**
+   * The handle, running BEHIND the hand, this long. 0 draws none.
+   *
+   * There was no grip at all before — every blade began at the fist and went
+   * outward — and on a two-handed weapon that is most of the silhouette
+   * missing. A 斩马刀 is a long haft with a blade on the end; drawn without the
+   * haft it is just a stick, which is exactly what was reported.
+   */
+  readonly grip?: number
+  /** A pommel at the end of the grip, of this half-width. */
+  readonly pommel?: number
+  /**
    * What carrying this does to the body. See `Stance` below.
    *
    * It hangs off the BLADE rather than off the weapon class on purpose: the
@@ -277,12 +300,15 @@ export const HEADS: readonly HeadStyle[] = [
  *   chest      the mass hanging on that frame
  *   waist      where the body folds, which reads as heavy or light
  *   feet       how wide the stance is planted, seen under a short hem
- *   sheath     a scabbard slung across the back, crossing the whole silhouette
  *   beltBlades throwing knives at the hip, as spikes outside the hip line
  *
- * The last two are the ones that carry it at forty pixels. The first four are
- * what make the figure feel like a different person up close, in the hub and on
- * the creation screen, where the choice is actually made.
+ * THERE WAS A SIXTH: a scabbard slung across the zhanmadao's back, added when
+ * that class's blade was a thin stroke and something had to say "this person
+ * carries something enormous". Once the blade itself became a broad slab with a
+ * two-handed haft, the scabbard stopped adding and started subtracting — put
+ * side by side at creation size it read as a stray blob beside the ear, which
+ * is precisely the "clunky" that was reported. Two marks competing to say the
+ * same thing is worse than one saying it well.
  *
  * IMPORTANT — this MULTIPLIES the player's own choices rather than replacing
  * them. A broad woman with a zhanmadao is still broader than a lean one with a
@@ -305,16 +331,6 @@ export interface Stance {
   readonly waist: number
   /** Multiplier on how far apart the feet are planted. */
   readonly feet: number
-  /**
-   * A scabbard slung diagonally across the back, of this length. 0 draws none.
-   *
-   * Empty, because the blade it belongs to is in the swordsman's hands — which
-   * is exactly why it is worth drawing. It is the one mark that says "this
-   * person carries something enormous" while the enormous thing is swung out of
-   * frame, and it crosses the silhouette from below the left hip to past the
-   * right ear, so it survives being forty pixels tall.
-   */
-  readonly sheath: number
   /** Throwing knives worn at the left hip, this many. */
   readonly beltBlades: number
 }
@@ -332,7 +348,6 @@ export const STANCES = {
     chest: 1,
     waist: 1,
     feet: 1,
-    sheath: 0,
     beltBlades: 0,
   },
   /**
@@ -347,7 +362,6 @@ export const STANCES = {
     chest: 1.16,
     waist: 1.14,
     feet: 1.8,
-    sheath: 52,
     beltBlades: 0,
   },
   /**
@@ -363,7 +377,6 @@ export const STANCES = {
     chest: 0.88,
     waist: 0.84,
     feet: 0.55,
-    sheath: 0,
     beltBlades: 3,
   },
 } as const satisfies Record<string, Stance>
@@ -396,13 +409,26 @@ export const BLADES: readonly BladeStyle[] = [
   {
     id: 'great',
     name: 'Heavy Zhanmadao',
-    reach: 58,
-    bow: -2.5,
-    baseWidth: 5.2,
-    tipWidth: 1.4,
+    // BROAD before long. The first version was 58 long and 5 wide, which is a
+    // ratio of twelve to one — a pole. Thirteen wide was then too far the other
+    // way and came out a paddle. Eight and a half over fifty-six is about seven
+    // to one, and — the part that matters more than the ratio — it HOLDS that
+    // width for three quarters of its length before the point. The 斩马刀 was a weapon
+    // for cutting down cavalry: mass is the entire idea, and mass is the one
+    // thing a thin stroke cannot say.
+    reach: 56,
+    bow: -1.2,
+    baseWidth: 8.5,
+    tipWidth: 0.9,
+    taper: 0.72,
     count: 1,
     spread: 0,
-    guard: 5,
+    guard: 6,
+    // Two-handed, and the haft is nearly half the whole silhouette. This is
+    // what makes it read as a weapon somebody swings with their whole body
+    // rather than a blade somebody points.
+    grip: 18,
+    pommel: 2.6,
     stance: STANCES.planted,
   },
   {
@@ -412,12 +438,23 @@ export const BLADES: readonly BladeStyle[] = [
     // not swung from the shoulder, so nothing sticks out past the hand — which
     // is exactly what makes this silhouette impossible to confuse with the
     // zhanmadao's from across a phone screen.
-    reach: 17,
-    bow: -0.5,
-    baseWidth: 2.1,
-    tipWidth: 0.2,
+    reach: 22,
+    bow: -0.4,
+    // Each one is a real little blade rather than a hair: wide enough at the
+    // shoulder to have a shape, with the point in the last third. At 2.1 wide
+    // and tapering the whole way, three of them overlapping came out as one
+    // dark smudge beside the hip — which is what was reported.
+    baseWidth: 3.4,
+    tipWidth: 0.25,
+    taper: 0.62,
     count: 3,
-    spread: 0.55,
+    // Wider, so the three read as THREE. Fanned tightly they were one shape
+    // with a ragged edge; fanned at 0.72 with grips on, the butts crossed each
+    // other and made a lattice. This is the width where they read as separate
+    // blades and still as one hand holding them.
+    spread: 0.46,
+    // Short grips, so each blade has a butt and a point instead of two points.
+    grip: 4,
     stance: STANCES.poised,
   },
 ] as const
