@@ -298,6 +298,7 @@ async function boot(): Promise<void> {
   }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
+  run.guard = stats.guard
   /** The place being walked. Chosen in the hub before every expedition. */
   let region = regionAt(clampDepth(character.depth, character.depth))
   const depthOf = (): number => region.depth
@@ -745,6 +746,7 @@ async function boot(): Promise<void> {
     dropRng = new Rng(runSeed ^ 0x1b873593)
     run = createRun(kit.weapon.interval)
     run.hp = stats.maxHp
+    run.guard = stats.guard
     // The rift's gate, at the first floor. See riftTargetFor in data/enemies.ts
     // and the calibration in docs/CORRIDAS.md for where region.riftBase comes
     // from.

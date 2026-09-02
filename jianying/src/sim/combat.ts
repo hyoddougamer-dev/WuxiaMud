@@ -12,7 +12,7 @@ import type { Motes } from './pickups'
 import type { Bolts } from './projectiles'
 import { BOLT_RADIUS, BOLT_SPEED } from './projectiles'
 import type { Hazards } from './hazards'
-import type { Stats } from './loadout'
+import { GUARD_CALM, GUARD_REGEN, afterArmour, type Stats } from './loadout'
 import type { Rng } from '../core/rng'
 import { xpForLevel } from '../data/techniques'
 import { dropChance, rollDrop } from '../data/items'
@@ -71,6 +71,10 @@ const ORBIT_RECHARGE = 0.4
 
 export interface RunState {
   hp: number
+  /** Guard remaining. Absorbs damage before health and grows back. */
+  guard: number
+  /** Seconds since the last blow landed, for guard regrowth. */
+  calm: number
   elapsed: number
   kills: number
   immunity: number
@@ -177,6 +181,8 @@ export interface RunState {
 export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
   return {
     hp: PLAYER_MAX_HP,
+    guard: 0,
+    calm: 0,
     elapsed: 0,
     kills: 0,
     immunity: 0,
@@ -422,6 +428,14 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
 
   run.elapsed += dt
   if (run.immunity > 0) run.immunity = Math.max(0, run.immunity - dt)
+
+  // Guard grows back after a spell of not being hit. `calm` is reset inside
+  // takeDamage rather than here, so any future source of damage interrupts the
+  // regrowth by construction instead of by remembering to.
+  run.calm += dt
+  if (run.calm >= GUARD_CALM && run.guard < stats.guard) {
+    run.guard = Math.min(stats.guard, run.guard + stats.guard * GUARD_REGEN * dt)
+  }
   if (run.slashVisual > 0) run.slashVisual = Math.max(0, run.slashVisual - dt)
   if (run.novaVisual > 0) run.novaVisual = Math.max(0, run.novaVisual - dt)
 
@@ -617,25 +631,61 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
     }
   }
 
-  // --- enemy projectiles -----------------------------------------------
+  /**
+ * Everything that hurts the player goes through here.
+ *
+ * It was two copies before — one for projectiles, one for contact — and they
+ * had already drifted: the same clamp and the same guard scale were written
+ * twice, and any third source of damage would have written them a third time.
+ * With three defensive layers to apply in a fixed order, two copies is a bug
+ * waiting for the day somebody edits one of them.
+ *
+ * The order matters and is not arbitrary. Armour first, because it describes
+ * how hard the blow lands; the flat scale second, because it is a blanket
+ * modifier on what landed; guard last, because guard is a thing standing in
+ * front of you and what it stops is whatever finally arrived.
+ *
+ * Returns true when the run ended.
+ */
+function takeDamage(ctx: CombatContext, raw: number, source: string): boolean {
+  const { run, stats } = ctx
+  if (raw <= 0) return false
+  const armoured = afterArmour(raw, stats.armour)
+  // Rounded up off zero so no amount of stacking can make a blow free. Being
+  // hit for 1 still reads as being hit; being hit for 0 reads as a bug.
+  const landed = Math.max(1, armoured * stats.damageScale)
+
+  run.immunity = HURT_IMMUNITY
+  run.lastHurtBy = source
+  run.calm = 0
+
+  const stopped = Math.min(run.guard, landed)
+  run.guard -= stopped
+  const through = landed - stopped
+  run.hp -= through
+
+  // Reported at what it cost in health, not at what was swung: a number that
+  // says 30 while the bar drops by 4 teaches the player the wrong lesson about
+  // their own armour. Guard eating the blow whole is still worth a beat, so a
+  // fully absorbed hit reports 0 rather than nothing at all.
+  ctx.events?.hurt(Math.round(through), source)
+
+  if (run.hp <= 0) {
+    run.hp = 0
+    run.over = true
+    run.killedBy = source
+    return true
+  }
+  return false
+}
+
+// --- enemy projectiles -----------------------------------------------
   ctx.hazards.update(dt)
   if (run.immunity <= 0) {
     const raw = ctx.hazards.strike(player.x, player.y, PLAYER_RADIUS)
-    // 山 — guard scales what gets through. Rounded up off zero so a stacked
-    // guard can never make a blow free; taking 1 still reads as being hit.
-    const shot = raw > 0 ? Math.max(1, raw * stats.damageScale) : raw
-    if (shot > 0) {
+    if (raw > 0) {
       const source = ctx.hazards.lastStrikeSource || 'a stray bolt'
-      run.hp -= shot
-      run.immunity = HURT_IMMUNITY
-      run.lastHurtBy = source
-      ctx.events?.hurt(shot, source)
-      if (run.hp <= 0) {
-        run.hp = 0
-        run.over = true
-        run.killedBy = source
-        return
-      }
+      if (takeDamage(ctx, raw, source)) return
     }
   }
 
@@ -650,17 +700,8 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
       // through either is safe — which is what makes both behaviours a real
       // question rather than a differently-shaped chaser.
       const raw = contactDamage(e)
-      const damage = raw > 0 ? Math.max(1, raw * stats.damageScale) : raw
-      if (damage > 0 && dx * dx + dy * dy <= reach * reach) {
-        run.hp -= damage
-        run.immunity = HURT_IMMUNITY
-        run.lastHurtBy = e.kind.name
-        ctx.events?.hurt(damage, e.kind.name)
-        if (run.hp <= 0) {
-          run.hp = 0
-          run.over = true
-          run.killedBy = e.kind.name
-        }
+      if (raw > 0 && dx * dx + dy * dy <= reach * reach) {
+        takeDamage(ctx, raw, e.kind.name)
         // One hit per immunity window, no matter how many bodies are touching.
         break
       }

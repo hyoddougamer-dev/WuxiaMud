@@ -77,6 +77,26 @@ export interface Stats {
   pushForce: number
   /** Multiplier on damage taken. 1 is normal; lower is tougher. */
   damageScale: number
+  /**
+   * Armour. Cuts a fraction of every blow, on a curve — see `afterArmour`.
+   *
+   * Deliberately NOT a flat subtraction and NOT a flat percentage. Both of
+   * those are the same lever as health wearing a different name: one more
+   * number that makes every blow smaller by the same proportion. A curve
+   * against the SIZE of the blow is a different lever, because it makes armour
+   * excellent against a swarm and poor against a boss — which is the first
+   * defensive choice this game has ever offered.
+   */
+  armour: number
+  /**
+   * Guard: a shield that absorbs damage before health and grows back.
+   *
+   * The second defensive axis, and the one that pays the dodge back. Health
+   * lost is lost for the run; guard returns after GUARD_CALM seconds without
+   * being hit, so disengaging is worth something — which it never was before,
+   * in a game whose only defensive verb is a dash.
+   */
+  guard: number
   /** Health returned per enemy felled. 0 means none. */
   healPerKill: number
 }
@@ -97,6 +117,45 @@ export const EDGE_DAMAGE = 1.3
  * divide the game by nothing.
  */
 export const SWIFT_INTERVAL = 0.982
+/**
+ * Body: armour per point, alongside the health.
+ *
+ * One attribute now feeds two defensive layers with different shapes, which is
+ * what stops it being a single line on a curve. See `afterArmour`.
+ */
+export const BODY_ARMOUR = 4
+
+/**
+ * How much armour it takes to halve a blow of size 1.
+ *
+ * The whole formula is `blow x K x blow / (armour + K x blow)`, so `armour =
+ * K x blow` is exactly half mitigation. At K = 6, 300 armour halves a blow of
+ * 50, cuts 71% off a blow of 20, and only 33% off a blow of 100.
+ *
+ * The constant IS the design: raise it and armour becomes a flat percentage
+ * that never cares what hit you, lower it and armour trivialises the swarm.
+ */
+export const ARMOUR_K = 6
+
+/** Seconds without being hit before guard starts coming back. */
+export const GUARD_CALM = 4
+/** Fraction of maximum guard returned per second, once calm. */
+export const GUARD_REGEN = 0.25
+
+/**
+ * What actually lands after armour.
+ *
+ * Never reduces a blow to nothing: a hit that deals zero is indistinguishable
+ * from not being hit, and a player who cannot tell they are being attacked
+ * cannot learn to stop it.
+ */
+export function afterArmour(raw: number, armour: number): number {
+  if (raw <= 0) return raw
+  if (armour <= 0) return raw
+  const scaled = ARMOUR_K * raw
+  return Math.max(1, (raw * scaled) / (armour + scaled))
+}
+
 /** Spirit: fractional bonus to art damage and radius per point. */
 export const SPIRIT_ART = 0.05
 
@@ -106,12 +165,14 @@ export const SPIRIT_ART = 0.05
  */
 export function attributeBonuses(spent: Attributes): {
   maxHp: number
+  armour: number
   slashDamage: number
   slashIntervalScale: number
   artScale: number
 } {
   return {
     maxHp: spent.body * BODY_HP,
+    armour: spent.body * BODY_ARMOUR,
     slashDamage: spent.edge * EDGE_DAMAGE,
     slashIntervalScale: Math.pow(SWIFT_INTERVAL, spent.swift),
     artScale: 1 + spent.spirit * SPIRIT_ART,
@@ -228,6 +289,12 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09),
     pickupRadius: BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85),
     maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25 + shape.vigour,
+    armour: attr.armour,
+    // Guard scales off the same pool as health for now, so it is never the
+    // only thing keeping somebody alive before any item that grants it exists.
+    // It is deliberately small: this layer is meant to reward disengaging, not
+    // to be a second health bar.
+    guard: Math.round((PLAYER_MAX_HP + attr.maxHp) * 0.18),
 
     orbitBlades: orbit === 0 ? 0 : 1 + orbit,
     orbitDamage: (5 + orbit * 3) * art,
