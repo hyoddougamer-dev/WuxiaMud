@@ -195,6 +195,65 @@ export function play(
 // figure that goes stale the first time the ramp is touched.
 if (process.argv[1]?.endsWith('runLength.mts')) {
   const calibrating = process.argv.includes('--calibrate')
+  const searching = process.argv.includes('--search')
+
+  if (searching) {
+    /**
+     * The search that actually sets `riftBase`, restored.
+     *
+     * data/regions.ts says these values "come from runLength.mts's own binary
+     * search", and they no longer did — only `--calibrate` survived, which
+     * measures something else entirely: the qi a clean run earns in five
+     * minutes. That number is roughly a whole build's lifetime earnings, and
+     * the same comment records that setting riftBase straight from it was
+     * tried and was wrong, because a boss calibrated to it arrives the instant
+     * before the player was going to die anyway.
+     *
+     * The criterion is the one that comment states: the LARGEST target at
+     * which an unequipped, mid-cultivation swordsman clears the gate about
+     * half the time against the ENGAGED pilot. Kiting should still almost
+     * never clear — that is the point of the gate.
+     */
+    const AIM = 0.5
+    console.log(
+      `A procurar riftBase. ${SEEDS.length} seeds, alvo: o maior em que o piloto ` +
+        `"duel" limpa ~${AIM * 100}% das vezes.\n`,
+    )
+    console.log('região              riftBase   limpou   secs/duel   secs/kite   kite limpou')
+    for (const region of REGIONS) {
+      let lo = 1
+      // Generous and FIXED, not a multiple of the current value. Anchoring the
+      // ceiling to `riftBase * 8` capped the search below the answer the first
+      // time it ran: two regions reported 100% clears at the value it found,
+      // which is the tell that the bound bound the result rather than the game
+      // did. A search whose ceiling moves with the thing being searched for
+      // cannot report that it ran out of room.
+      let hi = 4096
+      let best = lo
+      let bestRow = play(region.id, PILOTS[1]![1], lo)
+      for (let step = 0; step < 12; step++) {
+        const mid = Math.round((lo + hi) / 2)
+        const row = play(region.id, PILOTS[1]![1], mid)
+        if (row.cleared >= AIM) {
+          best = mid
+          bestRow = row
+          lo = mid + 1
+        } else {
+          hi = mid - 1
+        }
+        if (lo > hi) break
+      }
+      const kite = play(region.id, PILOTS[0]![1], best)
+      console.log(
+        `${region.name.padEnd(18)} ${String(best).padStart(8)}   ` +
+          `${(bestRow.cleared * 100).toFixed(0).padStart(5)}%   ` +
+          `${bestRow.secs.toFixed(0).padStart(9)}   ${kite.secs.toFixed(0).padStart(9)}   ` +
+          `${(kite.cleared * 100).toFixed(0).padStart(10)}%   riftBase: ${best},`,
+      )
+    }
+    process.exit(0)
+  }
+
 
   if (calibrating) {
     console.log(
