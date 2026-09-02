@@ -15,14 +15,17 @@ name: Jianying · Jogar no browser
 # um ficheiro, e isto demora um build inteiro. Este link é para JOGAR; o servidor
 # local é para DESENVOLVER.
 
+# SÓ A PEDIDO, e não em cada push. O GitHub Pages tem de ser ligado uma vez à
+# mão — `actions/configure-pages` com `enablement: true` tentou fazê-lo e o
+# token do workflow não tem essa permissão ("Resource not accessible by
+# integration"). Deixado a correr em cada push, isto punha uma cruz vermelha em
+# todos os commits por causa de um clique que ninguém deu.
+#
+# Para ligar: Settings → Pages → Build and deployment → Source: GitHub Actions.
+# Depois corre este workflow em Actions → "Jianying · Jogar no browser" → Run
+# workflow. Se quiseres que volte a publicar sozinho a cada alteração, devolve o
+# bloco `push:` que estava aqui.
 on:
-  push:
-    branches:
-      - 'claude/**'
-      - main
-    paths:
-      - 'jianying/**'
-      - '.github/workflows/jianying-web.yml'
   workflow_dispatch:
 
 # Só pode haver uma publicação de cada vez. Sem isto, dois pushes seguidos
@@ -59,8 +62,6 @@ jobs:
       # `enablement: true` liga o GitHub Pages no repositório se ainda não
       # estiver ligado, para isto não exigir uma visita às definições.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
