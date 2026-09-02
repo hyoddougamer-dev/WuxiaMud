@@ -17,6 +17,15 @@
 export const strings = {
   /** Shown until the player first touches the screen, and again if they idle. */
   moveHint: 'drag anywhere to move',
+  /**
+   * The stamp that ends creation.
+   *
+   * A SEAL and not a button, because that is what finishes a Chinese painting:
+   * the work is done when the artist presses their 印 into it. "Take up the
+   * sword" was a good line and still is — it is what the seal reads underneath.
+   */
+  sealName: 'Seal this swordsman',
+  sealHint: 'press the seal',
   /** The dodge button's accessible name. */
   dodgeLabel: '闪 — dodge',
   /** Title on the fatal-error screen. */

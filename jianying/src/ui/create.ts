@@ -35,7 +35,10 @@
  */
 import { weaponById } from '../data/weapons'
 import { portraitSvg } from '../render/silhouette'
-import { DEFAULT_REGION } from '../data/regions'
+// The painting the whole screen is built on. Imported rather than referenced
+// from public/, so Vite inlines it as a data URI in the single-file build —
+// where an external URL would simply be a broken image.
+import roadArt from '../assets/road.webp'
 import { gearFromIds } from '../render/wardrobe'
 import { BEARINGS, BUILDS, PIGMENTS, SASHES, type Look } from '../meta/look'
 import { ITEM_BY_ID } from '../data/items'
@@ -124,10 +127,25 @@ export function createCreator(root: HTMLElement): CreateScreen {
         </div>
         <div class="create-foot">
           ${onCancel ? `<button class="create-back" type="button">${strings.back}</button>` : ''}
-          <button class="create-go" type="button">${strings.takeUpTheSword}</button>
+          <!-- 印 — the seal. A Chinese painting is finished when its author
+               presses their seal into it, and this screen is a painting being
+               made: the swordsman is brushed on stroke by stroke above. A
+               rectangle reading SUBMIT at the end of that would throw the whole
+               conceit away in its last inch. -->
+          <button class="create-go" type="button" aria-label="${strings.sealName}">
+            <span class="seal-mark" aria-hidden="true">
+              <span class="seal-glyph">剑</span>
+              <span class="seal-glyph">影</span>
+            </span>
+            <span class="seal-text">
+              <span class="seal-title">${strings.takeUpTheSword}</span>
+              <span class="seal-hint">${strings.sealHint}</span>
+            </span>
+          </button>
         </div>
       `
 
+      panel.style.setProperty('--road-art', `url(${roadArt})`)
       const stage = panel.querySelector<HTMLElement>('.create-portrait')!
       const capSchool = panel.querySelector<HTMLElement>('.create-cap-school')!
       const capWeapon = panel.querySelector<HTMLElement>('.create-cap-weapon')!
@@ -139,9 +157,19 @@ export function createCreator(root: HTMLElement): CreateScreen {
         // tab and had never been drawn behind a character, and putting the same
         // figure somewhere turned out to move further than any change to the
         // figure itself.
+        // `paint` re-brushes the swordsman from nothing on every change. That
+        // is deliberate rather than wasteful: a figure that redraws instantly
+        // makes a choice feel like a setting, and a figure that is painted
+        // again makes it feel like a decision about a person. The whole SVG is
+        // rebuilt anyway — it is pure geometry, a few hundred polygons — so the
+        // animation is the only thing being added.
+        // No `region` here: the painting behind the whole screen already IS the
+        // 官道, and a second drawn road inside the portrait put two roads at two
+        // scales on one image.
         stage.innerHTML = portraitSvg(gearForSchool(school), look, {
           box: 82,
-          region: DEFAULT_REGION.id,
+          paint: true,
+          wash: true,
         })
         const weapon = weaponById(school.weaponId)
         capSchool.textContent = `${school.seal} ${school.name}`

@@ -30,12 +30,19 @@ import { bearingOf, buildOf, pigmentOf, sashOf, type Look } from '../meta/look'
 const hex = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`
 
 /** One stroke as an SVG polygon. Coordinates are trimmed — this goes in the DOM. */
-export function strokeToPolygon(stroke: FigureStroke, colour: number): string {
+export function strokeToPolygon(stroke: FigureStroke, colour: number, order?: number): string {
   const pts: string[] = []
   for (let i = 0; i < stroke.poly.length; i += 2) {
     pts.push(`${stroke.poly[i]!.toFixed(1)},${stroke.poly[i + 1]!.toFixed(1)}`)
   }
-  return `<polygon points="${pts.join(' ')}" fill="${hex(colour)}" fill-opacity="${stroke.alpha.toFixed(3)}"/>`
+  // `order` turns the mark into one beat of the painting animation — see the
+  // `paint` option. Absent, the polygon is static, which is what every sheet,
+  // thumbnail and in-game draw wants.
+  const brush = order === undefined ? '' : ` class="ps" style="--i:${order}"`
+  return (
+    `<polygon points="${pts.join(' ')}" fill="${hex(colour)}" ` +
+    `fill-opacity="${stroke.alpha.toFixed(3)}"${brush}/>`
+  )
 }
 
 export interface PortraitOptions {
@@ -67,6 +74,38 @@ export interface PortraitOptions {
    */
   readonly region?: string
   /**
+   * Brush the figure on, mark by mark, instead of showing it finished.
+   *
+   * The one thing this game can do that no character screen elsewhere can. The
+   * whole renderer is brush strokes laid in a deliberate order — legs, robe,
+   * collar, shoulders, sleeves, hair, neck, head, hat, blade — because that is
+   * the order a painter works in, from the mass underneath to the detail on
+   * top. Nothing has ever seen that order except the code.
+   *
+   * Revealing it turns character creation from filling in a form into watching
+   * a swordsman being painted, and every later choice re-brushes them. It costs
+   * one CSS animation and no new geometry, because the order was already there.
+   */
+  readonly paint?: boolean
+  /**
+   * Paint the figure in three values instead of one flat black.
+   *
+   * The other half of the direction that was chosen: the wide bleed pass under
+   * every mark becomes a paper shadow, the robe drops to a mid grey with its
+   * own darker wash beneath it, and full ink is kept for what has to read from
+   * across a room — head, hands, blade.
+   *
+   * The order of those values matters more than the values. A first attempt
+   * left head and arms at full black against a grey robe and they read as limbs
+   * loose around a barrel; giving the robe its own shadow underneath is what
+   * gives it volume and puts the limbs back on the body.
+   *
+   * It also lets the swordsman sit IN a painting rather than on top of one: a
+   * pure black cut-out over an ink wash is a sticker, and this screen's whole
+   * argument is that the character belongs to the picture.
+   */
+  readonly wash?: boolean
+  /**
    * Ground colour, for carved marks. Defaults to the palette's paper.
    *
    * A cut is only a hole if it is painted the colour of what is behind it, so
@@ -83,7 +122,16 @@ export interface PortraitOptions {
  * sizes it purely with CSS and never has to know the geometry's scale.
  */
 export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {}): string {
-  const { box = 78, blade = true, ink = palette.ink, ground = palette.paper, ranked, region } = options
+  const {
+    box = 78,
+    blade = true,
+    ink = palette.ink,
+    ground = palette.paper,
+    ranked,
+    region,
+    paint = false,
+    wash = false,
+  } = options
   const build = buildOf(look).width
   const sash = sashOf(look)
   const bearing = bearingOf(look)
@@ -101,6 +149,31 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing, grip)
 
   const parts: string[] = []
+  /** The beat each mark lands on, when `paint` is set. */
+  let beat = 0
+  const next = (): number | undefined => (paint ? beat++ : undefined)
+
+  if (paint) {
+    // Inside the SVG rather than in the stylesheet, so a portrait carries its
+    // own animation wherever it is dropped — the creation screen, a sheet, a
+    // mockup — and nothing has to remember to import a rule for it.
+    //
+    // `opacity` and not `fill-opacity`: every mark already carries its own
+    // fill-opacity, which is the ink's weight and must survive. Element opacity
+    // multiplies on top of it, so the mark fades in TO the weight it was
+    // authored at instead of to full black.
+    parts.push(
+      `<style>` +
+        `@keyframes ps-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}` +
+        `.ps{opacity:0;animation:ps-in .3s cubic-bezier(.2,.7,.3,1) both;` +
+        `animation-delay:calc(var(--i) * 13ms);transform-box:fill-box;transform-origin:50% 100%}` +
+        // A player who has asked the system not to animate gets the finished
+        // painting, immediately. The reveal is a flourish; the figure is the
+        // information, and information is never withheld for an effect.
+        `@media (prefers-reduced-motion:reduce){.ps{opacity:1;animation:none}}` +
+        `</style>`,
+    )
+  }
 
   // The place, first and faintest, behind everything including the shadow.
   // Held back to about two thirds so it stays a setting: at full strength the
@@ -156,9 +229,51 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   // the head, the shoulders and the blade still read black against paper no
   // matter what the robe is dyed.
   const inkOf = (stroke: FigureStroke): number =>
-    stroke.part === 'cut' ? ground : stroke.part === 'robe' && dye !== null ? dye : ink
-  for (const stroke of figure.bleed) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
-  for (const stroke of figure.body) parts.push(strokeToPolygon(stroke, inkOf(stroke)))
+    stroke.part === 'cut'
+      ? ground
+      : stroke.part === 'robe'
+        ? // A dyed robe keeps its dye — the pigment IS the mid value, and
+          // washing it grey would delete a choice the player made. Undyed cloth
+          // takes the soft ink instead of the hard one, which is what turns a
+          // flat silhouette into a figure with a lit side.
+          (dye ?? (wash ? palette.inkSoft : ink))
+        : ink
+  const alphaOf = (stroke: FigureStroke): number =>
+    wash && stroke.part === 'robe' && dye === null ? stroke.alpha * 0.74 : stroke.alpha
+  // The bleed and the solid pass of one mark share a beat: they are the same
+  // brush touching the paper once, and separating them made the figure appear
+  // twice, faintly and then properly.
+  const bleedCount = figure.bleed.length
+  figure.bleed.forEach((stroke, i) =>
+    parts.push(
+      strokeToPolygon(
+        // The bleed becomes a cast shadow on the paper rather than a halo of
+        // the same ink. Same geometry, different job.
+        wash ? { ...stroke, alpha: stroke.alpha * 2.6 } : stroke,
+        wash && stroke.part !== 'cut' ? palette.paperShadow : inkOf(stroke),
+        paint ? i : undefined,
+      ),
+    ),
+  )
+  if (wash) {
+    // The robe again, darker, under itself. This second pass is what gives the
+    // cloth volume without giving it any detail — and detail is the one thing
+    // this art direction cannot afford.
+    for (const stroke of figure.body) {
+      if (stroke.part !== 'robe') continue
+      parts.push(strokeToPolygon({ ...stroke, alpha: stroke.alpha * 0.34 }, ink))
+    }
+  }
+  figure.body.forEach((stroke, i) =>
+    parts.push(
+      strokeToPolygon(
+        { ...stroke, alpha: alphaOf(stroke) },
+        inkOf(stroke),
+        paint ? Math.min(i, bleedCount - 1) : undefined,
+      ),
+    ),
+  )
+  beat = Math.max(bleedCount, figure.body.length)
 
   // Rank, worn where it can be seen — over the body, because a hem lies on top
   // of the cloth it belongs to. Gold rather than ink: it is the one thing on
@@ -212,8 +327,10 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // A carved mark on the weapon takes the GROUND, like one on the body: the
     // gap between the two fists is a hole, and drawing it in ink would fill the
     // one thing that separates them.
+    // The weapon last, and it is the right last mark: it is the only thing on
+    // the figure that is not the person, and a painter signs off with it.
     for (const stroke of marks) {
-      parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? ground : ink))
+      parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? ground : ink, next()))
     }
     parts.push('</g>')
   }
