@@ -199,6 +199,21 @@ export function createHud(root: HTMLElement): Hud {
     event.preventDefault()
     dodgeHandler?.()
   })
+  // Teclado, para quem joga no computador. O espaço é a tecla que toda a gente
+  // já experimenta primeiro, e o Shift é o segundo palpite — ambos ficam sob a
+  // mão que não está no rato, que é o equivalente de secretária a "o polegar
+  // que não está no joystick". `repeat` é ignorado: manter a tecla premida não
+  // pode virar uma esquiva contínua.
+  window.addEventListener('keydown', (event) => {
+    if (event.repeat) return
+    if (event.code !== 'Space' && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return
+    // Não roubar a tecla a um campo de texto — o nome da personagem escreve-se
+    // com espaços.
+    const focused = document.activeElement
+    if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return
+    event.preventDefault()
+    dodgeHandler?.()
+  })
   const rift = root.querySelector<HTMLElement>('.hud-rift')!
   const riftFill = root.querySelector<HTMLElement>('.hud-rift-fill')!
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!

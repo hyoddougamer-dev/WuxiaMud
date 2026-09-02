@@ -91,7 +91,13 @@
          O mostrador é um círculo tracejado cujo deslocamento é a carga, por
          isso encher custa um atributo por frame e não um redesenho. */
       .hud-dodge {
-        position: fixed;
+        /* ABSOLUTE, não fixed. Ancorado ao #ui, que é o quadro do jogo, e não
+           à janela do browser — com `fixed` o botão saltava para fora do ecrã
+           do jogo em qualquer sítio onde esse ecrã não ocupe a janela toda,
+           que é exatamente o que acontece num PC. Todo o resto do HUD já usava
+           `absolute`; este era o único fora do padrão, e foi por isso que foi o
+           único a fugir. */
+        position: absolute;
         right: calc(env(safe-area-inset-right, 0px) + 22px);
         /* Acima da barra do HUD, não por cima dela: a 168px o botão assentava
            em cima do relógio da corrida. A barra vive a 96px e tem cerca de

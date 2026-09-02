@@ -71,7 +71,7 @@ const STEPS: readonly Step[] = [
     // which was true when there was nothing to do about it, and is now advice
     // that leads nowhere. The moment a player first loses health is the moment
     // they will listen to how not to, so the lesson goes exactly there.
-    text: '闪 — tap to slip away',
+    text: '闪 — tap it, or press space',
     sub: 'You cannot be touched mid-step',
   },
   {
