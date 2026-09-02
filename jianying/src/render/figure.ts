@@ -103,6 +103,23 @@ export function buildSwordsmanTopDown(
     cinch: number
     sleeve: number
   } = { shoulders: 1, hem: 1, hair: 0, waist: 0.42, cinch: 1.1, sleeve: 1 },
+  /**
+   * Where the sword hand should be, instead of hanging at the side.
+   *
+   * This exists because of a report I could not patch my way out of: "não está
+   * bem holding a espada". Fists were added ON the haft first, and they did not
+   * fix it, because they were treating the symptom. The cause is that the arms
+   * hang down while the weapon floats beside them — the figure is not holding
+   * anything, it is standing next to something.
+   *
+   * A PORTRAIT is a posed image and can afford a pose. Passing a point here
+   * bends the sword arm to it and reports it back as `hand`, so whatever the
+   * caller hangs off the hand is hung off a hand that is actually reaching for
+   * it. In PLAY nothing is passed: the weapon swings to wherever the player
+   * aims, so an arm baked toward one fixed spot would be wrong at every angle
+   * but one, and hanging arms are the honest reading of a top-down sprite.
+   */
+  reach?: Point,
 ): Swordsman {
   const rng = new Rng(seed)
   const s = scale
@@ -324,11 +341,18 @@ export function buildSwordsmanTopDown(
     // The cuff is where the sleeve ends, and everything else about the arm is
     // measured from it. Placing the wrist at a fixed depth instead left the
     // hands dangling in open paper below a wide sleeve, as two round knobs.
-    const cuff = {
-      x: side * (span * 0.52 + shoulders.sleeveOut * 0.2 * bearing.sleeve) * s,
-      y: shoulderY + shoulders.sleeveDrop * 1.05 * bearing.sleeve * s,
-    }
-    const wrist = { x: cuff.x - side * 1.4 * s, y: cuff.y + 2.6 * s }
+    const posed = side === 1 && reach !== undefined
+    const cuff = posed
+      ? // Short of the grip, so the sleeve ends before the hand does and the
+        // hand reads as the thing that closes on the haft.
+        { x: reach.x - 2.2 * s, y: reach.y - 3.4 * s }
+      : {
+          x: side * (span * 0.52 + shoulders.sleeveOut * 0.2 * bearing.sleeve) * s,
+          y: shoulderY + shoulders.sleeveDrop * 1.05 * bearing.sleeve * s,
+        }
+    const wrist = posed
+      ? { x: reach.x, y: reach.y }
+      : { x: cuff.x - side * 1.4 * s, y: cuff.y + 2.6 * s }
 
     // ---- Arm -------------------------------------------------------------
     // Down, not out. The first version ran the arm along the sleeve's own
@@ -381,7 +405,7 @@ export function buildSwordsmanTopDown(
       elliptic(2.3 * s),
       { alpha: 0.95, segments: 8, jitter: 0.2 * s, bleedBy: 0.3 * s },
     )
-    if (side === 1) hand = { x: wrist.x, y: wrist.y + 1.2 * s }
+    if (side === 1) hand = posed ? { x: wrist.x, y: wrist.y } : { x: wrist.x, y: wrist.y + 1.2 * s }
     cuffs[side === -1 ? 0 : 1] = cuff
 
     if (shoulders.pauldron) {
@@ -673,6 +697,44 @@ export function buildBlade(
         0.18 * s,
       )
       if (gripPoly.length >= 6) out.push({ poly: gripPoly, alpha: 0.95 })
+
+      // ---- Fists on the haft ----------------------------------------
+      // Wider than the grip, with a gap of paper between them. That gap is
+      // what makes two bumps read as two hands instead of one thick section:
+      // in a silhouette with no interior, a hole is the only way to separate
+      // two touching masses.
+      const fists = style.hands ?? 0
+      for (let h = 0; h < fists; h++) {
+        // Measured from the guard back down the haft, so the leading hand sits
+        // where a hand actually goes on a two-hander — up against the guard —
+        // and the second trails toward the pommel.
+        const at = 2.5 + h * 5.4
+        const from = { x: -at * s * cos, y: -at * s * sin }
+        const to = { x: -(at + 3.2) * s * cos, y: -(at + 3.2) * s * sin }
+        const fist = sweep(
+          bowedSpine(from, to, 0, 6),
+          elliptic(style.baseWidth * 0.46 * s + 2.4 * s),
+          rng,
+          0.15 * s,
+        )
+        if (fist.length >= 6) out.push({ poly: fist, alpha: 0.95 })
+        // The gap: a thin carved line between this fist and the next.
+        if (h < fists - 1) {
+          const gapAt = at + 3.9
+          const gap = sweep(
+            bowedSpine(
+              { x: -gapAt * s * cos - 4 * s * -sin, y: -gapAt * s * sin - 4 * s * cos },
+              { x: -gapAt * s * cos + 4 * s * -sin, y: -gapAt * s * sin + 4 * s * cos },
+              0,
+              4,
+            ),
+            elliptic(1.1 * s),
+            rng,
+            0.08 * s,
+          )
+          if (gap.length >= 6) out.push({ poly: gap, alpha: 1, part: 'cut' })
+        }
+      }
 
       if (style.pommel) {
         const pommel = sweep(

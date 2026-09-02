@@ -91,18 +91,17 @@
          O mostrador é um círculo tracejado cujo deslocamento é a carga, por
          isso encher custa um atributo por frame e não um redesenho. */
       .hud-dodge {
-        /* ABSOLUTE, não fixed. Ancorado ao #ui, que é o quadro do jogo, e não
-           à janela do browser — com `fixed` o botão saltava para fora do ecrã
-           do jogo em qualquer sítio onde esse ecrã não ocupe a janela toda,
-           que é exatamente o que acontece num PC. Todo o resto do HUD já usava
-           `absolute`; este era o único fora do padrão, e foi por isso que foi o
-           único a fugir. */
+        /* ABSOLUTE, not fixed. Anchored to #ui — the game's own frame —
+           rather than to the browser window. With `fixed` the button escaped
+           the game's screen anywhere that screen does not fill the window,
+           which is exactly what a desktop does. Every other part of the HUD
+           already used `absolute`; this was the one outlier, and the only one
+           that fled. */
         position: absolute;
         right: calc(env(safe-area-inset-right, 0px) + 22px);
-        /* Acima da barra do HUD, não por cima dela: a 168px o botão assentava
-           em cima do relógio da corrida. A barra vive a 96px e tem cerca de
-           130px de altura com a tira das artes, portanto 246 deixa-o livre e
-           ainda ao alcance do polegar direito. */
+        /* Above the HUD bar, not on top of it: at 168px the button sat over
+           the run clock. The bar lives at 96px and stands about 130px tall with
+           the art strip, so 246 clears it and still falls under the thumb. */
         bottom: calc(env(safe-area-inset-bottom, 0px) + 246px);
         width: 76px;
         height: 76px;
@@ -125,8 +124,8 @@
         inset: 0;
         width: 100%;
         height: 100%;
-        /* Começa em cima e enche no sentido dos ponteiros, que é como se lê um
-           mostrador em qualquer outro lado. */
+        /* Starts at the top and fills clockwise, the way a dial is read
+           everywhere else. */
         transform: rotate(-90deg);
       }
       .hud-dodge-track {

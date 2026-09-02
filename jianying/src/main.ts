@@ -530,7 +530,11 @@ async function boot(): Promise<void> {
 
     bladeGfx.clear()
     for (const stroke of bladeStrokes) {
-      bladeGfx.poly(stroke.poly).fill({ color: palette.ink, alpha: stroke.alpha })
+      // As on the body, a carved mark is drawn in PAPER over what is under it —
+      // here it is the gap between the two fists on the haft, and in ink it
+      // would weld them into one thick section.
+      const colour = stroke.part === 'cut' ? palette.paper : palette.ink
+      bladeGfx.poly(stroke.poly).fill({ color: colour, alpha: stroke.alpha })
     }
     // The weapon turns about the BUTT of its grip, not about the middle of the
     // blade. `buildBlade` puts the origin at the fist with the haft running

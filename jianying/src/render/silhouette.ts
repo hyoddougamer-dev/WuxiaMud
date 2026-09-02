@@ -78,7 +78,12 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
 
   // Scale 1: the viewBox does the sizing, so the geometry stays in its native
   // units and the brush jitter keeps the proportion it was tuned at.
-  const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing)
+  // The posed grip: chest height, out to the sword side. Fixed rather than
+  // derived, because it is a POSE — the point of it is that it is the same in
+  // every portrait, so two swordsmen can be compared without their stances
+  // being one more thing that differs.
+  const grip = blade ? { x: 11, y: -21 } : undefined
+  const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing, grip)
 
   const parts: string[] = []
 
@@ -169,7 +174,12 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
       `<g transform="translate(${hand.x.toFixed(1)},${hand.y.toFixed(1)}) ` +
         `rotate(-78) scale(${fit.toFixed(3)}) translate(${(grip * 0.62).toFixed(1)},2)">`,
     )
-    for (const stroke of marks) parts.push(strokeToPolygon(stroke, ink))
+    // A carved mark on the weapon takes the GROUND, like one on the body: the
+    // gap between the two fists is a hole, and drawing it in ink would fill the
+    // one thing that separates them.
+    for (const stroke of marks) {
+      parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? ground : ink))
+    }
     parts.push('</g>')
   }
 

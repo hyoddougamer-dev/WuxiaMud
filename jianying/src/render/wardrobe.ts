@@ -112,6 +112,21 @@ export interface BladeStyle {
   /** A pommel at the end of the grip, of this half-width. */
   readonly pommel?: number
   /**
+   * Fists closed on the haft, this many.
+   *
+   * Without them the weapon reads as floating beside the swordsman rather than
+   * being held — reported exactly that way. The figure's own hands cannot do
+   * this job: they hang at fixed points on the body while the weapon swings
+   * freely to wherever the player is aiming, so the two only line up by luck.
+   * Fists that ride ON the haft line up by construction, at every angle.
+   *
+   * Two on a 斩马刀, because that is what "two-handed" looks like from outside
+   * and it is half of why the weapon reads as heavy. None on the 飞刀: three
+   * fanned knives held in the fingers would gain three fists and lose the
+   * fan, which is the whole silhouette.
+   */
+  readonly hands?: number
+  /**
    * What carrying this does to the body. See `Stance` below.
    *
    * It hangs off the BLADE rather than off the weapon class on purpose: the
@@ -429,6 +444,7 @@ export const BLADES: readonly BladeStyle[] = [
     // rather than a blade somebody points.
     grip: 18,
     pommel: 2.6,
+    hands: 1,
     stance: STANCES.planted,
   },
   {

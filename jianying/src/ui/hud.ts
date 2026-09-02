@@ -143,7 +143,7 @@ export function createHud(root: HTMLElement): Hud {
          on the left, because that is the only place a second thumb can reach
          without letting go of movement. Big: 76px, well over the 44px floor,
          because this is pressed in a panic and a missed press is a death. -->
-    <button class="hud-dodge" type="button" aria-label="闪 — esquiva">
+    <button class="hud-dodge" type="button" aria-label="${strings.dodgeLabel}">
       <svg viewBox="0 0 44 44" class="hud-dodge-dial" aria-hidden="true">
         <circle class="hud-dodge-track" cx="22" cy="22" r="19"></circle>
         <circle class="hud-dodge-fill" cx="22" cy="22" r="19"></circle>
@@ -199,16 +199,16 @@ export function createHud(root: HTMLElement): Hud {
     event.preventDefault()
     dodgeHandler?.()
   })
-  // Teclado, para quem joga no computador. O espaço é a tecla que toda a gente
-  // já experimenta primeiro, e o Shift é o segundo palpite — ambos ficam sob a
-  // mão que não está no rato, que é o equivalente de secretária a "o polegar
-  // que não está no joystick". `repeat` é ignorado: manter a tecla premida não
-  // pode virar uma esquiva contínua.
+  // Keyboard, for playing at a desk. Space is the key everyone tries first and
+  // Shift is the second guess; both sit under the hand that is not on the
+  // mouse, which is the desk equivalent of "the thumb that is not on the
+  // joystick". `repeat` is ignored, or holding the key down would become a
+  // continuous dodge.
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return
     if (event.code !== 'Space' && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return
-    // Não roubar a tecla a um campo de texto — o nome da personagem escreve-se
-    // com espaços.
+    // Never steal the key from a text field — a swordsman's name has spaces
+    // in it.
     const focused = document.activeElement
     if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return
     event.preventDefault()

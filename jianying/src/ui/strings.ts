@@ -17,6 +17,8 @@
 export const strings = {
   /** Shown until the player first touches the screen, and again if they idle. */
   moveHint: 'drag anywhere to move',
+  /** The dodge button's accessible name. */
+  dodgeLabel: '闪 — dodge',
   /** Title on the fatal-error screen. */
   fatalTitle: 'Jiànyǐng failed to start',
 

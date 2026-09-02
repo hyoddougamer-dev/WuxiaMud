@@ -67,7 +67,7 @@ export interface DodgeState {
    *
    * Kept by the simulation rather than the renderer so a replay draws the same
    * trail as the run that produced it — the whole project turns on that being
-   * true, see core/rng.ts.
+   * true; see core/rng.ts.
    */
   trail: { x: number; y: number }[]
 }
