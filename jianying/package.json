@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
+    "build:single": "tsx tools/singlefile.mts",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

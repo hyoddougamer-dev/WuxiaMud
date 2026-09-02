@@ -21,3 +21,6 @@ android/
 *.keystore
 *.jks
 *.p12
+
+# Build de ficheiro único (tools/singlefile.mts). Produto, como o dist/.
+dist-single/
