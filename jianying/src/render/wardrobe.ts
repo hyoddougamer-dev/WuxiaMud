@@ -127,6 +127,21 @@ export interface BladeStyle {
    */
   readonly hands?: number
   /**
+   * Held in BOTH hands, so a portrait poses both arms onto the haft.
+   *
+   * Distinct from `hands`, which is the number of fists painted ON the weapon.
+   * Those exist for PLAY, where the arms hang at fixed points on the body while
+   * the weapon swings to wherever the player aims, so the only fists that can
+   * line up with the haft are the ones riding on it. A PORTRAIT has one pose
+   * and can do the real thing: reach both of the figure's own arms to the grip.
+   *
+   * It also buys the weapon its size back. With one hand on it the haft runs UP
+   * past the fist and eats the room the blade needs; held low in two hands the
+   * haft runs DOWN toward the hem instead, and the same card fits a quarter
+   * more steel above the hands.
+   */
+  readonly twoHanded?: boolean
+  /**
    * What carrying this does to the body. See `Stance` below.
    *
    * It hangs off the BLADE rather than off the weapon class on purpose: the
@@ -445,6 +460,7 @@ export const BLADES: readonly BladeStyle[] = [
     grip: 18,
     pommel: 2.6,
     hands: 1,
+    twoHanded: true,
     stance: STANCES.planted,
   },
   {

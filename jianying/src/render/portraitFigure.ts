@@ -125,6 +125,16 @@ export function buildSwordsmanFront(
   } = { shoulders: 1, hem: 1, hair: 0, waist: 0.42, cinch: 1.1, sleeve: 1 },
   /** Where the sword hand should be. The arm bends to it; see figure.ts. */
   reach?: Point,
+  /**
+   * Where the OFF hand should be, on a weapon held in both.
+   *
+   * Passing it is what turns a portrait of somebody standing beside a
+   * zhanmadao into a portrait of somebody holding one. Fists painted on the
+   * haft — `hands` in wardrobe.ts — cannot do this job: they say the weapon is
+   * gripped without saying by whom, which is all a top-down sprite can manage
+   * and less than a posed portrait should settle for.
+   */
+  offReach?: Point,
 ): Swordsman {
   const rng = new Rng(seed)
   const body: FigureStroke[] = []
@@ -340,7 +350,8 @@ export function buildSwordsmanFront(
   // and body reads as a gap in the silhouette rather than as air.
   const armLength = HEIGHT * 0.45
   for (const side of [-1, 1]) {
-    const posed = side === 1 && reach !== undefined
+    const target = side === 1 ? reach : offReach
+    const posed = target !== undefined
     const flare = shoulders.sleeveOut * 0.04 * bearing.sleeve * build
     const shoulderPt = {
       x: side * (span - hw * 0.35),
@@ -350,13 +361,33 @@ export function buildSwordsmanFront(
     // own width put its inner edge outside the ribs, and the paper between arm
     // and body read as a hole in the silhouette rather than as air. A hanging
     // arm TOUCHES the torso; the outline it makes is one shape, not three.
-    const elbow = {
-      x: side * (span * 0.72 + flare),
-      y: shoulderY + armLength * 0.5,
-    }
-    const wrist = posed
-      ? { x: reach.x, y: reach.y }
-      : { x: side * (span * 0.64 + flare), y: shoulderY + armLength }
+    // A posed elbow stays OUT while the wrist comes in, which is what an arm
+    // reaching across the body actually does: the forearm crosses, the upper
+    // arm does not. Dropped straight toward the target it folded the whole
+    // limb into the ribs, and the off hand appeared to grow out of the waist.
+    const elbow = posed
+      ? { x: side * (span * 0.92 + flare), y: shoulderY + armLength * 0.46 }
+      : { x: side * (span * 0.72 + flare), y: shoulderY + armLength * 0.5 }
+    // An arm cannot reach further than it is long, and a swept stroke will
+    // happily draw one that does — which is what a two-handed grip placed too
+    // low produced: the off hand sat thirty-four units from a thirty-unit arm,
+    // and the forearm simply stretched to it. Nothing failed; the figure just
+    // grew a rubber limb. Clamping here rather than at the call site means the
+    // pose is anatomically valid by construction, whatever a caller asks for.
+    const want = posed ? { x: target.x, y: target.y } : null
+    const wrist =
+      want === null
+        ? { x: side * (span * 0.64 + flare), y: shoulderY + armLength }
+        : (() => {
+            const dx = want.x - shoulderPt.x
+            const dy = want.y - shoulderPt.y
+            const far = Math.hypot(dx, dy)
+            // 0.97, not 1: an arm at literally full stretch has no elbow left,
+            // and a limb drawn dead straight reads as a stick.
+            const cap = armLength * 0.97
+            if (far <= cap) return want
+            return { x: shoulderPt.x + (dx / far) * cap, y: shoulderPt.y + (dy / far) * cap }
+          })()
     // Nearly at the wrist: a sleeve that stops at mid-forearm leaves the hand
     // as a bead on a stick.
     const cuff = {

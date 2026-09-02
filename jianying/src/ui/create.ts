@@ -170,6 +170,11 @@ export function createCreator(root: HTMLElement): CreateScreen {
         // scales on one image.
         stage.innerHTML = portraitSvg(gearForSchool(school), look, {
           box: 82,
+          // Sky for the 斩马刀, which is now held in both hands and drawn at its
+          // real weight. Height only: `box` would have widened the card too,
+          // and a wider viewBox inside a fixed CSS box shrinks everything —
+          // paying for the bigger sword with a smaller swordsman.
+          lift: 16,
           paint: true,
           // WASH OFF. It was turned on to stop the figure reading as a sticker
           // on the painting, and it does — by dropping the robe to a mid grey

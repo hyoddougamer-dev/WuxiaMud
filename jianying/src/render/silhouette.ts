@@ -114,6 +114,19 @@ export interface PortraitOptions {
    * title screen's dark panel the default would punch paper-coloured holes.
    */
   readonly ground?: number
+  /**
+   * Extra units of sky above the figure, widening nothing.
+   *
+   * A weapon needs VERTICAL room, and `box` buys both dimensions at once: it
+   * sets the viewBox's height and, through `half`, its width. Growing it to fit
+   * a longer 斩马刀 therefore also grew the card sideways, and since the portrait
+   * is fitted into a fixed CSS box, the extra width shrank the whole drawing —
+   * paying for a bigger sword with a smaller swordsman.
+   *
+   * This adds height alone. The figure loses a little scale, the weapon gains a
+   * lot, and nothing about the composition's width changes.
+   */
+  readonly lift?: number
 }
 
 /**
@@ -122,6 +135,49 @@ export interface PortraitOptions {
  * The viewBox is in figure units with the origin at the feet, so the caller
  * sizes it purely with CSS and never has to know the geometry's scale.
  */
+/**
+ * How the weapon is carried in a portrait: steep, nearly upright.
+ *
+ * At the old 62° the blade lay ACROSS the body and the haft crossed the skirt,
+ * which is how somebody walking carries a weapon, not how a portrait shows one.
+ * Held close to upright it stands beside the swordsman with its whole length
+ * legible, which is the one thing a portrait of a class has to do.
+ */
+const BLADE_ANGLE = -78
+const rad = (deg: number): number => (deg * Math.PI) / 180
+const BLADE_COS = Math.cos(rad(BLADE_ANGLE))
+const BLADE_SIN = Math.sin(rad(BLADE_ANGLE))
+
+/** Where the leading fist closes on the haft, as a fraction back from the guard. */
+const LEAD_HAND = 0.22
+/** How far down the haft the off hand sits, from the leading one. */
+const HAND_SPACING = 0.5
+
+/**
+ * How much the weapon is foreshortened so it fits the card.
+ *
+ * Derived from the headroom the box actually has above the fist rather than
+ * from a constant. It WAS a constant — 52 — tuned when the hand sat eleven
+ * units off the ground; the front elevation puts the fist at hip height on a
+ * figure half again as tall, and the same 52 sent a zhanmadao's point out
+ * through the top of the card.
+ *
+ * Only what is ABOVE the leading hand competes for that room, and getting that
+ * wrong is what kept the 斩马刀 small. The first version budgeted `reach + grip`,
+ * as though the haft stood up through the blade's space; it does not — it hangs
+ * below the fist, toward the hem, where there is room to spare. Counting only
+ * the blade plus the stub of haft above the leading hand gives the same card a
+ * quarter more steel, which is the difference between a heavy weapon and a
+ * picture of one.
+ */
+function bladeFit(gear: Gear, box: number, lift: number, handY: number): number {
+  const grip = gear.blade.grip ?? 0
+  // Two units of air, so the bleed around the point does not touch the edge.
+  const headroom = box + lift - 8 + handY - 2
+  const above = gear.blade.reach + grip * LEAD_HAND
+  return Math.min(1, headroom / Math.abs(BLADE_SIN) / above)
+}
+
 export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {}): string {
   const {
     box = 78,
@@ -132,6 +188,7 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     region,
     paint = false,
     wash = false,
+    lift = 0,
   } = options
   const build = buildOf(look).width
   const sash = sashOf(look)
@@ -155,8 +212,38 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   // derived, because it is a POSE — the point of it is that it is the same in
   // every portrait, so two swordsmen can be compared without their stances
   // being one more thing that differs.
-  const grip = blade ? { x: 15, y: -30 } : undefined
-  const figure = buildSwordsmanFront(look.seed, gear, build, bearing, grip)
+  //
+  // A two-handed weapon is held LOW and near the centre line, because that is
+  // both how a 斩马刀 is actually rested and what buys it its size: the haft then
+  // runs down toward the hem instead of up through the space the blade needs.
+  const twoHanded = blade && gear.blade.twoHanded === true
+  // OUTBOARD of the robe, at chest height, for both holds.
+  //
+  // The two-handed grip was tried at the centre line first, where a pair of
+  // hands most naturally meets. It cannot go there. A silhouette has no
+  // interior, so a black weapon in front of a black robe is described by its
+  // outline and nothing else — and an outline is a mark this art direction
+  // does not own. Reserving a hairline of paper around the haft to rescue it
+  // only made that explicit: an outlined tube with a flanged end and two rings
+  // on it reads as a syringe, which is exactly what it looked like.
+  //
+  // So the weapon stays clear of the body and the ARM does the crossing
+  // instead. That trade is worth taking: an arm that disappears behind a robe
+  // reads as an arm behind a robe, while a weapon that disappears is the
+  // subject of the picture going missing.
+  const grip = blade ? (twoHanded ? { x: 14, y: -40 } : { x: 15, y: -30 }) : undefined
+  // The second fist, further down the same haft. Derived from the weapon's own
+  // angle and grip length rather than placed by eye, so a longer haft spreads
+  // the hands further apart instead of leaving one of them in mid-air.
+  const off =
+    twoHanded && grip
+      ? (() => {
+          const g = gear.blade.grip ?? 0
+          const back = g * HAND_SPACING * bladeFit(gear, box, lift, grip.y)
+          return { x: grip.x - back * BLADE_COS, y: grip.y - back * BLADE_SIN }
+        })()
+      : undefined
+  const figure = buildSwordsmanFront(look.seed, gear, build, bearing, grip, off)
 
   const parts: string[] = []
   /** The beat each mark lands on, when `paint` is set. */
@@ -314,7 +401,18 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // weapon; it now hangs from the hand the figure actually has, and is drawn
     // over the body so the grip reads as in front of the robe rather than
     // buried in it.
-    const marks = buildBlade(look.seed + 1, 1, gear.blade)
+    // TWO fists on the haft when the weapon is held in both hands — which is
+    // what `hands` has always documented for a 斩马刀, and what it was never set
+    // to. They are not redundant with the figure's own posed hands: those are
+    // drawn with the body, UNDER the weapon, and on a black robe under a black
+    // weapon nothing of them survives. Removing the fists and trusting the
+    // arms produced the worst version of this — a bare outlined tube with a
+    // flange on the end, holding nothing, which reads as a torch.
+    const marks = buildBlade(
+      look.seed + 1,
+      1,
+      twoHanded ? { ...gear.blade, hands: 2 } : gear.blade,
+    )
     const hand = figure.hand
     // Raised, not lowered. The hand sits about eleven units off the ground, so
     // a forty-unit blade pointed down leaves the frame before it leaves the
@@ -330,14 +428,7 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // a two-handed sword's grip through the figure's knees and off the bottom
     // of the card, because the grip runs behind the hand and was not in the sum.
     const grip = gear.blade.grip ?? 0
-    // Fitted to the HEADROOM the box actually has above the fist, rather than
-    // to a constant. It was 52, tuned when the hand sat eleven units off the
-    // ground; the front elevation puts the fist at hip height on a figure half
-    // again as tall, and the same 52 sent a zhanmadao's point out through the
-    // top of the card. Derived, so raising `box` lengthens the weapon instead
-    // of silently clipping it.
-    const headroom = box - 8 + hand.y
-    const fit = Math.min(1, headroom / 0.98 / (gear.blade.reach + grip))
+    const fit = bladeFit(gear, box, lift, hand.y)
     // Steep — nearly vertical rather than the old 62°. At a shallower angle the
     // blade lay ACROSS the body and the haft crossed the skirt, which is how a
     // weapon is carried by somebody walking, not how it is shown in a portrait.
@@ -351,15 +442,18 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // a pommel belongs on a weapon that is being carried.
     parts.push(
       `<g transform="translate(${hand.x.toFixed(1)},${hand.y.toFixed(1)}) ` +
-        `rotate(-78) scale(${fit.toFixed(3)}) translate(${(grip * 0.62).toFixed(1)},2)">`,
+        `rotate(${BLADE_ANGLE}) scale(${fit.toFixed(3)}) ` +
+        `translate(${(grip * LEAD_HAND).toFixed(1)},2)">`,
     )
     // A carved mark on the weapon takes the GROUND, like one on the body: the
     // gap between the two fists is a hole, and drawing it in ink would fill the
     // one thing that separates them.
     // The weapon last, and it is the right last mark: it is the only thing on
     // the figure that is not the person, and a painter signs off with it.
-    for (const stroke of marks) {
-      parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? ground : ink, next()))
+    const beats = marks.map(() => next())
+
+    for (const [i, stroke] of marks.entries()) {
+      parts.push(strokeToPolygon(stroke, stroke.part === 'cut' ? ground : ink, beats[i]))
     }
     parts.push('</g>')
   }
@@ -368,7 +462,7 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   // the side than the figure does and a tighter box clipped its tip.
   const half = box * 0.46
   return (
-    `<svg class="portrait-svg" viewBox="${-half} ${-box + 8} ${half * 2} ${box}" ` +
+    `<svg class="portrait-svg" viewBox="${-half} ${-box + 8 - lift} ${half * 2} ${box + lift}" ` +
     `preserveAspectRatio="xMidYMax meet" aria-hidden="true">${parts.join('')}</svg>`
   )
 }
