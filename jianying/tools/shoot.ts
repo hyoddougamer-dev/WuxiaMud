@@ -338,18 +338,21 @@ async function main(): Promise<void> {
     // these — man or woman, and the dye — were asked for by name, and a control
     // that changes a stored field but not the drawing would photograph as a
     // working screen while doing nothing.
+    // `> .portrait-svg` and not a descendant `svg`: the portrait now nests the
+    // region's vignette inside itself, so a descendant selector matches two
+    // elements and Playwright's strict mode refuses to guess which.
     const dyes = page.locator('.dye-chip')
     const dyeCount = await dyes.count()
     const bearings = page.locator('.look-chips').first().locator('.look-chip')
     const bearingCount = await bearings.count()
     if (dyeCount > 0) {
-      const before = await page.locator('.create-portrait svg').innerHTML()
+      const before = await page.locator('.create-portrait > .portrait-svg').innerHTML()
       // A dyed robe and the other bearing, then back to the top to photograph
       // the figure they produce.
       await dyes.nth(2).click()
       await bearings.nth(1).click()
       await page.waitForTimeout(250)
-      const after = await page.locator('.create-portrait svg').innerHTML()
+      const after = await page.locator('.create-portrait > .portrait-svg').innerHTML()
       await page.locator('.create-scroll').evaluate((el) => (el.scrollTop = 0))
       await page.waitForTimeout(250)
       await page.screenshot({ path: join(OUT, 'create-dyed.png') })

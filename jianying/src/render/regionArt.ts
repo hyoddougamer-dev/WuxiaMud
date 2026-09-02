@@ -99,6 +99,88 @@ function hills(rng: Rng, s: VignetteSize, base: number, count = 3): string {
   return out.join('')
 }
 
+/**
+ * A ragged horizontal band of mist, the way a wet brush leaves it.
+ *
+ * Three overlapping ellipses of falling opacity rather than one: a single
+ * ellipse has a mathematically perfect edge, which is the one thing a wash
+ * never has, and at any size above a thumbnail that edge is what gives away
+ * that nobody held a brush.
+ */
+function mist(rng: Rng, cx: number, cy: number, w: number, op: number): string {
+  const out: string[] = []
+  for (let i = 0; i < 3; i++) {
+    out.push(
+      wash(
+        cx + rng.range(-w * 0.18, w * 0.18),
+        cy + rng.range(-2.5, 2.5),
+        w * rng.range(0.42, 0.62),
+        rng.range(1.6, 4.2),
+        op * rng.range(0.6, 1),
+      ),
+    )
+  }
+  return out.join('')
+}
+
+/**
+ * The low sun, seen through that mist.
+ *
+ * PAPER, not gold. It is a hole punched in the wash — which is exactly how it
+ * is made in a real ink painting, by leaving the paper untouched and laying the
+ * cloud around it. Painting it gold would make it the only saturated thing on a
+ * monochrome horizon, and the eye would read it as a pickup rather than as the
+ * sun.
+ */
+function sun(cx: number, cy: number, r: number): string {
+  return (
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 1.9).toFixed(1)}" ` +
+    `fill="${hex(palette.paper)}" fill-opacity="0.30"/>` +
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" ` +
+    `fill="${hex(palette.paper)}" fill-opacity="0.92"/>`
+  )
+}
+
+/**
+ * A 牌坊 fallen open — posts, a lintel, and half a roof.
+ *
+ * The Post Road's own blurb promises "relay stations standing open", and until
+ * now the vignette drew none. It is the one built thing in the set, which is
+ * what makes it the road's second silhouette without stealing anybody's first:
+ * the marsh has verticals, the cliff diagonals, the market circles, the pass a
+ * band, and none of them has a roofline.
+ */
+function ruin(x: number, base: number, w: number, h: number, op: number): string {
+  const post = Math.max(1.6, w * 0.13)
+  const out: string[] = [
+    // Two posts and the lintel across them.
+    `<rect x="${x.toFixed(1)}" y="${(base - h).toFixed(1)}" width="${post.toFixed(1)}" height="${h.toFixed(1)}" fill="${ink}" fill-opacity="${op.toFixed(2)}"/>`,
+    `<rect x="${(x + w - post).toFixed(1)}" y="${(base - h).toFixed(1)}" width="${post.toFixed(1)}" height="${h.toFixed(1)}" fill="${ink}" fill-opacity="${op.toFixed(2)}"/>`,
+    `<rect x="${x.toFixed(1)}" y="${(base - h).toFixed(1)}" width="${w.toFixed(1)}" height="${(h * 0.14).toFixed(1)}" fill="${ink}" fill-opacity="${op.toFixed(2)}"/>`,
+  ]
+  // The roof: a sagging line with its right end dropped, which is the whole of
+  // "ruined". A level roof on the same posts reads as a gate still in service.
+  out.push(
+    `<path d="M ${(x - w * 0.22).toFixed(1)} ${(base - h * 1.02).toFixed(1)} Q ${(x + w * 0.5).toFixed(1)} ${(base - h * 1.3).toFixed(1)} ${(x + w * 1.18).toFixed(1)} ${(base - h * 0.86).toFixed(1)} L ${(x + w * 1.1).toFixed(1)} ${(base - h * 0.74).toFixed(1)} Q ${(x + w * 0.5).toFixed(1)} ${(base - h * 1.14).toFixed(1)} ${(x - w * 0.2).toFixed(1)} ${(base - h * 0.9).toFixed(1)} Z" fill="${ink}" fill-opacity="${op.toFixed(2)}"/>`,
+  )
+  return out.join('')
+}
+
+/** Scrub and rubble: flicked ink, dense at the root and thinning outward. */
+function scatter(rng: Rng, cx: number, cy: number, w: number, n: number, op: number): string {
+  const out: string[] = []
+  for (let i = 0; i < n; i++) {
+    const t = rng.next()
+    const x = cx + rng.range(-w, w) * (0.4 + t * 0.6)
+    const y = cy + rng.range(-w * 0.1, w * 0.16)
+    out.push(
+      `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rng.range(0.8, 3.2).toFixed(1)}" ` +
+        `ry="${rng.range(0.5, 1.6).toFixed(1)}" fill="${ink}" fill-opacity="${(op * rng.range(0.4, 1)).toFixed(2)}"/>`,
+    )
+  }
+  return out.join('')
+}
+
 type Painter = (rng: Rng, s: VignetteSize) => string
 
 const PAINTERS: Record<string, Painter> = {
@@ -108,8 +190,31 @@ const PAINTERS: Record<string, Painter> = {
    * somewhere to go", and no other region is allowed one.
    */
   road: (rng, s) => {
-    const out: string[] = [hills(rng, s, s.h * 0.56)]
     const horizon = s.h * 0.58
+    // Sky first, and it is most of the picture. The road's own blurb is about
+    // open ground; a vignette where the ground starts two thirds of the way up
+    // is a picture of a road, not of somewhere open.
+    const out: string[] = [
+      // The sun sits just clear of the hills so the mist can cross it. On the
+      // horizon exactly it was bisected and read as a rising moon behind a
+      // hill; a diameter above, it reads as low sun in haze.
+      // The band FIRST and the sun punched into it. Paper on paper is nothing,
+      // which is what the first attempt drew: a disc the same colour as the sky
+      // it sat in. A sun in ink painting is not painted, it is LEFT — so there
+      // has to be something for it to be left out of.
+      mist(rng, s.w * 0.36, horizon - s.h * 0.14, s.w * 0.62, 0.3),
+      mist(rng, s.w * 0.66, horizon - s.h * 0.115, s.w * 0.5, 0.24),
+      // Bigger than it looks like it should be. At 0.032 of the height it was
+      // technically present and practically invisible — a fourteen-unit disc
+      // inside a band that wide is a smudge, not a sun.
+      sun(s.w * 0.42, horizon - s.h * 0.125, s.h * 0.05),
+      // One tight, dark band UNDER it. The sun only reads as bright against
+      // something dark, and the wide soft bands above cannot supply that.
+      mist(rng, s.w * 0.44, horizon - s.h * 0.075, s.w * 0.44, 0.34),
+      hills(rng, s, s.h * 0.56),
+      mist(rng, s.w * 0.5, horizon - s.h * 0.03, s.w * 0.95, 0.16),
+      mist(rng, s.w * 0.2, horizon - s.h * 0.06, s.w * 0.5, 0.12),
+    ]
     // A TRAPEZOID, not a triangle. Converging the verges all the way to a point
     // produced a filled shape with its apex in the sky, and every reading of it
     // was "a mountain" — the one silhouette this vignette must not own, since
@@ -128,10 +233,51 @@ const PAINTERS: Record<string, Painter> = {
       curve(lx, s.h, fl, horizon, -2, 1.8, 0.22),
       curve(rx, s.h, fr, horizon, 2, 1.8, 0.22),
     )
+    // Broken paving. The surface was one flat trapezoid, which reads as a ramp
+    // rather than as a road that has not been repaired in years. Rows of dark
+    // patches, thinning and flattening with distance, give it both texture and
+    // the perspective the trapezoid only implies.
+    for (let row = 0; row < 9; row++) {
+      const t = Math.pow(row / 9, 1.5)
+      const y = s.h + (horizon - s.h) * t
+      const l = lx + (fl - lx) * t
+      const r = rx + (fr - rx) * t
+      const slabs = Math.max(2, Math.round(5 - t * 3))
+      for (let i = 0; i < slabs; i++) {
+        if (rng.next() > 0.72) continue
+        const u = (i + rng.range(0.1, 0.9)) / slabs
+        const w = ((r - l) / slabs) * rng.range(0.4, 0.85)
+        out.push(
+          `<ellipse cx="${(l + (r - l) * u).toFixed(1)}" cy="${y.toFixed(1)}" ` +
+            `rx="${(w / 2).toFixed(1)}" ry="${Math.max(0.4, (1 - t) * 1.5).toFixed(1)}" ` +
+            `fill="${ink}" fill-opacity="${(0.16 * (1 - t * 0.7)).toFixed(3)}"/>`,
+        )
+      }
+    }
+
+    // Scrub along both verges, heaviest near the camera.
+    out.push(
+      scatter(rng, lx, s.h * 0.94, s.w * 0.16, 14, 0.4),
+      scatter(rng, rx, s.h * 0.9, s.w * 0.18, 16, 0.4),
+      scatter(rng, (lx + fl) / 2, s.h * 0.78, s.w * 0.1, 9, 0.28),
+    )
+
+    // The ruined gate, on the rise to the right. Past the verge and above the
+    // horizon line, so it reads as standing on higher ground rather than in the
+    // road — which is where the blurb's relay stations are.
+    out.push(
+      scatter(rng, s.w * 0.83, horizon + s.h * 0.012, s.w * 0.1, 14, 0.3),
+      ruin(s.w * 0.79, horizon + s.h * 0.008, s.w * 0.11, s.h * 0.062, 0.5),
+    )
+
     // Milestones on the verges, outside the surface, shrinking with distance.
-    for (let i = 0; i < 4; i++) {
-      const t = i / 4
-      const hgt = s.h * (0.2 - t * 0.14)
+    // FEWER AND SMALLER, and none of them near the camera. At four a side and a
+    // fifth of the frame tall they marched down both verges like fence posts
+    // and became the loudest thing in the picture — a milestone is a detail
+    // that tells you the road was maintained once, not the subject.
+    for (let i = 0; i < 3; i++) {
+      const t = 0.28 + (i / 3) * 0.6
+      const hgt = s.h * (0.075 - t * 0.045)
       for (const side of [-1, 1]) {
         const near = side < 0 ? lx : rx
         const far = side < 0 ? fl : fr
@@ -140,7 +286,7 @@ const PAINTERS: Record<string, Painter> = {
         out.push(
           `<rect x="${x.toFixed(1)}" y="${(y - hgt).toFixed(1)}" ` +
             `width="${Math.max(1.5, hgt * 0.26).toFixed(1)}" height="${hgt.toFixed(1)}" ` +
-            `fill="${ink}" fill-opacity="${(0.6 - t * 0.35).toFixed(2)}"/>`,
+            `fill="${ink}" fill-opacity="${(0.5 - t * 0.3).toFixed(2)}"/>`,
         )
       }
     }

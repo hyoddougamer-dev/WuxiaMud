@@ -203,7 +203,7 @@ export function createHub(
   let tab: TabId = 'self'
 
   /** The swordsman as they currently stand, gear and rank and all. */
-  const portrait = (c: Character, box: number): string => {
+  const portrait = (c: Character, box: number, region?: string): string => {
     const worn = equippedItems(c.inventory)
     const styleFor = (slot: Slot): string | undefined => {
       const entry = worn.find((e) => baseOf(e)?.slot === slot)
@@ -224,7 +224,10 @@ export function createHub(
         blade: styleFor('weapon') ?? schoolById(c.origin).weaponId,
       }),
       c.look,
-      { box, ranked },
+      // Spread rather than `region: region`: `exactOptionalPropertyTypes` is on,
+      // so an explicit `undefined` is not the same as an absent key — and the
+      // absent key is what "no scene" means here.
+      { box, ranked, ...(region !== undefined ? { region } : {}) },
     )
   }
 
@@ -283,7 +286,9 @@ export function createHub(
 
     const stage = document.createElement('div')
     stage.className = 'stage'
-    stage.innerHTML = portrait(c, 84)
+    // The place they are about to walk. It changes when the destination
+    // changes, which turns the map choice into something the portrait answers.
+    stage.innerHTML = portrait(c, 84, regionAt(chosenDepth).id)
     pane.appendChild(stage)
 
     const attrs = document.createElement('div')

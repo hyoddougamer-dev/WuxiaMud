@@ -35,6 +35,7 @@
  */
 import { weaponById } from '../data/weapons'
 import { portraitSvg } from '../render/silhouette'
+import { DEFAULT_REGION } from '../data/regions'
 import { gearFromIds } from '../render/wardrobe'
 import { BEARINGS, BUILDS, PIGMENTS, SASHES, type Look } from '../meta/look'
 import { ITEM_BY_ID } from '../data/items'
@@ -133,7 +134,15 @@ export function createCreator(root: HTMLElement): CreateScreen {
 
       /** Redraws the figure. Cheap: it is one SVG string, built from pure geometry. */
       const redraw = (): void => {
-        stage.innerHTML = portraitSvg(gearForSchool(school), look, { box: 82 })
+        // Standing on the road they are about to walk, rather than on nothing.
+        // See PortraitOptions.region: the vignettes were painted for the world
+        // tab and had never been drawn behind a character, and putting the same
+        // figure somewhere turned out to move further than any change to the
+        // figure itself.
+        stage.innerHTML = portraitSvg(gearForSchool(school), look, {
+          box: 82,
+          region: DEFAULT_REGION.id,
+        })
         const weapon = weaponById(school.weaponId)
         capSchool.textContent = `${school.seal} ${school.name}`
         capWeapon.textContent = `${weapon.seal} ${weapon.name}`

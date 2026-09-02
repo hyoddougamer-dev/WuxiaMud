@@ -21,6 +21,7 @@
  */
 import { buildBlade, buildSwordsmanTopDown, type FigureStroke } from './figure'
 import { allRankMarks } from './rankMarks'
+import { hasVignette, regionVignette } from './regionArt'
 import type { Slot } from '../data/items'
 import { palette } from './palette'
 import type { Gear } from './wardrobe'
@@ -52,6 +53,20 @@ export interface PortraitOptions {
   /** Ink colour. Defaults to the palette's. */
   readonly ink?: number
   /**
+   * A region to stand the swordsman in, by id.
+   *
+   * This was the largest single finding of the art proposals, and the cheapest:
+   * four treatments of the figure were rendered side by side and the one that
+   * moved furthest was not a change to the figure at all — it was putting the
+   * same figure somewhere. `regionArt.ts` had painted all five places since the
+   * world tab was built and had never once been drawn behind a character.
+   *
+   * Optional because most callers want the figure alone: an item card, a
+   * roster thumbnail, a contact sheet. A scene belongs where the swordsman is
+   * the subject and the frame is big enough to hold both.
+   */
+  readonly region?: string
+  /**
    * Ground colour, for carved marks. Defaults to the palette's paper.
    *
    * A cut is only a hole if it is painted the colour of what is behind it, so
@@ -68,7 +83,7 @@ export interface PortraitOptions {
  * sizes it purely with CSS and never has to know the geometry's scale.
  */
 export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {}): string {
-  const { box = 78, blade = true, ink = palette.ink, ground = palette.paper, ranked } = options
+  const { box = 78, blade = true, ink = palette.ink, ground = palette.paper, ranked, region } = options
   const build = buildOf(look).width
   const sash = sashOf(look)
   const bearing = bearingOf(look)
@@ -86,6 +101,26 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing, grip)
 
   const parts: string[] = []
+
+  // The place, first and faintest, behind everything including the shadow.
+  // Held back to about two thirds so it stays a setting: at full strength the
+  // milestones and the ruin compete with the figure, and the figure is what
+  // this drawing is of.
+  if (region !== undefined && hasVignette(region)) {
+    const half = box * 0.46
+    // A NESTED SVG WITH ITS OWN VIEWBOX, cropped rather than squashed. The
+    // vignettes are composed for a tall frame — the world tab's — and a portrait
+    // box is nearly square, so scaling one into the other stretched the mist
+    // bands into saucers and opened the road to the full width. `slice` keeps
+    // the composition's proportions and trims what does not fit, which is what
+    // a crop is and what a squash never is.
+    parts.push(
+      `<svg x="${-half}" y="${-box + 8}" width="${half * 2}" height="${box}" ` +
+        `viewBox="0 0 300 440" preserveAspectRatio="xMidYMax slice" opacity="0.6">` +
+        regionVignette(region, { w: 300, h: 440 }, 0x51a7) +
+        `</svg>`,
+    )
+  }
 
   // Ground shadow, first and underneath. One ellipse, and it does a surprising
   // amount of work: without it the figure floats, and a floating silhouette
