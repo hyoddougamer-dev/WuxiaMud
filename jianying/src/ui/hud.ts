@@ -96,6 +96,15 @@ export interface Hud {
   setScroll(carried: readonly CarriedArt[], asleep: readonly Art[]): void
   /** Lights the tiles whose condition holds right now. Called every frame. */
   setConditions(active: Conditions): void
+  /**
+   * The dodge's readiness, 0..1, and whether it can fire this instant.
+   *
+   * Drawn as a dial that fills rather than a number that counts down: the
+   * question a thumb asks mid-fight is "now?", not "in how long?".
+   */
+  setDodge(charge: number): void
+  /** Called when the dodge button is pressed. */
+  onDodge(handler: () => void): void
   /** Shows the end screen. `onReturn` takes the player back to the hub. */
   showGameOver(summary: RunSummary, onReturn: () => void): void
   hideGameOver(): void
@@ -130,6 +139,17 @@ export function createHud(root: HTMLElement): Hud {
       <div class="hud-arts"></div>
       <div class="hud-xp"><div class="hud-xp-fill"></div></div>
     </div>
+    <!-- 闪 — the dodge. On the RIGHT, level with where the joystick thumb sits
+         on the left, because that is the only place a second thumb can reach
+         without letting go of movement. Big: 76px, well over the 44px floor,
+         because this is pressed in a panic and a missed press is a death. -->
+    <button class="hud-dodge" type="button" aria-label="闪 — esquiva">
+      <svg viewBox="0 0 44 44" class="hud-dodge-dial" aria-hidden="true">
+        <circle class="hud-dodge-track" cx="22" cy="22" r="19"></circle>
+        <circle class="hud-dodge-fill" cx="22" cy="22" r="19"></circle>
+      </svg>
+      <span class="hud-dodge-seal">闪</span>
+    </button>
     <div class="over" hidden>
       <div class="over-inner">
         <div class="over-seal">终</div>
@@ -166,6 +186,19 @@ export function createHud(root: HTMLElement): Hud {
   `
 
   const bar = root.querySelector<HTMLElement>('.hud-bar')!
+  const dodgeEl = root.querySelector<HTMLButtonElement>('.hud-dodge')!
+  const dodgeFill = root.querySelector<SVGCircleElement>('.hud-dodge-fill')!
+  // The dial is drawn as a stroked circle whose dash offset is the charge, so
+  // filling it costs one attribute write per frame rather than a redraw.
+  const DIAL = 2 * Math.PI * 19
+  dodgeFill.setAttribute('stroke-dasharray', `${DIAL}`)
+  let dodgeHandler: (() => void) | null = null
+  // pointerdown, not click: a click waits for the release, and a dodge that
+  // fires when the thumb comes UP is a dodge that arrives after the hit.
+  dodgeEl.addEventListener('pointerdown', (event) => {
+    event.preventDefault()
+    dodgeHandler?.()
+  })
   const rift = root.querySelector<HTMLElement>('.hud-rift')!
   const riftFill = root.querySelector<HTMLElement>('.hud-rift-fill')!
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!
@@ -262,9 +295,18 @@ export function createHud(root: HTMLElement): Hud {
 
     setPlaying(playing) {
       bar.style.display = playing ? '' : 'none'
+      dodgeEl.style.display = playing ? '' : 'none'
       if (!playing) rift.hidden = true
     },
 
+    setDodge(charge) {
+      const ready = charge >= 1
+      dodgeFill.setAttribute('stroke-dashoffset', `${DIAL * (1 - charge)}`)
+      dodgeEl.classList.toggle('is-ready', ready)
+    },
+    onDodge(handler) {
+      dodgeHandler = handler
+    },
     setScroll(carried, asleep) {
       // The whole scroll used to show here regardless of grade; now each tile
       // is one AWAKE art with the grade the gear has set it to, followed by an

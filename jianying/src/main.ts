@@ -41,6 +41,13 @@ import { HURT_IMMUNITY, ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } fr
 import { deriveStats } from './sim/loadout'
 import { xpForLevel } from './data/techniques'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
+import {
+  DODGE_IMMUNITY,
+  createDodge,
+  dodgeCharge,
+  startDodge,
+  updateDodge,
+} from './sim/dodge'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 import { MIGHT, applyArts, attune, equippedIds } from './sim/arts'
 import { ART_BY_ID, type Art } from './data/arts'
@@ -154,6 +161,7 @@ async function boot(): Promise<void> {
   const swarm = new Swarm(new Rng(runSeed), regionAt(character.depth))
   const motes = new Motes()
   const bolts = new Bolts()
+  const dodge = createDodge()
   const hazards = new Hazards()
   /** Equipment lying where its owner fell. See sim/drops.ts. */
   const drops = new Drops()
@@ -309,6 +317,13 @@ async function boot(): Promise<void> {
   fitCamera(camera, stage.height)
   const joystick = createJoystick(host)
   const ui = createHud(uiRoot)
+  // A still thumb dodges the way the swordsman already faces — see startDodge.
+  // Ignored while the world is frozen for a card or a gate, since the player is
+  // reading, not fighting, and a dash charged there would be spent for nothing.
+  ui.onDodge(() => {
+    if (!playing || run.over || gateUp || run.pendingLevelUps > 0) return
+    startDodge(dodge, player, joystick.state.x, joystick.state.y)
+  })
   const banners = createBanners(uiRoot)
   const codex = createCodex(uiRoot)
   const title = createTitle(uiRoot)
@@ -438,6 +453,18 @@ async function boot(): Promise<void> {
   shadow.ellipse(0, 0, 15, 5).fill({ color: palette.inkSoft, alpha: 0.18 })
   shadow.zIndex = -1
   stage.world.addChild(shadow)
+
+  // 闪 — the after-images the dodge leaves. Their own layer, under the
+  // swordsman, so the live figure always reads on top of its own ghosts.
+  //
+  // Silhouettes rather than a motion blur, and that is the whole reason this
+  // effect belongs in THIS game: a blur is a photographic idea, while a row of
+  // figures fading into the paper is what an ink painter does to show speed.
+  // The shapes come from the same polygons the character is drawn from, so a
+  // ghost is always wearing exactly what the swordsman is wearing.
+  const trailGfx = new Graphics()
+  trailGfx.zIndex = 1
+  stage.world.addChild(trailGfx)
 
   // Qi motes: the first colour on the field, and the reason to walk back into
   // ground you have just cleared.
@@ -923,15 +950,26 @@ async function boot(): Promise<void> {
     const rule = region.rule
     const windAngle = rule.driftPeriod ? (time / rule.driftPeriod) * Math.PI * 2 : 0
     const drift = rule.drift ?? 0
-    updatePlayer(
-      player,
-      ix,
-      iy,
-      dt,
-      live.moveSpeed * (rule.playerSpeed ?? 1),
-      Math.cos(windAngle) * drift,
-      Math.sin(windAngle) * drift,
-    )
+    // 闪 first, and it REPLACES normal movement while it runs — see sim/dodge.ts.
+    // Blending the two would let the thumb steer the dash, and a dash you can
+    // curve is a speed boost rather than a commitment.
+    const speedNow = live.moveSpeed * (rule.playerSpeed ?? 1)
+    const dashing = updateDodge(dodge, player, dt, speedNow)
+    if (dashing) {
+      // Held rather than set once: the dash lasts several ticks and combat
+      // decrements immunity on each of them.
+      run.immunity = Math.max(run.immunity, DODGE_IMMUNITY)
+    } else {
+      updatePlayer(
+        player,
+        ix,
+        iy,
+        dt,
+        speedNow,
+        Math.cos(windAngle) * drift,
+        Math.sin(windAngle) * drift,
+      )
+    }
     // The five conditions, read before combat resolves so that what the HUD
     // lights this frame is the same state an art would have fired on.
     const stickLen = Math.hypot(ix, iy)
@@ -1372,6 +1410,31 @@ async function boot(): Promise<void> {
         .stroke({ width: 3 + 7 * life, color: palette.gold, alpha: 0.55 * life })
     }
 
+    // --- the dodge's wake ----------------------------------------------
+    trailGfx.clear()
+    if (dodge.trail.length > 0) {
+      // Oldest is faintest. Drawn from the tail forward so the nearest ghost —
+      // the one that reads as "you were just there" — sits over the older ones.
+      for (let i = dodge.trail.length - 1; i >= 0; i--) {
+        const ghost = dodge.trail[i]!
+        const fade = (1 - i / dodge.trail.length) * 0.34
+        // World coordinates, like `swordsman.x` — the camera is a transform on
+        // the world container, so subtracting it here would apply it twice.
+        const gx = ghost.x
+        const gy = ghost.y
+        for (const stroke of figure.body) {
+          // Carved marks are holes in a solid figure; on a translucent ghost
+          // they would punch paper-coloured gaps out of the ground behind it.
+          if (stroke.part === 'cut') continue
+          const pts: number[] = []
+          for (let k = 0; k < stroke.poly.length; k += 2) {
+            pts.push(gx + stroke.poly[k]!, gy + stroke.poly[k + 1]!)
+          }
+          trailGfx.poly(pts).fill({ color: palette.ink, alpha: fade * stroke.alpha })
+        }
+      }
+    }
+
     // --- character -----------------------------------------------------
     swordsman.x = wx
     swordsman.y = wy + bob
@@ -1452,6 +1515,7 @@ async function boot(): Promise<void> {
     // the strip and the simulation cannot disagree about what is in hand.
     ui.setScroll(carried, asleep)
     ui.setConditions(sense.active)
+    ui.setDodge(dodgeCharge(dodge))
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
       // The gate comes down FIRST, whatever route got here.

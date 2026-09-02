@@ -67,8 +67,12 @@ const STEPS: readonly Step[] = [
   {
     id: 'hurt',
     when: (s) => s.hp < s.maxHp,
-    text: 'You cannot cut your way out',
-    sub: 'Keep the crowd in front of you',
+    // Taught at the FIRST hit, and it replaces "you cannot cut your way out" —
+    // which was true when there was nothing to do about it, and is now advice
+    // that leads nowhere. The moment a player first loses health is the moment
+    // they will listen to how not to, so the lesson goes exactly there.
+    text: '闪 — tap to slip away',
+    sub: 'You cannot be touched mid-step',
   },
   {
     id: 'end',
