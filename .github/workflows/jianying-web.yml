@@ -1,0 +1,80 @@
+name: Jianying · Jogar no browser
+
+# Publica o jogo num link, para não ser preciso instalar nada.
+#
+# Existe por um motivo concreto: a pessoa que joga isto testou sempre a partir
+# de um APK no telemóvel, e ao passar para o PC bateu na barreira de sempre —
+# Node, npm install, um terminal, um servidor local. Nada disso é difícil, mas é
+# tudo trabalho para chegar a "quero ver o jogo".
+#
+# O bundle é estático (Vite com `base: './'`, portanto caminhos relativos), por
+# isso serve-se tal e qual a partir do GitHub Pages. O mesmo link abre no PC e no
+# telemóvel, e é sempre a versão mais recente desta branch.
+#
+# O que ISTO NÃO SUBSTITUI: `npm run dev` recarrega em um segundo quando gravas
+# um ficheiro, e isto demora um build inteiro. Este link é para JOGAR; o servidor
+# local é para DESENVOLVER.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+    paths:
+      - 'jianying/**'
+      - '.github/workflows/jianying-web.yml'
+  workflow_dispatch:
+
+# Só pode haver uma publicação de cada vez. Sem isto, dois pushes seguidos
+# competem pelo mesmo destino e o segundo pode chegar antes do primeiro.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: jianying
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jianying/package-lock.json
+
+      - run: npm ci
+
+      # As mesmas verificações do APK. Um link que serve um build partido é pior
+      # do que link nenhum, porque parece que o jogo é que está mal.
+      - run: npm run check
+
+      - run: npx vite build
+
+      # `enablement: true` liga o GitHub Pages no repositório se ainda não
+      # estiver ligado, para isto não exigir uma visita às definições.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: jianying/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
