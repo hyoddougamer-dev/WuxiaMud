@@ -585,7 +585,11 @@
         background-image: var(--road-art);
         background-size: cover;
         background-position: 50% 100%;
+        /* Posterised AND held back. The painting is the setting, not the
+           subject: at full strength it competes with the swordsman standing in
+           it, and this screen exists to show the swordsman. */
         filter: url(#ink-poster);
+        opacity: 0.62;
         pointer-events: none;
       }
       /* Fades the band's foot into the page, so the painting ends the way ink
@@ -614,7 +618,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: calc(env(safe-area-inset-top, 0) + 26px) 20px 14px;
+        padding: calc(env(safe-area-inset-top, 0) + 16px) 20px 10px;
       }
       /* Bigger than it was, and standing ON the painted road rather than beside
          it. At 152px the figure was a thumbnail on a backdrop; at 210 it is the
@@ -636,16 +640,24 @@
          around the subject is exactly what an ink painter does, and it is why a
          figure in a real 水墨 never dissolves into its own wash. */
       .create-stage .portrait-svg {
-        filter: url(#ink-brush)
-          drop-shadow(0 0 10px rgba(232, 220, 192, 0.85))
-          drop-shadow(0 0 24px rgba(232, 220, 192, 0.5));
+        /* Only the halo. The brush displacement went with the wash, and for the
+           same reason: three softening effects stacked on the one element that
+           had to stay hard. A reserved halo of paper separates the figure from
+           the ground; eroding its outline does not. */
+        filter: drop-shadow(0 0 9px rgba(232, 220, 192, 0.9))
+          drop-shadow(0 0 22px rgba(232, 220, 192, 0.55));
       }
-      /* Bigger. At 186×214 inside a full-width painting the swordsman was a
-         detail in somebody else's landscape, which is backwards on the screen
-         where he is being made. */
+      /* Bigger than the 186×214 it started at — at that size the swordsman was
+         a detail in somebody else's landscape, which is backwards on the screen
+         where he is being made — but not so big that the form falls off the
+         phone. Measured at 393×851: the stage was 351px of an 851px screen and
+         the fold landed exactly through the NAME field, which is the worst
+         place a fold can land. At 206×238 the whole of the choice — school,
+         weapon and name — sits above it, and only the appearance controls need
+         a scroll. */
       .create-stage .portrait-svg {
-        width: 236px;
-        height: 272px;
+        width: 206px;
+        height: 238px;
       }
       .create-caption {
         display: flex;

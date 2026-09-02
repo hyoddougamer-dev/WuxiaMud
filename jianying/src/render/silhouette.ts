@@ -19,7 +19,8 @@
  * `tools/wardrobe.ts` writes the same polygons to a contact sheet. Both call
  * this, so the sheet and the game cannot drift apart.
  */
-import { buildBlade, buildSwordsmanTopDown, type FigureStroke } from './figure'
+import { buildBlade, type FigureStroke } from './figure'
+import { buildSwordsmanFront } from './portraitFigure'
 import { allRankMarks } from './rankMarks'
 import { hasVignette, regionVignette } from './regionArt'
 import type { Slot } from '../data/items'
@@ -139,14 +140,23 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   // common thing a swordsman on this road is wearing.
   const dye = pigmentOf(look).colour
 
-  // Scale 1: the viewBox does the sizing, so the geometry stays in its native
-  // units and the brush jitter keeps the proportion it was tuned at.
+  // The viewBox does the sizing, so the geometry stays in its native units and
+  // the brush jitter keeps the proportion it was tuned at.
+  //
+  // A FRONT ELEVATION, not the figure the game draws. This screen used to call
+  // `buildSwordsmanTopDown` — the overhead sprite — and blow it up to 236px,
+  // which is why the head read as a floating disc and the shoulders as two
+  // lobes: those are the correct shapes for a camera looking DOWN, and the
+  // portrait presents them as though it were at eye level. No amount of
+  // contrast, filtering or washing fixes a drawing seen from the wrong angle,
+  // and several turns were spent proving that the hard way. See portraitFigure.
+  //
   // The posed grip: chest height, out to the sword side. Fixed rather than
   // derived, because it is a POSE — the point of it is that it is the same in
   // every portrait, so two swordsmen can be compared without their stances
   // being one more thing that differs.
-  const grip = blade ? { x: 11, y: -21 } : undefined
-  const figure = buildSwordsmanTopDown(look.seed, 1, gear, build, bearing, grip)
+  const grip = blade ? { x: 15, y: -30 } : undefined
+  const figure = buildSwordsmanFront(look.seed, gear, build, bearing, grip)
 
   const parts: string[] = []
   /** The beat each mark lands on, when `paint` is set. */
@@ -199,7 +209,7 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
   // amount of work: without it the figure floats, and a floating silhouette
   // reads as a sticker rather than as somebody standing.
   parts.push(
-    `<ellipse cx="0" cy="2" rx="${(11 * build).toFixed(1)}" ry="3.4" ` +
+    `<ellipse cx="0" cy="2" rx="${(13 * build).toFixed(1)}" ry="3.4" ` +
       `fill="${hex(ink)}" fill-opacity="0.1"/>`,
   )
 
@@ -211,15 +221,27 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // simulation, because that simulation trails from velocity and wind — at a
     // standstill it hangs dead straight, which looks like a bug.
     //
-    // It hangs from the waist knot and past the hem. Anchored at the collar it
-    // came out as a short red hook across the chest, because a stroke that
-    // short cannot read as cloth however it is coloured.
+    // It hangs from the waist knot and past the hem, and it is measured off the
+    // figure's OWN hem rather than written down. The numbers here were tuned
+    // against the overhead figure, which is half again shorter and much wider
+    // at the skirt; on the front elevation the same curve fell entirely inside
+    // the robe and only its outermost bulge escaped, so the one part of it the
+    // eye could find was a red lump at the hip. Reported, correctly, as looking
+    // like a wound rather than a ribbon.
+    //
+    // Clearing the hem is the whole trick: a ribbon is only legible where it is
+    // NOT in front of cloth of another colour, so the tail has to swing wide of
+    // the skirt and the length has to come from where the skirt actually ends.
     const a = figure.sashAnchor
+    const hem = figure.anchors.hem
+    const out = -(hem.halfWidth + 3.5 * build)
+    const drop = hem.y - a.y
     parts.push(
       `<path d="M ${a.x.toFixed(1)} ${a.y.toFixed(1)} ` +
-        `q ${(-5 * build).toFixed(1)} 3 ${(-6 * build).toFixed(1)} 8 ` +
-        `q ${(-0.3 * build).toFixed(1)} 3 ${(1.2 * build).toFixed(1)} 4" ` +
-        `fill="none" stroke="${hex(sash.colour)}" stroke-width="2.4" ` +
+        `C ${(a.x - 2 * build).toFixed(1)} ${(a.y + drop * 0.3).toFixed(1)}, ` +
+        `${(out * 0.75).toFixed(1)} ${(a.y + drop * 0.55).toFixed(1)}, ` +
+        `${out.toFixed(1)} ${(a.y + drop * 0.86).toFixed(1)}" ` +
+        `fill="none" stroke="${hex(sash.colour)}" stroke-width="${(2.6 * build).toFixed(1)}" ` +
         `stroke-linecap="round" stroke-opacity="0.9"/>`,
     )
   }
@@ -308,7 +330,14 @@ export function portraitSvg(gear: Gear, look: Look, options: PortraitOptions = {
     // a two-handed sword's grip through the figure's knees and off the bottom
     // of the card, because the grip runs behind the hand and was not in the sum.
     const grip = gear.blade.grip ?? 0
-    const fit = Math.min(1, 52 / (gear.blade.reach + grip))
+    // Fitted to the HEADROOM the box actually has above the fist, rather than
+    // to a constant. It was 52, tuned when the hand sat eleven units off the
+    // ground; the front elevation puts the fist at hip height on a figure half
+    // again as tall, and the same 52 sent a zhanmadao's point out through the
+    // top of the card. Derived, so raising `box` lengthens the weapon instead
+    // of silently clipping it.
+    const headroom = box - 8 + hand.y
+    const fit = Math.min(1, headroom / 0.98 / (gear.blade.reach + grip))
     // Steep — nearly vertical rather than the old 62°. At a shallower angle the
     // blade lay ACROSS the body and the haft crossed the skirt, which is how a
     // weapon is carried by somebody walking, not how it is shown in a portrait.

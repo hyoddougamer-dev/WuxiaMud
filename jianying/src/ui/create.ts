@@ -171,7 +171,18 @@ export function createCreator(root: HTMLElement): CreateScreen {
         stage.innerHTML = portraitSvg(gearForSchool(school), look, {
           box: 82,
           paint: true,
-          wash: true,
+          // WASH OFF. It was turned on to stop the figure reading as a sticker
+          // on the painting, and it does — by dropping the robe to a mid grey
+          // that the posterised painting then rises to meet. Reported as "está
+          // muito estranho", and measured: the robe was rendering at 0.74 over
+          // paper while the painting behind it sat in the same band, so the one
+          // thing the eye must find first had no contrast to find it by.
+          //
+          // Softening was the wrong axis. The figure is the SUBJECT of this
+          // screen; it should be the darkest thing on it, which is what a 水墨
+          // subject always is. The painting is what steps back — that is what
+          // the posterise and the reduced opacity below are for.
+          wash: false,
         })
         const weapon = weaponById(school.weaponId)
         capSchool.textContent = `${school.seal} ${school.name}`
