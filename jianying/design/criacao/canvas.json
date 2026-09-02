@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "A · Uma pergunta por ecrã" },
+    { "file": "Tocar.dc.html", "x": 510, "y": 0, "w": 390, "h": 844, "title": "B · Tocar no espadachim" },
+    { "file": "Rolo.dc.html", "x": 1020, "y": 0, "w": 390, "h": 844, "title": "C · 卷轴, o rolo" }
+  ],
+  "annotations": [
+    {
+      "id": "leia-primeiro",
+      "x": 0,
+      "y": -300,
+      "w": 1410,
+      "text": "AS MINHAS DUAS PROPOSTAS ANTERIORES ERAM A MESMA IDEIA DUAS VEZES — um formulário com uma imagem maior. Tinhas razão em dizer que estava tudo igual.\n\nEstas três mudam a ESTRUTURA, não a decoração. O que as separa é o que cada uma DEIXA CAIR:\n\nA · UMA PERGUNTA POR ECRÃ — cai o scroll. Quatro passos, uma decisão em cada, a pintura sempre a ecrã inteiro. A arma primeiro porque é a escolha que decide o jogo todo.\nA favor: cada decisão tem o ecrã inteiro e a personagem é sempre visível em grande. Contra: quatro toques para chegar ao fim, e voltar atrás para trocar uma cor custa navegação.\n\nB · TOCAR NO ESPADACHIM — caem os menus. Não há uma única linha de botões: tocas no manto e a cor muda, tocas na cabeça e o porte muda, tocas na arma e a classe muda. Os controlos SÃO a personagem.\nA favor: é o único dos três que não se parece com definições. Contra: é preciso descobrir, e o que não se descobre não existe — as etiquetas nos mockups teriam de aparecer sozinhas na primeira vez.\n\nC · 卷轴 — cai a grelha. A pintura é a abertura de um rolo de mão e as escolhas são linhas de um registo por baixo dela, seladas a朱 quando decididas. Um documento sobre uma pessoa, não um ecrã de opções.\nA favor: é o mais wuxia dos três e o único que mostra tudo de uma vez. Contra: continua a ser uma lista — a mais bonita das três listas, mas uma lista."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
