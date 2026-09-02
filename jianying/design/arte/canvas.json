@@ -1,0 +1,62 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 760,
+      "title": "A figura — quatro tratamentos"
+    },
+    {
+      "file": "Criacao1.dc.html",
+      "x": 1200,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Criação · 1 — Cena"
+    },
+    {
+      "file": "Criacao2.dc.html",
+      "x": 1710,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Criação · 2 — Duas perguntas"
+    },
+    {
+      "file": "Geracao.dc.html",
+      "x": 2220,
+      "y": 0,
+      "w": 880,
+      "h": 980,
+      "title": "O que a geração compra"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "figura",
+      "x": 0,
+      "y": -230,
+      "w": 1080,
+      "text": "A FIGURA — começa aqui.\nAs quatro estão renderizadas pelo código do jogo, não desenhadas: são as MESMAS polilinhas preenchidas de quatro maneiras.\nPor isso qualquer uma delas é uma alteração de código e não uma promessa.\n\nA minha recomendação é a B. E o mais barato dela é que o fundo já está escrito — só nunca foi usado atrás da personagem."
+    },
+    {
+      "id": "criacao",
+      "x": 1200,
+      "y": -230,
+      "w": 900,
+      "text": "O ECRÃ DE CRIAÇÃO — duas propostas, e o problema de ambas é o mesmo: hoje aquilo é um FORMULÁRIO. Cinco linhas de botões e a personagem espremida num canto.\n\n1 · CENA — a personagem é a página, dentro da região onde vai começar. Trocas de classe com as setas e a figura muda inteira. O detalhe fino esconde-se atrás de \"afinar\".\nA favor: é a única que faz a personagem parecer importante. Contra: as escolhas de aparência ficam a um toque de distância.\n\n2 · DUAS PERGUNTAS — o ecrã pergunta só duas coisas, e a primeira é a que decide o jogo todo: que arma levas. As duas classes lado a lado, à mesma escala, comparáveis.\nA favor: responde à pergunta real — \"qual é a diferença entre estas duas?\" — sem tocar em nada. Contra: mais parecido com o que já lá está."
+    },
+    {
+      "id": "geracao",
+      "x": 2220,
+      "y": -230,
+      "w": 880,
+      "text": "\"PRECISAS QUE GERE ALGO?\"\nSim, e esta prancha diz exatamente o quê, porquê, e o que fazer com o ficheiro depois.\n\nO prompt no fim está pronto a colar. Se gerares só um, gera o da 官道 — é a região onde toda a gente começa, e é onde uma imagem a sério muda mais a primeira impressão do jogo."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
