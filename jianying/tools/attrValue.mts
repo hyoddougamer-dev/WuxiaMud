@@ -24,10 +24,9 @@ import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
-import { type Attributes } from '../src/meta/character'
 import { applyArts, attune, equippedIds, surgeOf } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
-import { emptyAttributes, type AttributeId } from '../src/meta/character'
+import { emptyAttributes, type AttributeId, type Attributes } from '../src/meta/character'
 import { PILOTS } from './runLength.mts'
 
 const SEEDS = [4242, 90210, 31337, 8675309]
@@ -61,11 +60,31 @@ export function play(spent: Attributes, weaponId: string, regionId = REGION): Ro
       run, player, swarm, motes: new Motes(), bolts: new Bolts(),
       hazards: new Hazards(), stats: live, rng: new Rng(seed ^ 77), depth: region.depth,
     }
+    // THE REGION'S OWN RULE, applied exactly as runLength.mts applies it.
+    //
+    // This harness left it out at first, and that made every deep-region number
+    // it printed wrong: the Broken Cliff read as unclearable for the sweeper
+    // while `--search` cleared it every time at a HARDER target. A place whose
+    // whole character is its wind, measured without the wind, is a different
+    // place. A tool that lies is worse than no tool.
+    const rule = region.rule
+    const drift = rule.drift ?? 0
+    let t = 0
     for (let i = 0; i < Math.round(CAP / TICK_S); i++) {
       if (run.over || run.gateCleared) break
+      t += TICK_S
       const [ix, iy] = PILOTS[1]![1](run.elapsed)
+      const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
       applyArts(stats, carried, sense.active, live, run.level, surgeOf(sense))
-      updatePlayer(player, ix, iy, TICK_S, live.moveSpeed, 0, 0)
+      updatePlayer(
+        player,
+        ix,
+        iy,
+        TICK_S,
+        live.moveSpeed * (rule.playerSpeed ?? 1),
+        Math.cos(wind) * drift,
+        Math.sin(wind) * drift,
+      )
       const len = Math.hypot(ix, iy)
       let nearby = 0
       swarm.grid.query(player.x, player.y, SURROUND_RADIUS, () => {
@@ -75,7 +94,7 @@ export function play(spent: Attributes, weaponId: string, regionId = REGION): Ro
         sense,
         {
           speed: Math.hypot(player.vx, player.vy),
-          maxSpeed: live.moveSpeed,
+          maxSpeed: live.moveSpeed * (rule.playerSpeed ?? 1),
           moveX: len > 0 ? ix / len : 0,
           moveY: len > 0 ? iy / len : 0,
           nearby,

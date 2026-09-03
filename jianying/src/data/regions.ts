@@ -111,14 +111,20 @@ export interface Region {
    * choice rather than the game's. Measured at these values, the engaged pilot
    * finishes a build on the Post Road and comes close on the Reed Marsh.
    *
-   * THE DEEPER THREE DID NOT MOVE, and that is a finding, not an omission. On
-   * the Broken Cliff, the Ghost Market and the Pass, the binding constraint is
-   * not the size of the target but how long an ungeared swordsman survives at
-   * all — the search cannot push the gate past the point where it stops being
-   * clearable, so those runs still end at eighty to a hundred and twenty
-   * seconds with a build half-made. Deep ground asking for gear before it will
-   * pay a full build is a defensible progression statement; it is not one
-   * anybody chose, so it is written down.
+   * THE DEEPER THREE MOVED A LONG WAY on the second pass, and the reason is
+   * that the simulation changed under them. When they were searched, 疾 did not
+   * move the player and 神 did not reach the arts; with both wired, the same
+   * swordsman survives deeper ground for longer and the search can push the
+   * gate further before it stops being clearable. The Ghost Market went from
+   * 369 to 609 and the Pass from 385 to 529 — which is to say a deep run had
+   * become a sixty-second sprint, and is now closer to the hundred and fifty
+   * the shallow ones take.
+   *
+   * They still open sooner than the Post Road's two hundred, and that is left
+   * standing: how long an ungeared swordsman lasts is the ceiling down there,
+   * not the size of the target. Deep ground asking for gear before it will pay
+   * a full build is a defensible progression statement; it is not one anybody
+   * chose, so it stays written down.
    *
    * The Broken Cliff's search result, 641, was REJECTED after checking it: at
    * the search's own four seeds it cleared every time, and at six it fell to
@@ -152,7 +158,7 @@ export const REGIONS: readonly Region[] = [
     // reach. See docs/CORRIDAS.md for the imbalance this measurement exposed,
     // which is a design problem rather than a number: the gate is a single
     // fast boss, which is the thrower's best fight and the sweeper's worst.
-    riftBase: 2177,
+    riftBase: 2209,
   },
   {
     id: 'marsh',
@@ -166,7 +172,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'reedmother',
     drops: ['r-tattered', 's-bare', 'h-bare'],
     depth: 2,
-    riftBase: 993,
+    riftBase: 1089,
   },
   {
     id: 'cliff',
@@ -180,7 +186,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'cliffwarden',
     drops: ['r-travelling', 's-wide', 'h-hat'],
     depth: 3,
-    riftBase: 513,
+    riftBase: 737,
   },
   {
     id: 'market',
@@ -194,7 +200,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'papermaker',
     drops: ['r-court', 's-mantle', 'h-crown'],
     depth: 4,
-    riftBase: 369,
+    riftBase: 609,
   },
   {
     id: 'pass',
@@ -208,7 +214,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'warlord',
     drops: ['r-lamellar', 'r-layered', 's-pauldron', 'h-veiled'],
     depth: 5,
-    riftBase: 385,
+    riftBase: 529,
   },
 ] as const
 
