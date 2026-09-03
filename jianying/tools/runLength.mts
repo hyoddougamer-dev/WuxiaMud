@@ -287,23 +287,40 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
       // cannot report that it ran out of room.
       let hi = 4096
       let best = lo
-      let bestRow = play(region.id, PILOTS[1]![1], lo, undefined, SEARCH_CEILING, SEARCH_SEEDS)
-      for (let step = 0; step < 12; step++) {
+      let bestRow = play(region.id, PILOTS[1]![1], lo, WEAPONS[0]!.id, SEARCH_CEILING, SEARCH_SEEDS)
+      // Eight steps, not twelve: each one now plays every weapon, so a step
+      // costs double. Eight over 1..4096 lands within about sixteen, far finer
+      // than four seeds of a chaotic simulation can resolve anyway.
+      for (let step = 0; step < 8; step++) {
         const mid = Math.round((lo + hi) / 2)
-        const row = play(region.id, PILOTS[1]![1], mid, undefined, SEARCH_CEILING, SEARCH_SEEDS)
+        // EVERY weapon, and the worst of them decides.
+        //
+        // `play` defaults to the first weapon, and searching with that default
+        // is how this produced a Ghost Market target of 1402 that the sweeper
+        // reached in 110s and the thrower could not reach at all. The warning
+        // is written on `play`'s own weapon parameter — "calibrating a rift
+        // against half the game is how you ship a gate one class cannot
+        // reach" — and I called the function without reading it. A gate is a
+        // floor for the whole roster, so the search has to clear it with the
+        // class that finds it hardest.
+        const rows = WEAPONS.map((w) =>
+          play(region.id, PILOTS[1]![1], mid, w.id, SEARCH_CEILING, SEARCH_SEEDS),
+        )
+        const row = rows.reduce((worst, r) => (r.secs > worst.secs ? r : worst))
+        const everyoneClears = rows.every((r) => r.cleared >= AIM)
         if (WANT_SECS > 0) {
           // Time rises with the target, so this is still an ordered search:
           // too quick means the gate is too cheap, too slow means too dear. A
           // run that fails to clear counts as too slow, which keeps the answer
           // inside the range a player can actually beat.
-          if (row.cleared < AIM || row.secs > WANT_SECS) {
+          if (!everyoneClears || row.secs > WANT_SECS) {
             hi = mid - 1
           } else {
             best = mid
             bestRow = row
             lo = mid + 1
           }
-        } else if (row.cleared >= AIM) {
+        } else if (everyoneClears) {
           best = mid
           bestRow = row
           lo = mid + 1

@@ -129,7 +129,7 @@ export const REGIONS: readonly Region[] = [
     // reach. See docs/CORRIDAS.md for the imbalance this measurement exposed,
     // which is a design problem rather than a number: the gate is a single
     // fast boss, which is the thrower's best fight and the sweeper's worst.
-    riftBase: 180,
+    riftBase: 593,
   },
   {
     id: 'marsh',
@@ -143,7 +143,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'reedmother',
     drops: ['r-tattered', 's-bare', 'h-bare'],
     depth: 2,
-    riftBase: 33,
+    riftBase: 225,
   },
   {
     id: 'cliff',
@@ -157,7 +157,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'cliffwarden',
     drops: ['r-travelling', 's-wide', 'h-hat'],
     depth: 3,
-    riftBase: 16,
+    riftBase: 369,
   },
   {
     id: 'market',
@@ -171,7 +171,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'papermaker',
     drops: ['r-court', 's-mantle', 'h-crown'],
     depth: 4,
-    riftBase: 97,
+    riftBase: 497,
   },
   {
     id: 'pass',
@@ -185,7 +185,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'warlord',
     drops: ['r-lamellar', 'r-layered', 's-pauldron', 'h-veiled'],
     depth: 5,
-    riftBase: 3,
+    riftBase: 481,
   },
 ] as const
 
