@@ -258,8 +258,10 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
     const SEARCH_CEILING = 360
     const SEARCH_SEEDS = SEEDS.slice(0, 4)
     console.log(
-      `A procurar riftBase. ${SEEDS.length} seeds, alvo: o maior em que o piloto ` +
-        `"duel" limpa ~${AIM * 100}% das vezes.\n`,
+      `A procurar riftBase. ${SEARCH_SEEDS.length} seeds, tecto ${SEARCH_CEILING}s. ` +
+        (WANT_SECS > 0
+          ? `Alvo: o portão abre por volta dos ${WANT_SECS}s, limpando >=${AIM * 100}%.\n`
+          : `Alvo: o maior em que o piloto "duel" limpa ~${AIM * 100}% das vezes.\n`),
     )
     console.log('região              riftBase   limpou   secs/duel   secs/kite   kite limpou')
     for (const region of REGIONS) {
