@@ -245,6 +245,19 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
     const aimArg = process.argv.indexOf('--aim')
     const AIM = aimArg > 0 ? Number(process.argv[aimArg + 1]) : 0.5
     /**
+     * Search on TIME instead of on clear rate, when asked.
+     *
+     * These are two different questions and I ran the wrong one first.
+     * Maximising the target subject to "clears 90% of the time" finds the
+     * BIGGEST gate a swordsman can still beat — 258s on the Post Road — which
+     * is a fine question and not the one being asked. The design says the gate
+     * should OPEN at a chosen moment, after which staying is the player's
+     * choice; that is a search for the target whose run lands near a number of
+     * seconds, with clearing taken as a constraint rather than as the goal.
+     */
+    const secsArg = process.argv.indexOf('--secs')
+    const WANT_SECS = secsArg > 0 ? Number(process.argv[secsArg + 1]) : 0
+    /**
      * The search is a nested loop over an expensive thing, so it gets the
      * cheap settings — four seeds and a ceiling far below the module's own.
      *
@@ -278,7 +291,19 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
       for (let step = 0; step < 12; step++) {
         const mid = Math.round((lo + hi) / 2)
         const row = play(region.id, PILOTS[1]![1], mid, undefined, SEARCH_CEILING, SEARCH_SEEDS)
-        if (row.cleared >= AIM) {
+        if (WANT_SECS > 0) {
+          // Time rises with the target, so this is still an ordered search:
+          // too quick means the gate is too cheap, too slow means too dear. A
+          // run that fails to clear counts as too slow, which keeps the answer
+          // inside the range a player can actually beat.
+          if (row.cleared < AIM || row.secs > WANT_SECS) {
+            hi = mid - 1
+          } else {
+            best = mid
+            bestRow = row
+            lo = mid + 1
+          }
+        } else if (row.cleared >= AIM) {
           best = mid
           bestRow = row
           lo = mid + 1
