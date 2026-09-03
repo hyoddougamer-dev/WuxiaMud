@@ -379,7 +379,7 @@ function damageEnemy(ctx: CombatContext, index: number, amount: number, crit = f
   // visibly pays — and so the level it grants arrives as a shower.
   const drops = Math.min(12, e.kind.qi)
   for (let d = 0; d < drops; d++) {
-    ctx.motes.drop(e.x, e.y, Math.ceil(e.kind.qi / drops), ctx.rng)
+    ctx.motes.drop(e.x, e.y, Math.ceil(e.kind.qi / drops), ctx.rng, ctx.player.x, ctx.player.y)
   }
   // Equipment, rarely — and always from the body, before the pool recycles it.
   //

@@ -139,16 +139,20 @@ export function createHud(root: HTMLElement): Hud {
       <div class="hud-arts"></div>
       <div class="hud-xp"><div class="hud-xp-fill"></div></div>
     </div>
-    <!-- 闪 — the dodge. On the RIGHT, level with where the joystick thumb sits
+    <!-- The dodge. On the RIGHT, level with where the joystick thumb sits
          on the left, because that is the only place a second thumb can reach
          without letting go of movement. Big: 76px, well over the 44px floor,
-         because this is pressed in a panic and a missed press is a death. -->
+         because this is pressed in a panic and a missed press is a death.
+         The face reads DODGE, not 闪: everywhere else in this game a seal sits
+         BESIDE an English name, and a player who cannot read the seal loses
+         nothing. Here it was the whole label, on the one control that has to
+         be understood before it is first needed. -->
     <button class="hud-dodge" type="button" aria-label="${strings.dodgeLabel}">
       <svg viewBox="0 0 44 44" class="hud-dodge-dial" aria-hidden="true">
         <circle class="hud-dodge-track" cx="22" cy="22" r="19"></circle>
         <circle class="hud-dodge-fill" cx="22" cy="22" r="19"></circle>
       </svg>
-      <span class="hud-dodge-seal">闪</span>
+      <span class="hud-dodge-seal">Dodge</span>
     </button>
     <div class="over" hidden>
       <div class="over-inner">

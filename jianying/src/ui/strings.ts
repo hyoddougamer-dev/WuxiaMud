@@ -27,7 +27,7 @@ export const strings = {
   sealName: 'Seal this swordsman',
   sealHint: 'press the seal',
   /** The dodge button's accessible name. */
-  dodgeLabel: '闪 — dodge',
+  dodgeLabel: 'Dodge',
   /** Title on the fatal-error screen. */
   fatalTitle: 'Jiànyǐng failed to start',
 

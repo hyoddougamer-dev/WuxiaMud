@@ -412,16 +412,31 @@ describe('the rift, at every region', () => {
    * window, and a late crowd on the grid drops the simulation to a few
    * thousand ticks a second. Split in two it cost the suite four minutes.
    *
-   * The second assertion records a defect rather than asserting it away.
-   * Measuring survival turned up something the old formulation could not see:
-   * on some regions a purely evading pilot never dies at all. The cause is not
-   * the guard, which no longer regrows on a timer — it is that armour is
-   * strongest against SMALL blows by construction, and a player who never
-   * stops moving takes only small blows, so armour pushes their chip damage
-   * below the level at which it ever accumulates into a death. That is the
-   * curve working as designed and producing a result the design did not want.
-   * Pinned at today's count so it cannot spread while the fix — a
-   * difficulty-ramp decision, not a stat one — is open.
+   * The second assertion records a defect rather than asserting it away: on
+   * some regions a purely evading pilot never dies. The cause is not the
+   * guard, which no longer regrows on a timer — it is that armour is strongest
+   * against SMALL blows by construction, and a player who never stops moving
+   * takes only small blows, so armour pushes their chip damage below the level
+   * at which it ever accumulates into a death. That is the curve working as
+   * designed and producing a result the design did not want.
+   *
+   * IT COUNTS SOMETHING NARROWER THAN IT USED TO, and the reason is worth
+   * keeping. It used to count every region where the kiting pilot survived the
+   * window, and that number went from two to three when the qi leak in
+   * sim/pickups.ts was fixed — with motes no longer silently discarded, every
+   * pilot levels more, and levelling is what refills the guard. Looking at the
+   * three: on two of them the ENGAGED pilot survives the window too, so they
+   * are not evidence that fleeing is safer, only that four minutes is now
+   * survivable on shallow ground — which is what a two-hundred-second rift
+   * target asks for. The old count could not tell those apart from the real
+   * case, so it read as a regression where there was none, and would have gone
+   * on doing so.
+   *
+   * What is left is the case the comment above always meant: a region where
+   * running away survives and standing and fighting does not. That is the
+   * Pass, and it is one region, pinned so it cannot spread while the fix — a
+   * difficulty-ramp decision, not a stat one — is open. The ratio assertion
+   * above is untouched and is what actually has teeth here.
    */
   it('does not pay to run away, and records where it still does', () => {
     const CAP = 240
@@ -430,13 +445,16 @@ describe('the rift, at every region', () => {
     const SOME = [4242, 90210, 31337]
     let ratio = 0
     let immortal = 0
+    const survived = (secs: number): boolean => secs >= CAP - 1
     for (const region of REGIONS) {
       const k = play(region.id, PILOTS[0]![1], Infinity, undefined, CAP, SOME).secs
       const d = play(region.id, PILOTS[1]![1], Infinity, undefined, CAP, SOME).secs
       ratio += d > 0 ? k / d : 1
-      if (k >= CAP - 1) immortal++
+      // Only where fleeing outlives fighting. A region both pilots survive is
+      // a survivable region, not a reason to flee.
+      if (survived(k) && !survived(d)) immortal++
     }
     expect(ratio / REGIONS.length).toBeLessThan(1.8)
-    expect(immortal).toBeLessThanOrEqual(2)
+    expect(immortal).toBeLessThanOrEqual(1)
   }, 180000)
 })

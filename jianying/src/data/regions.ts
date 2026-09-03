@@ -95,13 +95,36 @@ export interface Region {
    * wrong — that number is roughly what a build earns in its whole LIFE, so a
    * boss calibrated to it arrives the instant before the player was already
    * going to die, with no room left to actually fight it. The value here
-   * instead comes from `tools/runLength.mts`'s own binary search: the largest
-   * target at which an unequipped, mid-cultivation swordsman — the same floor
-   * every other balance tool in this project measures — clears the gate about
-   * half the time against the engaged pilot. A real player, with even one
-   * piece of gear from an earlier rift, should clear it more often than that;
-   * a build that only ever kites should almost never clear it at all, which is
-   * the point — see docs/CORRIDAS.md on why fleeing stopped being progress.
+   * instead comes from `tools/runLength.mts --search`, against a criterion
+   * that CHANGED once the reward loop was measured properly, so the old one is
+   * recorded here rather than quietly replaced.
+   *
+   * It used to be "the largest target an unequipped, mid-cultivation swordsman
+   * clears about half the time". That produced gates around a hundred seconds,
+   * and a hundred seconds turned out to be shorter than a build: the engaged
+   * pilot reached grade 11 of the 16 a four-art build needs, so a run ended
+   * just before the thing the whole genre is built around — watching the build
+   * come online — could happen. The gate was cutting the run off mid-sentence.
+   *
+   * The criterion now is `--secs 200 --aim 0.9`: the gate OPENS at about two
+   * hundred seconds and opens reliably, after which staying is the player's
+   * choice rather than the game's. Measured at these values, the engaged pilot
+   * finishes a build on the Post Road and comes close on the Reed Marsh.
+   *
+   * THE DEEPER THREE DID NOT MOVE, and that is a finding, not an omission. On
+   * the Broken Cliff, the Ghost Market and the Pass, the binding constraint is
+   * not the size of the target but how long an ungeared swordsman survives at
+   * all — the search cannot push the gate past the point where it stops being
+   * clearable, so those runs still end at eighty to a hundred and twenty
+   * seconds with a build half-made. Deep ground asking for gear before it will
+   * pay a full build is a defensible progression statement; it is not one
+   * anybody chose, so it is written down.
+   *
+   * The Broken Cliff's search result, 641, was REJECTED after checking it: at
+   * the search's own four seeds it cleared every time, and at six it fell to
+   * 67% for the sweeper. Left at 513, which clears for both classes across all
+   * six. `play`'s own note warns about calibrating against too little of the
+   * game; four seeds is the same mistake in the other axis.
    */
   readonly riftBase: number
 }
@@ -129,7 +152,7 @@ export const REGIONS: readonly Region[] = [
     // reach. See docs/CORRIDAS.md for the imbalance this measurement exposed,
     // which is a design problem rather than a number: the gate is a single
     // fast boss, which is the thrower's best fight and the sweeper's worst.
-    riftBase: 561,
+    riftBase: 2177,
   },
   {
     id: 'marsh',
@@ -143,7 +166,7 @@ export const REGIONS: readonly Region[] = [
     bossId: 'reedmother',
     drops: ['r-tattered', 's-bare', 'h-bare'],
     depth: 2,
-    riftBase: 225,
+    riftBase: 993,
   },
   {
     id: 'cliff',

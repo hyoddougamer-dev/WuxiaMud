@@ -24,7 +24,18 @@ export interface Mote {
   homing: boolean
 }
 
-/** Plenty for the densest fights; motes are consumed quickly. */
+/**
+ * Plenty for the densest fights — but NOT plenty for a field nobody walks back
+ * across, which is why `drop` recycles rather than trusting this number.
+ *
+ * Measured before that change: a player circling at speed leaves every mote
+ * where it fell, the pool saturates at 180 seconds, and from that instant
+ * `spawn()` returns null and EVERY subsequent kill pays nothing. Insight froze
+ * at grade 10 while the kill count ran on to fourteen hundred. The engaged
+ * pilot hit the same wall about ninety seconds later. It was a silent leak in
+ * the reward loop, not a balance problem, and it is the reason a run longer
+ * than three minutes stopped advancing a build at all.
+ */
 const MAX_MOTES = 600
 
 /** How close the player must be before a mote starts flying to them. */
@@ -68,8 +79,8 @@ export class Motes {
    * Drops a mote where an enemy fell, with a small outward scatter so that a
    * cluster of deaths reads as several rewards rather than one bright dot.
    */
-  drop(x: number, y: number, value: number, rng: Rng): void {
-    const mote = this.pool.spawn()
+  drop(x: number, y: number, value: number, rng: Rng, playerX: number, playerY: number): void {
+    const mote = this.pool.spawn() ?? this.recycle(playerX, playerY)
     if (!mote) return
     const angle = rng.next() * Math.PI * 2
     const speed = rng.range(26, 70)
@@ -82,6 +93,36 @@ export class Motes {
     mote.value = value
     mote.age = 0
     mote.homing = false
+  }
+
+  /**
+   * Reuses the mote furthest from the player when the field is full.
+   *
+   * The alternative — the fixed ceiling this pool was built for — is right for
+   * enemies and projectiles, where a full pool means "stop adding" and nothing
+   * is owed to the player. Qi is different: dropping nothing is not a spawn
+   * budget, it is a kill that paid the player nothing, and it is invisible.
+   *
+   * Furthest-first, because the qi you walked away from longest ago is the one
+   * you were least likely to come back for, and the kill in front of you should
+   * always pay. Motes already homing are never taken: those are on their way in
+   * and reclaiming one would rob a player who had earned it.
+   */
+  private recycle(playerX: number, playerY: number): Mote | null {
+    let worst: Mote | null = null
+    let worstSq = -1
+    for (let i = 0; i < this.pool.size; i++) {
+      const m = this.pool.at(i)
+      if (m.homing) continue
+      const dx = m.x - playerX
+      const dy = m.y - playerY
+      const distSq = dx * dx + dy * dy
+      if (distSq > worstSq) {
+        worstSq = distSq
+        worst = m
+      }
+    }
+    return worst
   }
 
   /**

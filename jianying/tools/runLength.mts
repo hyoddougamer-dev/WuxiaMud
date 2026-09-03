@@ -56,8 +56,20 @@ const CEILING = 1200
 
 /** What a finished build costs, in 感悟. Four arts, grade one to five. */
 export const INSIGHT_TO_FINISH = EQUIPPED_ARTS * (MAX_ART_LEVEL - 1)
-/** Roughly how long one rift should take to fill and clear. */
-export const TARGET_SECONDS = 300
+/**
+ * Roughly how long one rift should take to fill and clear.
+ *
+ * Two hundred, and it is now a number the game actually meets rather than an
+ * aspiration this file quoted at itself. It was 300 while the gates were
+ * calibrated to open at about 110 — every report built on it was measuring
+ * against a target nothing had ever been tuned toward.
+ *
+ * Two hundred is where it is because that is where a build FINISHES: the
+ * engaged pilot passes the 16 grades a four-art build needs somewhere between
+ * 175 and 200 seconds, and a rift that closes before then ends the run just
+ * before its own payoff.
+ */
+export const TARGET_SECONDS = 200
 
 export type Pilot = (t: number) => [number, number]
 export const PILOTS: Array<[string, Pilot]> = [
