@@ -237,7 +237,13 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
      * half the time against the ENGAGED pilot. Kiting should still almost
      * never clear — that is the point of the gate.
      */
-    const AIM = 0.5
+    // How often the engaged pilot must clear. The default of 0.5 is the old
+    // criterion — the largest target a mid swordsman clears about half the
+    // time — which sets a gate that is a genuine test. Pass `--aim 0.9` for
+    // the other design: a gate that reliably OPENS at a chosen moment, after
+    // which staying is the player's choice rather than the game's.
+    const aimArg = process.argv.indexOf('--aim')
+    const AIM = aimArg > 0 ? Number(process.argv[aimArg + 1]) : 0.5
     console.log(
       `A procurar riftBase. ${SEEDS.length} seeds, alvo: o maior em que o piloto ` +
         `"duel" limpa ~${AIM * 100}% das vezes.\n`,
