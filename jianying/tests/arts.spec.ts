@@ -13,6 +13,7 @@ import {
   EQUIPPED_ARTS,
   MAX_ART_LEVEL,
   artScale,
+  conditionKind,
   type Art,
 } from '../src/data/arts'
 import { WEAPONS } from '../src/data/weapons'
@@ -30,7 +31,7 @@ import {
   LIVE_EFFECTS,
 } from '../src/sim/arts'
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
-import { createSense, type Conditions } from '../src/sim/conditions'
+import { MAX_MOMENTUM, createSense, type Conditions } from '../src/sim/conditions'
 
 const base = (): Stats => deriveStats(new Map(), emptyKit())
 const scratch = (): Stats => deriveStats(new Map(), emptyKit())
@@ -45,6 +46,27 @@ function only(...active: Array<Art['condition']>): Conditions {
     c[key] = active.includes(key as Art['condition'])
   }
   return c
+}
+
+/**
+ * Fires one art, whichever half of the loop its condition belongs to.
+ *
+ * A charging art fires while its posture holds; a spending art fires only
+ * inside a discharge and never from its condition alone. A test that wants to
+ * see WHAT an effect does should not have to care which — but it must not
+ * paper over the difference either, which is why the two paths are visibly
+ * different here rather than hidden behind one always-on flag.
+ */
+function fire(b: Stats, art: Art, level = 1, spent = 1, desperate = false): Stats {
+  const spending = conditionKind(art.condition) === 'spend'
+  return applyArts(
+    b,
+    [{ art, level }],
+    spending ? nothing() : only(art.condition),
+    scratch(),
+    1,
+    { spent: spending ? spent : 0, desperate },
+  )
 }
 
 const artFor = (effect: string): Art | undefined => ARTS.find((a) => a.effect === effect)
@@ -81,7 +103,7 @@ describe('the arts acting', () => {
 
   it('changes nothing when the scroll is empty', () => {
     const b = base()
-    const out = applyArts(b, [], only('running', 'surrounded', 'peril'), scratch())
+    const out = applyArts(b, [], only('running', 'surrounded'), scratch())
     expect(out).toEqual(b)
   })
 
@@ -153,7 +175,7 @@ describe('the arts acting', () => {
       if (!art) continue
       covered.push(effect)
       const b = base()
-      const out = applyArts(b, [{ art, level: 1 }], only(art.condition), scratch())
+      const out = fire(b, art)
       check(b, out)
     }
     // And the ones with no art are exactly the ones we said they were.
@@ -164,8 +186,8 @@ describe('the arts acting', () => {
   it('scales with the grade', () => {
     const art = mustArtFor('damage')
     const b = base()
-    const one = applyArts(b, [{ art, level: 1 }], only(art.condition), scratch()).slashDamage
-    const three = applyArts(b, [{ art, level: 3 }], only(art.condition), scratch()).slashDamage
+    const one = fire(b, art, 1).slashDamage
+    const three = fire(b, art, 3).slashDamage
     expect(three).toBeGreaterThan(one)
     expect(one / b.slashDamage).toBeCloseTo(artScale(1), 5)
   })
@@ -196,7 +218,7 @@ describe('the arts acting', () => {
     const [a, b2] = ARTS.filter((x) => x.effect === 'echo')
     expect(a && b2, 'two echo arts to stack').toBeTruthy()
     const b = base()
-    const one = applyArts(b, [{ art: a!, level: 1 }], only(a!.condition), scratch()).echoDamage
+    const one = fire(b, a!, 1).echoDamage
     const both = applyArts(
       b,
       [
@@ -230,9 +252,15 @@ describe('the arts acting', () => {
     // Multiplicative reduction approaches zero without reaching it. Additive
     // reduction reaches invulnerability, and a survivors-like with an
     // invulnerable player is not a game.
+    // At the worst case the game can produce: top grade, full 势 behind it, and
+    // desperate on top — which is where an additive reduction would have gone
+    // through the floor and handed the player invulnerability.
     const guards = ARTS.filter((a) => a.effect === 'guard').map((art) => ({ art, level: 5 }))
     const all = only(...guards.map((c) => c.art.condition))
-    const out = applyArts(base(), guards, all, scratch())
+    const out = applyArts(base(), guards, all, scratch(), 1, {
+      spent: MAX_MOMENTUM,
+      desperate: true,
+    })
     expect(out.damageScale).toBeGreaterThan(0)
     expect(out.damageScale).toBeLessThan(1)
   })
@@ -240,7 +268,7 @@ describe('the arts acting', () => {
   it('keeps the shorter crit cycle when two overlap, rather than stacking them', () => {
     const crits = ARTS.filter((a) => a.effect === 'crit')
     const b = base()
-    const one = applyArts(b, [{ art: crits[0]!, level: 1 }], only(crits[0]!.condition), scratch())
+    const one = fire(b, crits[0]!, 1)
     const both = applyArts(
       b,
       crits.map((art) => ({ art, level: 5 })),

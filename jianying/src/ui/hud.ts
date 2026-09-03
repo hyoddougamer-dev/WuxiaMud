@@ -12,9 +12,9 @@
  * conversion is itemised. A player who dies at four minutes should be able to
  * read, without asking anyone, exactly what those four minutes bought.
  */
-import { ART_BY_ID, MAX_ART_LEVEL, type Art } from '../data/arts'
+import { ART_BY_ID, MAX_ART_LEVEL, conditionKind, type Art } from '../data/arts'
 import type { CarriedArt } from '../sim/arts'
-import { activeSeals, type Conditions } from '../sim/conditions'
+import { activeSeals, type ConditionSense } from '../sim/conditions'
 import { conditionIconSvg, effectIconSvg, itemIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
 import { ITEM_BY_ID } from '../data/items'
@@ -94,8 +94,11 @@ export interface Hud {
    * mid-fight the change happens in a place the player was already watching.
    */
   setScroll(carried: readonly CarriedArt[], asleep: readonly Art[]): void
-  /** Lights the tiles whose condition holds right now. Called every frame. */
-  setConditions(active: Conditions): void
+  /**
+   * Lights the tiles whose condition holds, and shows the 势 behind them.
+   * Called every frame.
+   */
+  setConditions(sense: ConditionSense): void
   /**
    * The dodge's readiness, 0..1, and whether it can fire this instant.
    *
@@ -136,6 +139,12 @@ export function createHud(root: HTMLElement): Hud {
         <span class="hud-time">0:00</span>
       </div>
       <div class="hud-health"><div class="hud-health-fill"></div></div>
+      <!-- 势. Three pips, because the whole point of momentum is that you
+           can see how much you have before deciding to spend it. Without this
+           the charge-and-spend loop is a rule nobody can play to. -->
+      <div class="hud-shi" aria-hidden="true">
+        <i></i><i></i><i></i>
+      </div>
       <div class="hud-arts"></div>
       <div class="hud-xp"><div class="hud-xp-fill"></div></div>
     </div>
@@ -231,6 +240,8 @@ export function createHud(root: HTMLElement): Hud {
   const overReward = root.querySelector<HTMLElement>('.over-reward')!
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
   const artsEl = root.querySelector<HTMLElement>('.hud-arts')!
+  const shiEl = root.querySelector<HTMLElement>('.hud-shi')!
+  const shiPips = Array.from(shiEl.querySelectorAll<HTMLElement>('i'))
   const gate = root.querySelector<HTMLElement>('.gate')!
   const gateBank = root.querySelector<HTMLButtonElement>('.gate-bank')!
   const gatePush = root.querySelector<HTMLButtonElement>('.gate-push')!
@@ -248,6 +259,8 @@ export function createHud(root: HTMLElement): Hud {
   let artTiles: HTMLElement[] = []
   let lastScroll = ''
   let lastLit = ''
+  let lastShi = -1
+  let lastBurst = false
 
   let returnHandler: (() => void) | null = null
   again.addEventListener('click', () => {
@@ -374,16 +387,43 @@ export function createHud(root: HTMLElement): Hud {
       }
     },
 
-    setConditions(active) {
+    setConditions(sense) {
+      const { active } = sense
+      // 势 first: a pip that fills is the thing the player reads BEFORE
+      // deciding to plant their feet, so it cannot wait on the tiles changing.
+      const banked = Math.floor(sense.momentum)
+      if (banked !== lastShi) {
+        for (let i = 0; i < shiPips.length; i++) shiPips[i]!.classList.toggle('on', i < banked)
+        lastShi = banked
+      }
+      const bursting = sense.burst > 0
+      if (bursting !== lastBurst) {
+        shiEl.classList.toggle('spending', bursting)
+        lastBurst = bursting
+      }
+
       // This is the tell, and without it the arts are invisible rules. A
       // conditional system is only learnable if the player can see which
-      // condition is true at the moment it becomes true.
-      const key = activeSeals(active).join(',')
+      // condition is true at the moment it becomes true. A spending art lights
+      // while its BURST runs, not while its condition holds — otherwise the
+      // tile claims to be doing something for the whole minute you spend
+      // surrounded, and it is not.
+      const key = activeSeals(active).join(',') + (bursting ? '!' : '') + banked
       if (key === lastLit) return
       lastLit = key
       for (const tile of artTiles) {
         const art = ART_BY_ID.get(tile.dataset.art ?? '')
-        tile.classList.toggle('art-on', art !== undefined && active[art.condition])
+        if (!art) continue
+        const spending = conditionKind(art.condition) === 'spend'
+        const holds = active[art.condition]
+        tile.classList.toggle('art-on', spending ? bursting : holds)
+        // ARMED, and this state is not decoration. A player whose one woken
+        // art is a spending one would otherwise stand in the right posture and
+        // see nothing at all happen — which is the exact failure this whole
+        // change set out to fix, moved to a new place. Armed says "you are
+        // doing the right thing and you have nothing banked to spend", which
+        // is the only way the loop can be learned from the screen.
+        tile.classList.toggle('art-armed', spending && holds && !bursting)
       }
     },
 

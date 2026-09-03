@@ -33,7 +33,8 @@ import {
   ARTS,
   EQUIPPED_ARTS,
   MAX_ART_LEVEL,
-  artScale,
+  artGrowth,
+  conditionKind,
   type Art,
   type Condition,
   type EffectKind,
@@ -208,12 +209,49 @@ function addMight(into: Stats, level: number): void {
 }
 
 /**
- * Applies every carried art whose condition currently holds, into `out`.
+ * How hard an art is firing right now: nothing, or a discharge worth `spent`.
+ *
+ * `desperate` is 危 in its new shape — see DESPERATE_FRACTION in data/arts.ts.
+ * It lifts EVERY art a grade rather than gating one of them, so the worst
+ * moment of a run is the moment a comeback is worth attempting.
+ */
+export interface Surge {
+  /** 势 feeding the live discharge. Zero means no spending art fires. */
+  readonly spent: number
+  readonly desperate: boolean
+}
+export const NO_SURGE: Surge = { spent: 0, desperate: false }
+
+/** Reads a `ConditionSense` as a Surge, which is all applyArts needs of it. */
+export function surgeOf(sense: { spent: number; desperate: boolean }): Surge {
+  return { spent: sense.spent, desperate: sense.desperate }
+}
+
+/**
+ * Grade five at full 势. Past this the numbers stop meaning anything.
+ *
+ * A charging art asks for `artGrowth(level)` — the same steady bonus it always
+ * paid. A spending art asks for `artGrowth(level * spent)`, which is why
+ * banking 势 before planting your feet is worth doing: the same art at the same
+ * grade pays up to three times the shape.
+ */
+const MAX_POWER = MAX_ART_LEVEL * 3
+
+/**
+ * Applies every carried art that is firing right now, into `out`.
  *
  * `out` is caller-owned and returned, so a frame costs one copy of fifteen
  * numbers and no allocation. Arts of the same effect multiply — two conditions
  * can hold at once by design (a posture and a situation), and a build that
  * lines both up on one stat should feel like it lined them up.
+ *
+ * WHAT FIRES DEPENDS ON THE KIND OF CONDITION, and that is the whole repair.
+ * A charging art (running, turning) pays while its posture holds, as before. A
+ * spending art (still, surrounded) pays NOTHING while its condition merely
+ * holds — it pays in a burst, on the frame the condition arrives, scaled by
+ * the 势 banked before it. Being surrounded for a minute is one burst, not
+ * sixty seconds of quiet bonus; planting your feet with nothing banked does
+ * nothing at all.
  */
 export function applyArts(
   base: Stats,
@@ -221,6 +259,7 @@ export function applyArts(
   active: Conditions,
   out: Stats,
   runLevel = 1,
+  surge: Surge = NO_SURGE,
 ): Stats {
   copyStats(base, out)
   // 内力 folded in HERE rather than into `base`, and that is not tidiness. The
@@ -230,9 +269,17 @@ export function applyArts(
   // copy makes double-counting impossible by construction rather than by
   // everybody remembering. See MIGHT.
   addMight(out, runLevel)
-  for (const { art, level } of carried) {
-    if (!active[art.condition as Condition]) continue
-    const s = artScale(level)
+  for (const { art, level: grade } of carried) {
+    const spending = conditionKind(art.condition as Condition) === 'spend'
+    // 危: every art a grade harder while the run is nearly lost.
+    const level = surge.desperate ? Math.min(MAX_ART_LEVEL, grade + 1) : grade
+    if (spending) {
+      if (surge.spent <= 0) continue
+    } else if (!active[art.condition as Condition]) {
+      continue
+    }
+    const power = Math.min(MAX_POWER, spending ? level * surge.spent : level)
+    const s = artGrowth(power)
     switch (art.effect) {
       case 'damage':
         out.slashDamage *= s
@@ -242,20 +289,20 @@ export function applyArts(
         out.slashInterval /= s
         break
       case 'range':
-        out.slashRange *= 1 + STEP.range * level
+        out.slashRange *= 1 + STEP.range * power
         break
       case 'arc':
         out.slashHalfAngle = Math.min(MAX_HALF_ANGLE, out.slashHalfAngle * s)
         break
       case 'speed':
-        out.moveSpeed *= 1 + STEP.speed * level
+        out.moveSpeed *= 1 + STEP.speed * power
         break
       case 'magnet':
-        out.pickupRadius *= 1 + STEP.magnet * level
+        out.pickupRadius *= 1 + STEP.magnet * power
         break
       case 'orbit':
         if (out.orbitBlades === 0) {
-          out.orbitBlades = GRANT.orbitBlades + level - 1
+          out.orbitBlades = GRANT.orbitBlades + power - 1
           out.orbitDamage = GRANT.orbitDamage * s
         } else {
           out.orbitBlades += 1
@@ -273,31 +320,31 @@ export function applyArts(
         break
       case 'pierce':
         // Narrow AND long. See STEP.pierceArc for why this is a trade.
-        out.slashHalfAngle *= Math.pow(STEP.pierceArc, 1 / (1 + (level - 1) * 0.4))
-        out.slashRange *= 1 + STEP.pierceRange * level
+        out.slashHalfAngle *= Math.pow(STEP.pierceArc, 1 / (1 + (power - 1) * 0.4))
+        out.slashRange *= 1 + STEP.pierceRange * power
         break
       case 'crit': {
         // Keeps the SHORTER cycle when two crit arts overlap, rather than
         // multiplying two counters into something nobody can predict.
-        const every = CRIT_EVERY[Math.min(level, CRIT_EVERY.length - 1)]!
+        const every = CRIT_EVERY[Math.min(Math.round(power), CRIT_EVERY.length - 1)]!
         out.critEvery = out.critEvery === 0 ? every : Math.min(out.critEvery, every)
         break
       }
       case 'echo':
         out.echoDelay = ECHO_DELAY
-        out.echoDamage += STEP.echo * level
+        out.echoDamage += STEP.echo * power
         break
       case 'push':
-        out.pushForce += STEP.push * level
+        out.pushForce += STEP.push * power
         break
       case 'guard':
         // Multiplicative, so stacked guards approach zero without ever
         // reaching it. Additive reduction reaches invulnerability, and a
         // survivors-like with an invulnerable player has no game left.
-        out.damageScale *= Math.pow(STEP.guard, level)
+        out.damageScale *= Math.pow(STEP.guard, power)
         break
       case 'heal':
-        out.healPerKill += STEP.heal * level
+        out.healPerKill += STEP.heal * power
         break
       default:
         // nova and maxHp are in the vocabulary and no art uses them. Falling

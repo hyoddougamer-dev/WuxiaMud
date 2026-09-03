@@ -28,6 +28,8 @@ export const strings = {
   sealHint: 'press the seal',
   /** The dodge button's accessible name. */
   dodgeLabel: 'Dodge',
+  momentumLoop: 'Running and turning build momentum. Standing still or being ringed in spends all of it at once, in a single burst.',
+  desperateRule: 'Below a third of your health, every art fires one grade higher.',
   /** Title on the fatal-error screen. */
   fatalTitle: 'Jiànyǐng failed to start',
 

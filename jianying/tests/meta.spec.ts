@@ -66,6 +66,7 @@ import {
   NEW_EFFECTS,
   artScale,
   artsFor,
+  conditionKind,
 } from '../src/data/arts'
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
@@ -949,9 +950,12 @@ describe('the five conditions', () => {
   })
 
   it('wants the posture held before it counts', () => {
+    // Still asks for less than it used to — the hold is there to stop a
+    // posture flickering on one frame of low speed, not to charge rent. What
+    // makes planting your feet a commitment now is that it spends 势.
     const a = createSense()
-    expect(step(a, { speed: 0 }, 0.3).still).toBe(false)
-    expect(step(a, { speed: 0 }, 0.5).still).toBe(true)
+    expect(step(a, { speed: 0 }, 0.2).still).toBe(false)
+    expect(step(a, { speed: 0 }, 0.2).still).toBe(true)
 
     const b = createSense()
     expect(step(b, { speed: 200, moveX: 1 }, 0.5).running).toBe(false)
@@ -1029,35 +1033,38 @@ describe('the five conditions', () => {
     expect(sense.active.turn).toBe(false)
   })
 
-  it('treats being surrounded and being in peril as situations, not postures', () => {
-    // These two are things that happen TO you, so they may overlap a posture.
-    // An art on one of them is a safety net rather than a plan.
+  it('treats being surrounded as a situation, not a posture', () => {
+    // It happens TO you, so it may overlap a posture.
     const sense = createSense()
     const active = step(sense, { speed: 0, nearby: 6, hp: 20, maxHp: 100 }, 0.8)
     expect(active.still).toBe(true)
     expect(active.surrounded).toBe(true)
-    expect(active.peril).toBe(true)
   })
 
-  it('does not call a crowd of four surrounded, nor a third of health safe', () => {
+  it('does not call a crowd of four surrounded', () => {
     const sense = createSense()
     expect(step(sense, { nearby: 4, hp: 31, maxHp: 100 }, 0.1).surrounded).toBe(false)
-    expect(sense.active.peril).toBe(false)
-    expect(step(createSense(), { nearby: 5, hp: 30, maxHp: 100 }, 0.1)).toMatchObject({
-      surrounded: true,
-      peril: true,
-    })
+    expect(step(createSense(), { nearby: 5, hp: 30, maxHp: 100 }, 0.1).surrounded).toBe(true)
   })
 
-  it('survives a maxHp of zero rather than reporting NaN peril', () => {
-    const active = step(createSense(), { hp: 0, maxHp: 0 }, 0.1)
-    expect(active.peril).toBe(false)
+  it('calls a third of health desperate, and survives a maxHp of zero', () => {
+    // 危 is a rule now, not a condition: it never appears in `active`, it lifts
+    // every art a grade. A zero maxHp must read as safe rather than as NaN.
+    const low = createSense()
+    step(low, { hp: 30, maxHp: 100 }, 0.1)
+    expect(low.desperate).toBe(true)
+    const fine = createSense()
+    step(fine, { hp: 31, maxHp: 100 }, 0.1)
+    expect(fine.desperate).toBe(false)
+    const empty = createSense()
+    step(empty, { hp: 0, maxHp: 0 }, 0.1)
+    expect(empty.desperate).toBe(false)
   })
 
   it('names what holds, in a stable order', () => {
     const sense = createSense()
     step(sense, { speed: 0, nearby: 7, hp: 10, maxHp: 100 }, 0.8)
-    expect(activeSeals(sense.active)).toEqual(['still', 'surrounded', 'peril'])
+    expect(activeSeals(sense.active)).toEqual(['still', 'surrounded'])
   })
 })
 
@@ -1074,13 +1081,28 @@ describe('arts', () => {
     expect(ARTS).toHaveLength(WEAPONS.length * 5)
   })
 
-  it('covers every condition exactly once per weapon', () => {
-    // No weapon may have a dead condition. A player who changes weapon keeps
-    // the same five things to do while everything they produce changes, and
-    // that is the whole reason six classes cost one control scheme.
+  it('covers every condition on every weapon, and doubles on exactly one', () => {
+    // No weapon may have a dead condition: a player who changes weapon keeps
+    // the same four things to do while everything they produce changes, and
+    // that is the whole reason two classes cost one control scheme.
+    //
+    // Five arts over four conditions, so each scroll doubles up once — and
+    // WHICH one it doubles is the class. Pinning "exactly one" stops a future
+    // scroll quietly leaving a condition uncovered while doubling twice.
     for (const weapon of WEAPONS) {
-      const used = artsFor(weapon.id).map((a) => a.condition).sort()
-      expect(used).toEqual(CONDITIONS.map((c) => c.id).sort())
+      const used = artsFor(weapon.id).map((a) => a.condition)
+      expect(new Set(used).size).toBe(CONDITIONS.length)
+      expect(used.length).toBe(CONDITIONS.length + 1)
+    }
+  })
+
+  it('gives every weapon at least one art on each side of the loop', () => {
+    // A scroll made only of charging arts can never spend, and one made only
+    // of spending arts has nothing to spend. Either way the loop is not a loop.
+    for (const weapon of WEAPONS) {
+      const kinds = artsFor(weapon.id).map((a) => conditionKind(a.condition))
+      expect(kinds).toContain('charge')
+      expect(kinds).toContain('spend')
     }
   })
 
@@ -1128,8 +1150,14 @@ describe('arts', () => {
     expect(artScale(99)).toBe(artScale(MAX_ART_LEVEL))
   })
 
-  it('cannot carry more arts than a scroll holds', () => {
-    expect(EQUIPPED_ARTS).toBeLessThan(5)
+  it('can order the whole scroll, and never more than it holds', () => {
+    // It used to be four of five, and the cut came off the bottom of the list
+    // — which on the zhanmadao deleted the 转 art, the best-attended condition
+    // an engaged player has, while keeping the two worst. Scarcity lives on
+    // the blade now (see `awakeCount`), where the player can see it.
+    for (const weapon of WEAPONS) {
+      expect(EQUIPPED_ARTS).toBe(artsFor(weapon.id).length)
+    }
   })
 })
 

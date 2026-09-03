@@ -728,12 +728,19 @@ async function main(): Promise<void> {
       }
     }
 
-    // 静 — let go and wait. The posture has to be HELD, so releasing for a
-    // single frame is not enough, and that is the point.
+    // 静 — BANK FIRST, THEN PLANT. Standing still is the spending half of the
+    // loop: with nothing banked it is supposed to move nothing at all, so a
+    // harness that merely lets go and waits proves only that it did not run
+    // first. It has to play the loop the way a person does.
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 130, cy, { steps: 6 })
+    await waitForCondition('running', () => page.waitForTimeout(120), 12_000)
+    await page.waitForTimeout(2600) // enough to fill the bank
     await page.mouse.up().catch(() => {})
     const sawStill = await waitForCondition(
       'still',
-      () => page.waitForTimeout(120),
+      () => page.waitForTimeout(60),
       9000,
     )
     if (sawStill.includes('still')) held.push('静')
@@ -745,8 +752,14 @@ async function main(): Promise<void> {
     // the stats are legitimately unchanged unless the posture held right now
     // happens to be that art's. Taking the best of three is what makes this a
     // check on the wiring rather than a coin toss on which art ranked first.
-    let lit = await page.locator('.art-on').count()
-    await keepIfActing()
+    let lit = await page.locator('.art-on, .art-armed').count()
+    // Sampled fast and repeatedly: a discharge lasts under a second, and one
+    // sample taken after it is a sample of the calm that follows it.
+    for (let i = 0; i < 14; i++) {
+      await keepIfActing()
+      lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
+      await page.waitForTimeout(70)
+    }
 
     // 疾 — hold the stick at full deflection in one direction.
     await page.mouse.move(cx, cy)
@@ -758,7 +771,7 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawRunning.includes('running')) held.push('疾')
-    lit = Math.max(lit, await page.locator('.art-on').count())
+    lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
     await keepIfActing()
     await page.screenshot({ path: join(OUT, 'arts-running.png') })
 
@@ -775,7 +788,7 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawTurn.includes('turn')) held.push('转')
-    lit = Math.max(lit, await page.locator('.art-on').count())
+    lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
     await keepIfActing()
     await page.mouse.up()
 
@@ -795,7 +808,9 @@ async function main(): Promise<void> {
       )
       process.exitCode = 1
     } else if (lit === 0) {
-      console.error('arts:   conditions hold but no tile lit — the strip is not reading them')
+      console.error(
+        'arts:   conditions hold but no tile lit or armed — the strip is not reading them',
+      )
       process.exitCode = 1
     } else if (acting.live === '' || acting.live === acting.base) {
       // Every weapon's scroll has at least one art on a posture this harness

@@ -49,7 +49,7 @@ import {
   updateDodge,
 } from './sim/dodge'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
-import { MIGHT, applyArts, attune, equippedIds } from './sim/arts'
+import { MIGHT, applyArts, attune, equippedIds, surgeOf } from './sim/arts'
 import { ART_BY_ID, type Art } from './data/arts'
 import {
   type Character,
@@ -947,7 +947,7 @@ async function boot(): Promise<void> {
     // on a move that depends on the speed art. One frame of lag at 60Hz is
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
     // of the circle. See sim/arts.ts.
-    applyArts(stats, carried, sense.active, live, run.level)
+    applyArts(stats, carried, sense.active, live, run.level, surgeOf(sense))
 
     const { x: ix, y: iy } = joystick.state
     // The region bends the player, not the enemies, and that asymmetry is the
@@ -1520,7 +1520,7 @@ async function boot(): Promise<void> {
     // keeps having to dig out. `carried` IS what applyArts reads each frame, so
     // the strip and the simulation cannot disagree about what is in hand.
     ui.setScroll(carried, asleep)
-    ui.setConditions(sense.active)
+    ui.setConditions(sense)
     ui.setDodge(dodgeCharge(dodge))
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true

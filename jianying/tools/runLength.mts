@@ -43,7 +43,7 @@ import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
-import { applyArts, attune, equippedIds } from '../src/sim/arts'
+import { applyArts, attune, equippedIds, surgeOf } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 import { EQUIPPED_ARTS, MAX_ART_LEVEL } from '../src/data/arts'
@@ -171,7 +171,7 @@ export function play(
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
-      applyArts(stats, carried, sense.active, live, run.level)
+      applyArts(stats, carried, sense.active, live, run.level, surgeOf(sense))
       updatePlayer(
         player,
         ix,

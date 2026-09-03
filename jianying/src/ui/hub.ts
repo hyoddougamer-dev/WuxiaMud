@@ -614,15 +614,26 @@ export function createHub(
     legendHead.className = 'block-head'
     legendHead.innerHTML = `<span>${strings.conditions}</span>`
     legend.appendChild(legendHead)
+    // The loop, in one line, before the four rows that make it up. A player
+    // who reads the rows without it learns four separate rules; with it they
+    // learn one, and the rows become the detail rather than the lesson.
+    const loop = document.createElement('div')
+    loop.className = 'cond-loop'
+    loop.textContent = strings.momentumLoop
+    legend.appendChild(loop)
     for (const cond of CONDITIONS) {
       const row = document.createElement('div')
-      row.className = 'cond-row'
+      row.className = `cond-row cond-${cond.kind}`
       row.innerHTML =
         `<span class="cond-seal">${cond.seal}</span>` +
         `<span class="cond-name">${escapeHtml(cond.name)}</span>` +
-        `<span class="cond-how">${escapeHtml(cond.how)}</span>`
+        `<span class="cond-how">${escapeHtml(cond.how)} <b>${escapeHtml(cond.does)}</b></span>`
       legend.appendChild(row)
     }
+    const desperate = document.createElement('div')
+    desperate.className = 'cond-loop cond-desperate'
+    desperate.textContent = strings.desperateRule
+    legend.appendChild(desperate)
     pane.appendChild(legend)
 
     return pane

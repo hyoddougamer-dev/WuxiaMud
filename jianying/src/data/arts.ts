@@ -34,12 +34,44 @@
 /**
  * What wakes an art.
  *
- * Five, and no more, because each one needs a tell on screen and a player can
- * only learn so many rules while being chased. Every condition below is
- * readable off state the simulation already keeps — speed, facing, the enemy
- * grid, health — so detecting them costs nothing new.
+ * FOUR, AND THEY COME IN TWO KINDS. There were five, and the fifth is gone;
+ * what replaced it is at DESPERATE_FRACTION below.
+ *
+ * The kinds are the repair. Measured in play, the old five were not five
+ * conditions — they were two that worked and three that did not. Running held
+ * for 99% of a mover's run and 23% of a fighter's, which is not a condition
+ * either way: a thing that is always on is a number you already have, and a
+ * thing that is never on is an art you do not have. Still reached 17% only for
+ * a pilot written to plant its feet on purpose, because it demanded better
+ * than half a second under a tenth of top speed and the player still has to
+ * brake into it. Peril reached 1%.
+ *
+ * So the conditions now pull in opposite directions and feed each other:
+ *
+ *   CHARGE — running, turning, being surrounded. The three states of being IN
+ *   the fight. Each pays its art the same steady bonus it always did, and each
+ *   also banks 势 while it holds.
+ *
+ *   SPEND — standing still. The one thing you choose rather than fall into.
+ *   Planting your feet DISCHARGES the lot in a single burst, scaled by what
+ *   you banked.
+ *
+ * SURROUNDED WAS BRIEFLY A SPENDING CONDITION AND THAT WAS WRONG, measured and
+ * reverted rather than argued: it is a state, not an instant. An engaged
+ * player is surrounded more or less continuously, so paying on the frame the
+ * ring closes paid almost never — the arts went from 26% below the technique
+ * cards to 37% below. The three charging conditions are the ones the
+ * measurement already showed working or harmless; the only one that was
+ * genuinely broken as a sustained bonus was 静, because it demanded a long
+ * planted hold in the middle of a crowd for a modest trickle. That one is now
+ * the burst, which is the trade the hold was always asking for.
+ *
+ * Nothing here adds a button: it is still the thumb already on the joystick.
  */
-export type Condition = 'still' | 'running' | 'turn' | 'surrounded' | 'peril'
+export type Condition = 'still' | 'running' | 'turn' | 'surrounded'
+
+/** Whether entering a condition banks 势 or spends it. */
+export type ConditionKindName = 'charge' | 'spend'
 
 export interface ConditionKind {
   readonly id: Condition
@@ -48,17 +80,48 @@ export interface ConditionKind {
   readonly name: string
   /** What the player has to DO. Written as an instruction, not a description. */
   readonly how: string
+  readonly kind: ConditionKindName
+  /** What it does to 势, in the player's own terms. */
+  readonly does: string
 }
 
 export const CONDITIONS: readonly ConditionKind[] = [
-  { id: 'still', seal: '静', name: 'Still', how: 'Plant your feet and stop moving.' },
-  { id: 'running', seal: '疾', name: 'Running', how: 'Hold top speed without turning.' },
-  { id: 'turn', seal: '转', name: 'Turning', how: 'Reverse hard, back the way you came.' },
-  { id: 'surrounded', seal: '围', name: 'Surrounded', how: 'Let them close in around you.' },
-  { id: 'peril', seal: '危', name: 'Peril', how: 'Keep fighting on low health.' },
+  {
+    id: 'running', seal: '疾', name: 'Running', kind: 'charge',
+    how: 'Hold top speed without turning.', does: 'Builds momentum.',
+  },
+  {
+    id: 'turn', seal: '转', name: 'Turning', kind: 'charge',
+    how: 'Reverse hard, back the way you came.', does: 'Builds momentum, fast.',
+  },
+  {
+    id: 'surrounded', seal: '围', name: 'Surrounded', kind: 'charge',
+    how: 'Let them close in around you.', does: 'Builds momentum while it lasts.',
+  },
+  {
+    id: 'still', seal: '静', name: 'Still', kind: 'spend',
+    how: 'Plant your feet.', does: 'Spends everything you built, at once.',
+  },
 ] as const
 
+/**
+ * Health at or below this fraction makes every art fire one grade higher.
+ *
+ * This is what became of 危. As a CONDITION it was measured at 1% of a run —
+ * an art bound to it was a dead slot, and a level-one swordsman whose single
+ * woken art sat on it had a build that could never once fire. As a RULE it
+ * costs no slot, can never be dead, and does the one thing the condition was
+ * reaching for: it makes the worst moment of a run the moment a comeback is
+ * worth attempting.
+ */
+export const DESPERATE_FRACTION = 0.3
+
 export const CONDITION_BY_ID = new Map(CONDITIONS.map((c) => [c.id, c]))
+
+/** Whether a condition banks 势 or spends it. */
+export function conditionKind(id: Condition): ConditionKindName {
+  return CONDITION_BY_ID.get(id)!.kind
+}
 
 /**
  * What an art does, from a closed vocabulary.
@@ -122,21 +185,44 @@ export const MAX_ART_LEVEL = 5
  * How many of a weapon's scroll a swordsman may ORDER in the hub.
  *
  * Not how many fire. How far down that order the arts actually wake is decided
- * by the weapon in hand — see `awakeCount` in sim/arts.ts. Four is what a thumb
- * can arrange without the pane becoming a spreadsheet; the fifth is the reward
- * for carrying a 神 or 仙 blade, and it wakes in whatever place the other four
- * leave it.
+ * by the weapon in hand — see `awakeCount` in sim/arts.ts.
+ *
+ * FIVE, WHICH IS ALL OF THEM. It was four, and the cut was taken off the
+ * bottom of the list. That is a silent deletion rather than a choice, and it
+ * was deleting the wrong art: on the zhanmadao the fifth in order is the 转
+ * art, and 转 is the best-attended condition an engaged player has. The game
+ * was quietly removing a live art and keeping two dead ones.
+ *
+ * The scarcity that made a four worth having has not gone anywhere — it just
+ * sits where it was always readable, on the blade. A grey blade still wakes
+ * one art and a divine blade the whole scroll, so which arts fire is still a
+ * thing you earn. What no longer happens is the ordering pane deciding it for
+ * you, off screen, by list position.
  */
-export const EQUIPPED_ARTS = 4
+export const EQUIPPED_ARTS = 5
 
 /**
  * Two scrolls of five.
  *
- * Each class covers all five conditions exactly once, which is not a
- * decoration: it means neither has a dead condition, and a player who changes
- * class keeps the same five things to DO while everything those things produce
- * changes. That is the cheapest way to make two classes feel different without
- * teaching two control schemes.
+ * THE ORDER IS THE DEFAULT LOADOUT, and it is not cosmetic: a blade wakes the
+ * scroll from the top down, so whatever sits fourth and fifth does not exist
+ * until the player carries a very good weapon. That makes it tempting to
+ * reorder a scroll whenever a class measures badly, and TWO SUCH GUESSES WERE
+ * TRIED HERE AND BOTH REFUTED — Shadowstep third, on the theory the thrower
+ * lacked a survival tool (312s to 295s, worse); Scatter third, on the theory
+ * it lacked an art on the condition that holds half a run (291s, worse
+ * again). The order below is the original one. Whatever the 飞刀's gap is, it
+ * is not the order, and the file should not carry a change that measured
+ * worse just because the reasoning behind it sounded good.
+ *
+ * Five arts over four conditions, so each class doubles up on exactly one —
+ * and WHICH one it doubles is the class. The zhanmadao doubles on 围: ringed
+ * in, it both takes more room and takes less damage, because standing in the
+ * crowd is what it does. The 飞刀 doubles on 转: breaking back the way you came
+ * throws a second volley AND finds you the gap, because leaving is what it
+ * does. A player who changes class keeps the same four things to DO while
+ * everything those things produce changes, which is the cheapest way to make
+ * two classes feel different without teaching two control schemes.
  *
  * THERE WERE SIX SCROLLS AND THIRTY ARTS. Twenty of them are gone with the four
  * weapons they belonged to. Nothing was salvaged into the survivors: an art
@@ -170,9 +256,9 @@ export const ARTS: readonly Art[] = [
     seal: '山',
     name: 'Mountain',
     weapon: 'great',
-    condition: 'peril',
+    condition: 'surrounded',
     effect: 'guard',
-    blurb: 'On low health, what reaches you lands lighter.',
+    blurb: 'Ringed in, you set yourself and what reaches you lands lighter.',
   },
   {
     id: 'great-rend',
@@ -246,9 +332,9 @@ export const ARTS: readonly Art[] = [
     seal: '影',
     name: 'Shadowstep',
     weapon: 'feidao',
-    condition: 'peril',
+    condition: 'turn',
     effect: 'speed',
-    blurb: 'On low health your feet find the gap. You move faster.',
+    blurb: 'Break back the way you came and your feet find the gap.',
   },
 ] as const
 
@@ -269,6 +355,17 @@ export function artsFor(weaponStyleId: string): Art[] {
  * an art nobody equips.
  */
 export function artScale(level: number): number {
-  const n = Math.max(0, Math.min(MAX_ART_LEVEL, Math.floor(level)))
-  return 1 + n * 0.35
+  return artGrowth(Math.min(MAX_ART_LEVEL, Math.floor(level)))
+}
+
+/**
+ * The same curve without the grade ceiling, for 势.
+ *
+ * A discharge multiplies a grade by the momentum behind it, which runs past
+ * five by design — `artScale` clamps because a GRADE cannot exceed five, not
+ * because the curve stops there. One formula, so the burst and the steady
+ * bonus can never drift into two different games.
+ */
+export function artGrowth(power: number): number {
+  return 1 + Math.max(0, power) * 0.35
 }

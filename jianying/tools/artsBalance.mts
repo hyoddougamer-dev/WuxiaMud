@@ -30,7 +30,7 @@ import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
 import { offerTechniques, type Loadout } from '../src/data/techniques'
-import { applyArts, artActs, attune, equippedIds } from '../src/sim/arts'
+import { applyArts, artActs, attune, equippedIds, surgeOf } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 
@@ -100,12 +100,17 @@ interface Result {
  */
 type Growth = 'none' | 'cards' | 'arts'
 
+/** The worst swing any pilot produced, for the exit code below. */
+let worst = Infinity
+
 function play(weaponId: string, growth: Growth, fly: Pilot): Result {
+  const seeds = SEEDS
+  const seconds = SECONDS
   const weapon = WEAPONS.find((w) => w.id === weaponId)!
   let secs = 0
   let kills = 0
 
-  for (const seed of SEEDS) {
+  for (const seed of seeds) {
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), REGION)
     const motes = new Motes()
@@ -135,12 +140,12 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
     const drift = rule.drift ?? 0
     let t = 0
 
-    for (let i = 0; i < Math.round(SECONDS / TICK_S); i++) {
+    for (let i = 0; i < Math.round(seconds / TICK_S); i++) {
       if (run.over) break
       t += TICK_S
       const [ix, iy] = fly(run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
-      applyArts(stats, carried, sense.active, live, run.level)
+      applyArts(stats, carried, sense.active, live, run.level, surgeOf(sense))
       updatePlayer(
         player,
         ix,
@@ -196,7 +201,7 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
     secs += run.elapsed
     kills += run.kills
   }
-  return { secs: secs / SEEDS.length, kills: kills / SEEDS.length }
+  return { secs: secs / seeds.length, kills: kills / seeds.length }
 }
 
 for (const [pilotName, fly] of PILOTS) {
@@ -232,6 +237,34 @@ for (const [pilotName, fly] of PILOTS) {
   console.log(
     `  against the cards: ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival overall`,
   )
+  worst = Math.min(worst, swing)
+}
+
+/**
+ * The bar, enforced HERE rather than in the suite, and that is a decision with
+ * a measurement behind it.
+ *
+ * It belongs in the suite by rights — a number nobody is required to look at
+ * is a number that drifts, and this one drifted to 26% below the cards without
+ * anybody noticing. It is not in the suite because it cannot be made cheap: a
+ * single comparison is twelve runs of a simulation that slows to a few
+ * thousand ticks a second once a late crowd is on the grid, and the cheapest
+ * honest version measured over two minutes. The suite is sixty seconds, and a
+ * suite that takes four minutes is a suite that gets skipped — which is how
+ * this project lost its balance tests once already.
+ *
+ * So it exits non-zero instead. Run it before shipping a change to the arts,
+ * the conditions, or 势; CI can call it on its own schedule without dragging
+ * every unit test behind it.
+ */
+const FLOOR = -25
+if (worst < FLOOR) {
+  console.error(
+    `\nFAIL: the arts are ${Math.abs(worst).toFixed(0)}% below the cards, past the ` +
+      `${Math.abs(FLOOR)}% floor.\nThe cards column is the dumbest possible play. ` +
+      `Falling this far under it means the\nrun stops growing while the enemies do not.`,
+  )
+  process.exitCode = 1
 }
 
 console.log(
