@@ -157,6 +157,23 @@ export const SWIFT_SPEED = 2.5
  * shape of the sweep IS the class here.
  */
 export const SPEED_CAP = 150
+
+/**
+ * How much of the Speed pool reaches the legs rather than the arms.
+ *
+ * A fifth. The pool already divides `slashInterval`; this is the same pool
+ * paying a smaller second dividend into movement, so gear that rolls `haste`
+ * moves you too and a player has one currency to reason about, not two.
+ *
+ * IT WAS A THIRD AND THAT WAS TOO MUCH, found by the test rather than by
+ * taste: at 0.35 the kiting invariant in tests/regions.spec.ts went from one
+ * region to two, because moving faster helps a pilot who never stops more than
+ * one who stands and fights. Measured at three settings, 0.2 is the largest
+ * that leaves fleeing outliving fighting on the Pass alone. Twenty points is
+ * +10% movement — enough to change what reaches you, not enough to make
+ * running away the game.
+ */
+export const MOVE_FROM_SPEED = 0.2
 /**
  * Body: armour per point, alongside the health.
  *
@@ -384,7 +401,24 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
     slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),
-    moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09),
+    // MOVEMENT READS THE SPEED POOL TOO, and until now it did not.
+    //
+    // 疾 is called Swiftness and made you swing faster without making you move
+    // faster at all — `moveSpeed` answered only to the `fleet` card. In a game
+    // where the crowd comes to you, moving is the primary defence, so that left
+    // 体 as the only attribute able to keep anybody alive.
+    //
+    // Measured on the Broken Cliff before this: twenty points of 锋 bought
+    // exactly nothing — 44 seconds with none and 44 with eighty, dying at the
+    // same second to the same enemy. In fifty sweeps, 3.7x the damage bought
+    // ONE extra kill, because everything on that ground already dies to one
+    // blow. Offence had no defensive value at all, which made 体 mandatory and
+    // the other three optional. That is not a build system, it is one build.
+    //
+    // A FIFTH of the pool, not all of it: at parity 疾 would be one stat doing
+    // two jobs, which is exactly what makes 体 dominant. See MOVE_FROM_SPEED
+    // for why a third was too much.
+    moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09) * (1 + (speed / 100) * MOVE_FROM_SPEED),
     pickupRadius: BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85),
     maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25 + shape.vigour,
     armour: attr.armour,
