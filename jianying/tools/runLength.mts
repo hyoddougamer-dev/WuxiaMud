@@ -244,6 +244,19 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
     // which staying is the player's choice rather than the game's.
     const aimArg = process.argv.indexOf('--aim')
     const AIM = aimArg > 0 ? Number(process.argv[aimArg + 1]) : 0.5
+    /**
+     * The search is a nested loop over an expensive thing, so it gets the
+     * cheap settings — four seeds and a ceiling far below the module's own.
+     *
+     * At six seeds and 1200s it did not finish inside ten minutes, twice. The
+     * ceiling is the bigger lever of the two: a search for the target that
+     * opens a gate around a hundred seconds learns nothing from letting a run
+     * that has not cleared by six minutes carry on to twenty, and every one of
+     * those extra seconds is a late crowd on the grid at a few thousand ticks
+     * a second.
+     */
+    const SEARCH_CEILING = 360
+    const SEARCH_SEEDS = SEEDS.slice(0, 4)
     console.log(
       `A procurar riftBase. ${SEEDS.length} seeds, alvo: o maior em que o piloto ` +
         `"duel" limpa ~${AIM * 100}% das vezes.\n`,
@@ -259,10 +272,10 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
       // cannot report that it ran out of room.
       let hi = 4096
       let best = lo
-      let bestRow = play(region.id, PILOTS[1]![1], lo)
+      let bestRow = play(region.id, PILOTS[1]![1], lo, undefined, SEARCH_CEILING, SEARCH_SEEDS)
       for (let step = 0; step < 12; step++) {
         const mid = Math.round((lo + hi) / 2)
-        const row = play(region.id, PILOTS[1]![1], mid)
+        const row = play(region.id, PILOTS[1]![1], mid, undefined, SEARCH_CEILING, SEARCH_SEEDS)
         if (row.cleared >= AIM) {
           best = mid
           bestRow = row
@@ -272,7 +285,7 @@ if (process.argv[1]?.endsWith('runLength.mts')) {
         }
         if (lo > hi) break
       }
-      const kite = play(region.id, PILOTS[0]![1], best)
+      const kite = play(region.id, PILOTS[0]![1], best, undefined, SEARCH_CEILING, SEARCH_SEEDS)
       console.log(
         `${region.name.padEnd(18)} ${String(best).padStart(8)}   ` +
           `${(bestRow.cleared * 100).toFixed(0).padStart(5)}%   ` +
