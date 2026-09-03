@@ -33,7 +33,13 @@ export const TECHNIQUES: readonly Technique[] = [
   {
     id: 'keen',
     name: 'Keen Edge',
-    blurb: '+4 damage per sweep',
+    // A PERCENTAGE, because the card now pours into the Power pool rather than
+    // adding flat damage. Left as "+4 damage per sweep" it became a lie the
+    // moment the pool existed: the same card gave +3.6 on a zhanmadao and
+    // +1.3 on flying daggers, and the level-up screen would have been quoting
+    // a number that was true on no weapon at all. Twelve percentage points is
+    // true on every weapon, which is the stronger promise.
+    blurb: '+12% sweep damage',
     kind: 'modifier',
     maxLevel: 6,
     weight: 100,

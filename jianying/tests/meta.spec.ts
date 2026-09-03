@@ -70,6 +70,7 @@ import {
 import { Swarm } from '../src/sim/enemies'
 import { Hazards } from '../src/sim/hazards'
 import {
+  SPEED_CAP,
   deriveStats,
   emptyKit,
   wornAttributes,
@@ -318,14 +319,21 @@ describe('attributes feed combat', () => {
   })
 
   it('keeps a technique blurb literally true whatever the character invested', () => {
-    // "+4 damage per sweep" must mean +4 whatever the character has invested.
-    // Applying techniques before attributes would make every card on the
-    // level-up screen quietly lie by a shifting percentage.
+    // "+12% sweep damage" must add twelve POINTS to the pool per level, on
+    // every weapon and at every level of investment. It reads as a constant
+    // absolute gain per weapon precisely because the pool is additive — which
+    // is what stops the level-up screen quoting a shifting percentage.
+    //
+    // The card was flat damage until the pool existed, and the blurb was "+4
+    // damage per sweep". That wording survived the change for about a minute
+    // and this test is what caught it: the same card had started giving +3.6
+    // on a zhanmadao and +1.3 on flying daggers.
     const keen = new Map([['keen', 3]])
+    const expected = emptyKit().weapon.damage * 0.36
     for (const edge of [0, 4, 20]) {
       const without = deriveStats(new Map(), kit(attrs({ edge })))
       const with3 = deriveStats(keen, kit(attrs({ edge })))
-      expect(with3.slashDamage - without.slashDamage).toBeCloseTo(12, 9)
+      expect(with3.slashDamage - without.slashDamage).toBeCloseTo(expected, 9)
     }
   })
 
@@ -861,7 +869,8 @@ describe('what a piece grants', () => {
     expect(attrs.body + attrs.edge + attrs.swift + attrs.spirit).toBe(0)
     const shape = wornShape([worn])
     expect(shape.reach).toBeCloseTo(0.1)
-    expect(shape.haste).toBeCloseTo(0.05)
+    // Points into the Speed pool now, not a fraction off the interval.
+    expect(shape.speed).toBeCloseTo(5)
     expect(shape.vigour).toBe(20)
   })
 
@@ -896,12 +905,17 @@ describe('what a piece grants', () => {
   })
 
   it('caps the shape lines so a bag of one kind cannot delete the weapon', () => {
-    // At 90% off the interval every class becomes the same blur, and the shape
-    // of the sweep IS the class here.
-    const many = Array.from({ length: 12 }, () => wearing([{ kind: 'haste', amount: 20 }]))
-    expect(wornShape(many).haste).toBeLessThanOrEqual(0.6)
-    expect(wornShape(many.map(() => wearing([{ kind: 'reach', amount: 40 }]))).reach)
-      .toBeLessThanOrEqual(1.5)
+    // Reach is still clamped where it is gathered. Speed is not: its ceiling
+    // moved to where the pool is SPENT, so gear and attributes share one cap
+    // instead of each having a private one the other could sail past. The
+    // clamp is checked through deriveStats below, which is where it now lives.
+    const many = Array.from({ length: 12 }, () => wearing([{ kind: 'reach', amount: 40 }]))
+    expect(wornShape(many).reach).toBeLessThanOrEqual(1.5)
+
+    const fast = Array.from({ length: 12 }, () => wearing([{ kind: 'haste', amount: 20 }]))
+    const stats = deriveStats(new Map(), { ...emptyKit(), worn: fast })
+    const floor = emptyKit().weapon.interval / (1 + SPEED_CAP / 100)
+    expect(stats.slashInterval).toBeGreaterThanOrEqual(floor - 1e-9)
   })
 })
 

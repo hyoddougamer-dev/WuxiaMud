@@ -86,9 +86,13 @@ describe('derived stats', () => {
   })
 
   it('stacks modifiers', () => {
+    // Three levels of Keen Edge is thirty-six points into the Power pool, and
+    // the pool multiplies the weapon rather than adding to it — so the gain is
+    // 36% of the base rather than a flat twelve. See data/techniques.ts for
+    // why the card's wording moved to a percentage along with the maths.
     const base = deriveStats(new Map())
     const buffed = deriveStats(new Map([['keen', 3]]))
-    expect(buffed.slashDamage).toBe(base.slashDamage + 12)
+    expect(buffed.slashDamage).toBeCloseTo(base.slashDamage * 1.36, 9)
   })
 
   it('makes each level of Swift Hand worth the same proportion', () => {

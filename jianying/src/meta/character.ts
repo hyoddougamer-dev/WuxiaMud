@@ -48,9 +48,9 @@ export interface Attribute {
  * its effect in the units the HUD already shows.
  */
 export const ATTRIBUTES: readonly Attribute[] = [
-  { id: 'body', seal: '体', name: 'Body', effect: '+7 max health' },
-  { id: 'edge', seal: '锋', name: 'Edge', effect: '+1.3 sweep damage' },
-  { id: 'swift', seal: '疾', name: 'Swiftness', effect: 'Sweep 1.8% faster' },
+  { id: 'body', seal: '体', name: 'Body', effect: '+7 health, +4 armour' },
+  { id: 'edge', seal: '锋', name: 'Edge', effect: '+4% sweep damage' },
+  { id: 'swift', seal: '疾', name: 'Swiftness', effect: '+2.5% sweep speed' },
   { id: 'spirit', seal: '神', name: 'Spirit', effect: '+5% art damage and reach' },
 ] as const
 

@@ -107,16 +107,44 @@ export interface Stats {
 
 /** Body: max health per point. */
 export const BODY_HP = 7
-/** Edge: sweep damage per point. */
-export const EDGE_DAMAGE = 1.3
 /**
- * Swiftness: multiplier on the interval between sweeps, per point.
+ * Edge: points of POWER per attribute point.
  *
- * Multiplicative so that the tenth point is worth the same proportion as the
- * first. Additive would either be irrelevant early or reach a zero interval and
- * divide the game by nothing.
+ * Power is an additive pool of percentages, not flat damage. That one change
+ * is the whole of the build system: a pool multiplies against the rate pool
+ * and against the weapon, so a point in Edge is worth MORE when you already
+ * have Swiftness, and worth LESS the more Edge you already have. With flat
+ * damage none of that is true, there is exactly one optimal split, and it
+ * never changes no matter what you find on the ground.
+ *
+ * Deliberately calibrated to land near the old flat value at ordinary totals —
+ * at twenty points a zhanmadao went from 56 damage to 54 — because the SHAPE
+ * is what is being changed here, not the magnitudes. Changing both at once
+ * would leave nothing to compare a measurement against.
  */
-export const SWIFT_INTERVAL = 0.982
+export const EDGE_POWER = 4
+/**
+ * Swiftness: points of SPEED per attribute point.
+ *
+ * A second pool, kept separate from Power on purpose. Two pools that each
+ * scale the same result are what make the optimum move: stacking one has
+ * falling value relative to the other, so what you should buy next depends on
+ * what you already have — which is the difference between a build and a
+ * shopping list.
+ *
+ * Near the old curve at ordinary totals: twenty points used to give a rate of
+ * x1.44 and now gives x1.50.
+ */
+export const SWIFT_SPEED = 2.5
+
+/**
+ * The most Speed the pool will carry, in points.
+ *
+ * At +150% the sweep lands two and a half times as often, which is where the
+ * old fractional cap sat. Past it every class becomes the same blur, and the
+ * shape of the sweep IS the class here.
+ */
+export const SPEED_CAP = 150
 /**
  * Body: armour per point, alongside the health.
  *
@@ -188,15 +216,17 @@ export const SPIRIT_ART = 0.05
 export function attributeBonuses(spent: Attributes): {
   maxHp: number
   armour: number
-  slashDamage: number
-  slashIntervalScale: number
+  /** Points into the additive Power pool. */
+  power: number
+  /** Points into the additive Speed pool. */
+  speed: number
   artScale: number
 } {
   return {
     maxHp: spent.body * BODY_HP,
     armour: spent.body * BODY_ARMOUR,
-    slashDamage: spent.edge * EDGE_DAMAGE,
-    slashIntervalScale: Math.pow(SWIFT_INTERVAL, spent.swift),
+    power: spent.edge * EDGE_POWER,
+    speed: spent.swift * SWIFT_SPEED,
     artScale: 1 + spent.spirit * SPIRIT_ART,
   }
 }
@@ -252,23 +282,33 @@ export interface WornShape {
   vigour: number
   /** Fraction added to the sweep's reach — 0.08 is +8%. */
   reach: number
-  /** Fraction taken OFF the interval between sweeps. */
-  haste: number
+  /**
+   * Points into the Speed pool, from `haste` lines.
+   *
+   * POINTS, not a fraction off the interval. The old form subtracted — an
+   * interval of `base x (1 - haste)` — which is a different curve and a
+   * different ceiling: it approaches zero and has to be clamped away from
+   * dividing the game by nothing. A pool divides instead, so it can never
+   * reach zero however much is stacked, and it lands in the same currency as
+   * the Swiftness attribute rather than in a second one that behaves subtly
+   * differently at the top end.
+   */
+  speed: number
 }
 
 export function wornShape(worn: readonly Worn[]): WornShape {
-  const out: WornShape = { vigour: 0, reach: 0, haste: 0 }
+  const out: WornShape = { vigour: 0, reach: 0, speed: 0 }
   for (const entry of worn) {
     for (const affix of entry.affixes) {
       if (affix.kind === 'vigour') out.vigour += affix.amount
       else if (affix.kind === 'reach') out.reach += affix.amount / 100
-      else if (affix.kind === 'haste') out.haste += affix.amount / 100
+      else if (affix.kind === 'haste') out.speed += affix.amount
     }
   }
-  // Capped so a bag full of one line cannot delete the weapon's identity: at
-  // 90% off the interval every class becomes the same blur, and the shape of
-  // the sweep IS the class here.
-  out.haste = Math.min(0.6, out.haste)
+  // Reach is still capped so a bag full of one line cannot delete the weapon's
+  // identity. Speed no longer needs its own clamp here — the pool is capped
+  // once, where it is spent, so gear and attributes share one ceiling instead
+  // of each having a private one that the other could sail past.
   out.reach = Math.min(1.5, out.reach)
   return out
 }
@@ -288,6 +328,20 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   }
   const attr = attributeBonuses(combined)
 
+  // ---- the two pools --------------------------------------------------
+  // Everything that makes the sweep hit harder lands in POWER; everything that
+  // makes it land more often lands in SPEED. They are separate on purpose:
+  // `damage x rate` is a product, so each pool is worth more when the other is
+  // already large, and stacking one alone has falling value against the other.
+  // That single property is what makes a build a decision rather than a sum,
+  // and there is a test pinning it.
+  //
+  // `keen` is a technique card rather than a permanent stat, and it pours into
+  // the same pool: an in-run card and a worn item saying "+12% damage" should
+  // mean the same thing, or the player has to learn two currencies.
+  const power = attr.power + lv('keen') * 12
+  const speed = Math.min(SPEED_CAP, attr.speed + shape.speed)
+
   const orbit = lv('orbit')
   const bolt = lv('bolt')
   const nova = lv('nova')
@@ -300,10 +354,13 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   return {
     strike: weapon.strike,
     throwCount: weapon.throwCount,
-    slashDamage: weapon.damage + attr.slashDamage + lv('keen') * 4,
-    // Multiplicative, so each level is worth the same proportion rather than
-    // the first one being nearly everything.
-    slashInterval: weapon.interval * attr.slashIntervalScale * Math.pow(0.86, lv('swift')) * (1 - shape.haste),
+    slashDamage: weapon.damage * (1 + power / 100),
+    // Divided by the pool, then multiplied by what is NOT in it. The `swift`
+    // technique stays its own factor rather than joining Speed, and that is
+    // the second layer of the model working as intended: a separate multiplier
+    // is worth the same proportion however much pool you already have, which
+    // is exactly why it is rare and why relics will live here.
+    slashInterval: (weapon.interval / (1 + speed / 100)) * Math.pow(0.86, lv('swift')),
     slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach),
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.

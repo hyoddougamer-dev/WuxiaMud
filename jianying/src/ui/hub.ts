@@ -55,9 +55,9 @@ import { weaponById, type WeaponClass } from '../data/weapons'
 import { LEVELS_PER_REALM, REALMS, realmIndex, realmOf, realmStep } from '../meta/realms'
 import {
   BODY_HP,
-  EDGE_DAMAGE,
+  EDGE_POWER,
   SPIRIT_ART,
-  SWIFT_INTERVAL,
+  SWIFT_SPEED,
   attributeBonuses,
   wornAttributes,
 } from '../sim/loadout'
@@ -149,9 +149,9 @@ function currentValue(id: string, spent: Attributes, weapon: WeaponClass): strin
     case 'edge':
       // Quoted against the equipped weapon, because "12.3 damage" would be a
       // lie the moment the player picked up a zhanmadao.
-      return `${(weapon.damage + attr.slashDamage).toFixed(1)} damage`
+      return `${(weapon.damage * (1 + attr.power / 100)).toFixed(1)} damage`
     case 'swift':
-      return `${(weapon.interval * attr.slashIntervalScale).toFixed(2)}s per sweep`
+      return `${(weapon.interval / (1 + attr.speed / 100)).toFixed(2)}s per sweep`
     case 'spirit':
       return `${Math.round(attr.artScale * 100)}% art power`
     default:
@@ -165,9 +165,9 @@ function nextValue(id: string, spent: Attributes, weapon: WeaponClass): string {
     case 'body':
       return `${Math.round(PLAYER_MAX_HP + (spent.body + 1) * BODY_HP)}`
     case 'edge':
-      return `${(weapon.damage + (spent.edge + 1) * EDGE_DAMAGE).toFixed(1)}`
+      return `${(weapon.damage * (1 + ((spent.edge + 1) * EDGE_POWER) / 100)).toFixed(1)}`
     case 'swift':
-      return `${(weapon.interval * Math.pow(SWIFT_INTERVAL, spent.swift + 1)).toFixed(2)}s`
+      return `${(weapon.interval / (1 + ((spent.swift + 1) * SWIFT_SPEED) / 100)).toFixed(2)}s`
     case 'spirit':
       return `${Math.round((1 + (spent.spirit + 1) * SPIRIT_ART) * 100)}%`
     default:
