@@ -160,6 +160,7 @@ function copyStats(from: Stats, into: Stats): Stats {
   into.pushForce = from.pushForce
   into.damageScale = from.damageScale
   into.healPerKill = from.healPerKill
+  into.artScale = from.artScale
   return into
 }
 
@@ -278,7 +279,15 @@ export function applyArts(
     } else if (!active[art.condition as Condition]) {
       continue
     }
-    const power = Math.min(MAX_POWER, spending ? level * surge.spent : level)
+    // 神 multiplies the GRADE, not the result, so a Spirit build compounds with
+    // the 势 behind a discharge instead of adding beside it.
+    //
+    // CAPPED BEFORE 神, NOT AFTER. The ceiling is there to stop grade times
+    // momentum running away; applying it afterwards would mean a build at top
+    // grade and full 势 is already at the cap and every point of Spirit it owns
+    // does nothing — a whole attribute silently worth zero to the players most
+    // likely to have invested in it.
+    const power = Math.min(MAX_POWER, spending ? level * surge.spent : level) * out.artScale
     const s = artGrowth(power)
     switch (art.effect) {
       case 'damage':

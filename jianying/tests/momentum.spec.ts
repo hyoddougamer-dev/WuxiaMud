@@ -18,7 +18,9 @@ import {
   type ConditionSense,
 } from '../src/sim/conditions'
 import { applyArts, NO_SURGE, surgeOf } from '../src/sim/arts'
+import { WEAPONS } from '../src/data/weapons'
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
+import { emptyAttributes } from '../src/meta/character'
 
 const TICK = 1 / 60
 const base = (): Stats => deriveStats(new Map(), emptyKit())
@@ -165,6 +167,90 @@ describe('what a discharge is worth', () => {
       { spent: 0, desperate: true },
     )
     expect(topDesperate).toEqual(top)
+  })
+})
+
+describe('神 reaches the arts', () => {
+  // What Spirit did before this: it scaled `orbitDamage`, `boltDamage` and
+  // `novaDamage` — three TECHNIQUE CARDS. No art uses any of those three
+  // effects, so the attribute the interface called "art power" moved nothing
+  // at all for the arts, and a thrower who put most of its twenty points into
+  // 神 watched no number change anywhere.
+  const sheet = (spirit: number) => ({ ...emptyAttributes(), body: 6, edge: 6, swift: 4, spirit })
+
+  /**
+   * The stat each effect moves, and which way is stronger.
+   *
+   * Written out rather than compared with `toEqual`, and that is the whole
+   * reason this test has teeth. Two sheets with different Spirit produce
+   * different `Stats` before any art fires — `deriveStats` has always scaled
+   * orbit, bolt and nova by it — so "the results differ" passes whether or not
+   * 神 ever reaches an art. The comparison has to be the art's OWN
+   * contribution, measured against its own base.
+   */
+  const READS: Partial<Record<string, { of: (s: Stats) => number; bigger: boolean }>> = {
+    damage: { of: (o) => o.slashDamage, bigger: true },
+    rate: { of: (o) => o.slashInterval, bigger: false },
+    range: { of: (o) => o.slashRange, bigger: true },
+    arc: { of: (o) => o.slashHalfAngle, bigger: true },
+    speed: { of: (o) => o.moveSpeed, bigger: true },
+    echo: { of: (o) => o.echoDamage, bigger: true },
+    guard: { of: (o) => o.damageScale, bigger: false },
+    pierce: { of: (o) => o.slashRange, bigger: true },
+  }
+
+  it('makes every art it can move, move further', () => {
+    for (const art of ARTS) {
+      const read = READS[art.effect]
+      if (!read) continue // crit is a counter; covered by its own test
+      const spending = conditionKind(art.condition) === 'spend'
+      // ON ITS OWN WEAPON. Fired from the default kit, the 飞刀's 围 art
+      // widened a zhanmadao's already broad sweep past MAX_HALF_ANGLE and
+      // clamped, so the test read 3.00 against 3.00 and reported a saturation
+      // the game does not have — on the thrower the same art at the same grade
+      // sits at 0.45 rad, nowhere near the ceiling. An art measured on the
+      // wrong weapon measures nothing.
+      const weapon = WEAPONS.find((w) => w.id === art.weapon)!
+      const shot = (spirit: number): { before: number; after: number } => {
+        const spent = sheet(spirit)
+        const base = deriveStats(new Map(), { ...emptyKit(), spent, weapon })
+        const out = deriveStats(new Map(), { ...emptyKit(), spent, weapon })
+        const active = createSense().active
+        if (!spending) active[art.condition] = true
+        const fired = applyArts(base, [{ art, level: 3 }], active, out, 1, {
+          spent: spending ? MAX_MOMENTUM : 0,
+          desperate: false,
+        })
+        return { before: read.of(base), after: read.of(fired) }
+      }
+      const quiet = shot(0)
+      const rich = shot(18)
+      const label = `${art.name} (${art.effect})`
+      // None of these stats is touched by Spirit before an art fires — 神
+      // reaches orbit, bolt and nova in `deriveStats` and nothing else — so
+      // the two runs start from the same number and the fired values can be
+      // compared directly. Asserted rather than assumed, because the day that
+      // stops being true this test would quietly start measuring the base.
+      expect(rich.before, `${label} base`).toBe(quiet.before)
+      const none = quiet.after
+      const lots = rich.after
+      if (read.bigger) expect(lots, label).toBeGreaterThan(none)
+      else expect(lots, label).toBeLessThan(none)
+    }
+  })
+
+  it('carries 神 through the per-frame copy', () => {
+    // `applyArts` copies base into a caller-owned scratch every frame. The
+    // scratch here is derived from a sheet with NO Spirit, so the only way the
+    // multiplier can reach the art is through that copy — which is the point:
+    // a field missing from it reads as whatever the scratch happened to hold,
+    // and for a multiplier that is every art silently firing at the wrong
+    // strength, from the quietest possible omission.
+    const base = deriveStats(new Map(), { ...emptyKit(), spent: sheet(18) })
+    const out = deriveStats(new Map(), { ...emptyKit(), spent: sheet(0) })
+    expect(out.artScale).toBeLessThan(base.artScale)
+    applyArts(base, [], createSense().active, out)
+    expect(out.artScale).toBe(base.artScale)
   })
 })
 

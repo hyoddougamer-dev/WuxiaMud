@@ -99,6 +99,18 @@ export interface Stats {
   guard: number
   /** Health returned per enemy felled. 0 means none. */
   healPerKill: number
+  /**
+   * 神 — how hard every 功法 art fires, as a multiplier on its grade.
+   *
+   * It lived only on `attributeBonuses` before, where it scaled orbit, bolt
+   * and nova — three TECHNIQUE CARDS. No art uses any of those three effects,
+   * so the attribute the interface calls "art power" was doing nothing at all
+   * for the arts, and a thrower who put most of its twenty points into 神 saw
+   * no number move anywhere. It is on `Stats` now because `applyArts` is where
+   * an art's strength is decided, and that is the only place it can honestly
+   * apply.
+   */
+  artScale: number
 }
 
 // --- what one attribute point is worth ----------------------------------
@@ -206,7 +218,14 @@ export function afterArmour(raw: number, armour: number): number {
   return Math.max(1, (raw * scaled) / (armour + scaled))
 }
 
-/** Spirit: fractional bonus to art damage and radius per point. */
+/**
+ * 神 — fractional bonus to how hard every art fires, per point.
+ *
+ * Five percent a point reads small next to Edge's four points of Power, and it
+ * is not: it multiplies the GRADE an art fires at, so it compounds with the
+ * 势 behind a discharge rather than adding to a pool. Twenty points is a third
+ * again on every art in the scroll, at every grade, on both halves of the loop.
+ */
 export const SPIRIT_ART = 0.05
 
 /**
@@ -394,5 +413,6 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     pushForce: 0,
     damageScale: 1,
     healPerKill: 0,
+    artScale: art,
   }
 }

@@ -51,7 +51,7 @@ export const ATTRIBUTES: readonly Attribute[] = [
   { id: 'body', seal: '体', name: 'Body', effect: '+7 health, +4 armour' },
   { id: 'edge', seal: '锋', name: 'Edge', effect: '+4% sweep damage' },
   { id: 'swift', seal: '疾', name: 'Swiftness', effect: '+2.5% sweep speed' },
-  { id: 'spirit', seal: '神', name: 'Spirit', effect: '+5% art damage and reach' },
+  { id: 'spirit', seal: '神', name: 'Spirit', effect: '+5% to every art' },
 ] as const
 
 export type Attributes = Record<AttributeId, number>
