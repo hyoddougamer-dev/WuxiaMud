@@ -24,7 +24,7 @@
 import { MAX_DEPTH, depthReward } from '../data/regions'
 import { emptyInventory, type Inventory } from './inventory'
 import { DEFAULT_LOOK, type Look } from './look'
-import { LEVELS_PER_REALM, REALMS, isRealmAdvance } from './realms'
+import { LEVELS_PER_REALM, isRealmAdvance } from './realms'
 import { DEFAULT_SCHOOL } from './schools'
 
 /** The four things a point can be spent on. */
@@ -120,9 +120,11 @@ export function emptyAttributes(): Attributes {
 /**
  * A blank swordsman.
  *
- * `spent` starts empty; the origin's grant is applied by the creation screen
- * through `applyOrigin`, so this stays the one place that defines what "new"
- * means and the origins stay pure data.
+ * `spent` starts empty; the school's grant is applied by the creation screen
+ * through `applySchool` (meta/schools.ts), so this stays the one place that
+ * defines what "new" means and the schools stay pure data. The name in this
+ * note was `applyOrigin` for a long time, which is a function that has never
+ * existed in this codebase — origins became schools and the comment did not.
  */
 export function createCharacter(
   name = 'Wanderer',
@@ -370,9 +372,6 @@ export function spendPoint(character: Character, id: AttributeId): boolean {
   character.spent[id]++
   return true
 }
-
-/** Total levels the ladder describes before the last realm goes open-ended. */
-export const NAMED_LEVEL_CAP = REALMS.length * LEVELS_PER_REALM
 
 /** Folds an expedition's outcome into the lifetime totals. */
 export function recordRun(character: Character, result: RunResult): void {

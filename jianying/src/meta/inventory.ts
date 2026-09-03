@@ -74,11 +74,6 @@ export function mintUid(baseId: string): string {
   return `${baseId}#${minted.toString(36)}`
 }
 
-/** Resets the uid counter. Tests only — a fresh session starts at zero anyway. */
-export function resetUids(): void {
-  minted = 0
-}
-
 export function byUid(inv: Inventory, uid: string): OwnedItem | null {
   return inv.owned.find((entry) => entry.uid === uid) ?? null
 }

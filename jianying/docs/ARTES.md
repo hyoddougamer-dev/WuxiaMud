@@ -1,9 +1,29 @@
 # 功法 — as artes, e porque não há botão
 
-> ## ⚠ Duas metades deste documento foram substituídas
+> ## ⚠ Este documento é um REGISTO HISTÓRICO, não o estado do jogo
 >
-> **Continua verdadeiro:** as trinta artes, as cinco condições, o facto de não
-> haver botão, e o que cada efeito faz aos números. Isso está tudo a acontecer.
+> Foi escrito para um jogo com seis armas, trinta artes e cinco condições. O
+> jogo tem **duas armas, dez artes e quatro condições**, e a mecânica central
+> mudou duas vezes desde que isto foi escrito. Ler isto como se fosse a
+> descrição do sistema atual é ficar com três ideias falsas de uma só vez, e foi
+> exatamente isso que uma auditoria encontrou.
+>
+> **O que continua verdadeiro:** não há botão — a condição é uma coisa que o
+> polegar já faz. Só isso.
+>
+> **O que mudou desde então, e onde está descrito a sério:**
+>
+> - As seis armas passaram a duas, e as trinta artes a dez — `src/data/arts.ts`.
+> - As cinco condições passaram a quatro, e 危 deixou de ser condição para ser
+>   uma regra global (abaixo de um terço da vida, todas as artes sobem um grau)
+>   — `src/data/arts.ts`, `DESPERATE_FRACTION`.
+> - As condições passaram a ter dois lados: 疾 转 围 **carregam** 势, 静 **gasta**
+>   tudo de uma vez numa descarga — `src/sim/conditions.ts`.
+> - 神 passou a multiplicar o grau a que cada arte dispara, o que nunca tinha
+>   feito — `src/sim/loadout.ts`, `src/sim/arts.ts`.
+>
+> A razão de cada uma dessas decisões, e a medição que a forçou, está nos
+> comentários desses ficheiros. É lá que este projeto guarda o porquê.
 >
 > **Foi substituído:** *como* uma arte sobe de grau. Este documento descreve
 > duas escadas — o 感悟 dentro da corrida e os 秘笈 entre corridas — e as duas

@@ -447,25 +447,3 @@ export async function saveCharacter(roster: Roster): Promise<void> {
     // The localStorage copy above already landed.
   }
 }
-
-/**
- * Forgets everything. Used by the hub's reset, which asks first.
- *
- * Clears the v1 key as well: leaving it behind would make the next boot read
- * the pre-migration save and resurrect the swordsman the player just discarded.
- */
-export async function clearCharacter(): Promise<void> {
-  for (const key of [SAVE_KEY, SAVE_KEY_V1]) {
-    try {
-      globalThis.localStorage?.removeItem(key)
-    } catch {
-      /* ignore */
-    }
-    try {
-      const mod = await preferences()
-      if (mod) await mod.Preferences.remove({ key })
-    } catch {
-      /* ignore */
-    }
-  }
-}

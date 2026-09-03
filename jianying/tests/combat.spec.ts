@@ -10,7 +10,6 @@ import { deriveStats } from '../src/sim/loadout'
 import { BOSS_LUCK, rollRarity } from '../src/data/rarity'
 import { createPlayer, updatePlayer, type Player } from '../src/sim/player'
 import {
-  HURT_IMMUNITY,
   PLAYER_MAX_HP,
   createRun,
   updateCombat,
@@ -47,7 +46,12 @@ const BASE_STATS = deriveStats(new Map())
  * Runs the full simulation headlessly. This is the payoff of the deterministic
  * design: balance can be asserted as numbers in CI instead of judged by feel.
  */
-function play(sim: Sim, seconds: number, input: (t: number) => [number, number]): void {
+function play(
+  sim: Sim,
+  seconds: number,
+  input: (t: number) => [number, number],
+  events?: CombatEvents,
+): void {
   const ticks = Math.round(seconds / TICK_S)
   for (let i = 0; i < ticks; i++) {
     if (sim.run.over) break
@@ -67,6 +71,7 @@ function play(sim: Sim, seconds: number, input: (t: number) => [number, number])
         hazards: sim.hazards,
         stats: BASE_STATS,
         rng: sim.rng,
+        ...(events ? { events } : {}),
       },
       TICK_S,
     )
@@ -232,13 +237,22 @@ describe('combat', () => {
     // So this measures the cap and nothing else: a window long enough for
     // bodies to reach the player, short enough that surviving it is not the
     // claim being made.
+    // COUNTED, AND BOUNDED ON BOTH SIDES. The bound used to be derived from
+    // HURT_IMMUNITY itself — `Math.ceil(22 / HURT_IMMUNITY) + 1` — which makes
+    // the test move whenever the constant does and therefore unable to notice
+    // it moving. A mutation audit doubled the window and nothing went red.
+    //
+    // The numbers below are literals on purpose, and they are MEASURED at three
+    // settings rather than reasoned from the constant. Twenty-two seconds of
+    // standing in a crowd lands 9 hits at the shipped window of 0.85s, 5 at
+    // double that, and 29 with the window effectively removed. A band of 7..20
+    // is the widest one that still goes red in both directions.
     const sim = newSim()
-    play(sim, 22, STAND_STILL)
+    let hurts = 0
+    play(sim, 22, STAND_STILL, { hit: () => {}, hurt: () => { hurts++ }, mend: () => {} })
     expect(sim.run.hp).toBeLessThan(PLAYER_MAX_HP)
-    // However dense the crowd, damage is bounded by the immunity window. This
-    // is the assertion; the health left over is not.
-    const maxHits = Math.ceil(22 / HURT_IMMUNITY) + 1
-    expect(PLAYER_MAX_HP - sim.run.hp).toBeLessThanOrEqual(maxHits * 20)
+    expect(hurts).toBeGreaterThanOrEqual(7)
+    expect(hurts).toBeLessThanOrEqual(20)
   })
 
   it('kills while moving, not only while standing still', () => {
@@ -570,5 +584,38 @@ describe('an art that only changes a number still has to be visible', () => {
     }
     expect(mends.length).toBeGreaterThan(0)
     expect(mends.every((m) => m > 0)).toBe(true)
+    // AND IT NEVER OVERFILLS. 血 is a way to stay standing, not a way to bank
+    // health for later — the clamp is what makes that true, and nothing was
+    // watching it: a mutation audit turned the clamp into its opposite and the
+    // whole suite stayed green.
+    expect(sim.run.hp).toBeLessThanOrEqual(stats.maxHp)
+  })
+
+  it('never mends a corpse back above the ceiling, however much is owed', () => {
+    // The clamp read straight, at the edge the run version cannot reach: one
+    // point of health missing and a mend far larger than the gap.
+    const sim = newSim()
+    const stats = { ...OVERWHELMING_STATS, healPerKill: 9999 }
+    sim.run.hp = stats.maxHp - 1
+    for (let i = 0; i < Math.round(20 / TICK_S); i++) {
+      if (sim.run.over) break
+      updatePlayer(sim.player, 1, 0, TICK_S)
+      sim.swarm.update(sim.player.x, sim.player.y, sim.run.elapsed, TICK_S, sim.hazards)
+      sim.run.pendingLevelUps = 0
+      updateCombat(
+        {
+          run: sim.run,
+          player: sim.player,
+          swarm: sim.swarm,
+          motes: sim.motes,
+          bolts: sim.bolts,
+          hazards: sim.hazards,
+          stats,
+          rng: sim.rng,
+        },
+        TICK_S,
+      )
+      expect(sim.run.hp).toBeLessThanOrEqual(stats.maxHp)
+    }
   })
 })

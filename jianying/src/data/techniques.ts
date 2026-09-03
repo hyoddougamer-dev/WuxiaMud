@@ -120,8 +120,6 @@ export const TECHNIQUES: readonly Technique[] = [
   },
 ] as const
 
-export const TECHNIQUE_BY_ID = new Map(TECHNIQUES.map((t) => [t.id, t]))
-
 /** Levels taken, keyed by technique id. */
 export type Loadout = Map<string, number>
 

@@ -46,6 +46,7 @@ import {
   equip,
   equippedIn,
   equippedItems,
+  unequip,
   type OwnedItem,
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
@@ -268,9 +269,19 @@ export function createHub(
       <div class="item-line">${escapeHtml(line)}</div>
       ${power ? `<div class="item-power">${power.seal} ${escapeHtml(power.name)}</div>` : ''}
     `
+    // Tapping a worn piece TAKES IT OFF, and that was missing entirely: the
+    // handler returned early on `worn`, so once something was on there was no
+    // way in the game to remove it. `unequip` existed in meta/inventory.ts the
+    // whole time with nothing calling it — which is how a dead-code audit found
+    // a missing feature rather than a spare function.
+    //
+    // It matters beyond tidiness. A weapon decides which arts you have, so
+    // being unable to take one off means a swordsman who picks up a blade can
+    // never go back to the scroll they were building toward.
     card.addEventListener('click', () => {
-      if (!character || worn) return
-      if (!equip(character.inventory, entry.uid)) return
+      if (!character) return
+      if (worn) unequip(character.inventory, slot)
+      else if (!equip(character.inventory, entry.uid)) return
       onSave()
       render()
     })

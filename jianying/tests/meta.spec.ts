@@ -93,6 +93,7 @@ import {
   equippedIn,
   mintUid,
   sanitise,
+  unequip,
   type OwnedItem,
 } from '../src/meta/inventory'
 import { Motes } from '../src/sim/pickups'
@@ -665,6 +666,32 @@ describe('the pack', () => {
     expect(equip(inv, b.uid)).toBe(true)
     expect(equippedIn(inv, 'robe')!.uid).toBe(b.uid)
     expect(carried(inv).map((e) => e.uid)).toEqual([a.uid])
+  })
+
+  it('takes a piece off again, and hands it back to the pack', () => {
+    // `unequip` sat in meta/inventory.ts with NOTHING calling it — a dead-code
+    // audit found it, and what it had actually found was a missing feature:
+    // the gear tab returned early on a worn card, so once a piece was on there
+    // was no way in the game to take it off. It matters most on the weapon,
+    // because the weapon decides which arts you have.
+    const inv = emptyInventory()
+    const a = roll('r-plain')
+    acquire(inv, a)
+    equip(inv, a.uid)
+    expect(carried(inv)).toHaveLength(0)
+
+    unequip(inv, 'robe')
+    expect(equippedIn(inv, 'robe')).toBe(null)
+    expect(carried(inv).map((e) => e.uid)).toEqual([a.uid])
+    // And it can go back on, which is the half a one-way toggle would break.
+    expect(equip(inv, a.uid)).toBe(true)
+    expect(equippedIn(inv, 'robe')!.uid).toBe(a.uid)
+  })
+
+  it('shrugs at being asked to take off an empty slot', () => {
+    const inv = emptyInventory()
+    unequip(inv, 'weapon')
+    expect(equippedIn(inv, 'weapon')).toBe(null)
   })
 
   it('refuses to throw away something being worn', () => {

@@ -181,9 +181,6 @@ export const SLOT_NAMES: Record<Slot, string> = {
   robe: 'Robe',
 }
 
-/** What a new swordsman is handed. A school swaps the weapon; see meta/schools. */
-export const STARTING_ITEMS: readonly string[] = ['r-plain', 's-plain', 'h-topknot']
-
 /**
  * Chance that felling an enemy drops something, at a given depth.
  *

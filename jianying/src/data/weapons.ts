@@ -134,11 +134,6 @@ export function singleTargetDps(weapon: WeaponClass): number {
   return weapon.damage / weapon.interval
 }
 
-/** Damage per second with every blade of a volley landing. */
-export function volleyDps(weapon: WeaponClass): number {
-  return (weapon.damage * weapon.throwCount) / weapon.interval
-}
-
 /**
  * A crude measure of how much ground an attack threatens per second.
  *

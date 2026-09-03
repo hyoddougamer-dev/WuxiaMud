@@ -254,6 +254,91 @@ describe('神 reaches the arts', () => {
   })
 })
 
+describe('the edges a mutation audit found unguarded', () => {
+  // Each of these is a rule the code states and no test was reading. They were
+  // found by changing the code in one small way and watching the suite stay
+  // green — which is a statement about the suite, not about the code.
+
+  it('fires no spending art on an empty bank, at the apply as well as the sense', () => {
+    // `momentum` pins the rule where 势 is COUNTED. This pins it where it is
+    // SPENT: flipping `surge.spent <= 0` to `< 0` in applyArts let a spending
+    // art fire off nothing, and every test still passed.
+    // EVERY spending art, not the first one. Most of them multiply, and a
+    // multiplier at zero power is 1 — so testing one of those proves nothing:
+    // the maths is already a no-op and the guard could be deleted unnoticed.
+    // `pierce` is the one that is not neutral at zero (its arc exponent goes
+    // the wrong way), and it is the reason this loop exists.
+    for (const art of ARTS.filter((a) => conditionKind(a.condition) === 'spend')) {
+      const weapon = WEAPONS.find((w) => w.id === art.weapon)!
+      const base = deriveStats(new Map(), { ...emptyKit(), weapon })
+      const out = deriveStats(new Map(), { ...emptyKit(), weapon })
+      // Its own condition held, and nothing banked. It must do nothing at all.
+      const active = createSense().active
+      active[art.condition] = true
+      const fired = applyArts(base, [{ art, level: 5 }], active, out, 1, {
+        spent: 0,
+        desperate: true,
+      })
+      expect(fired, `${art.name} (${art.effect})`).toEqual(base)
+    }
+  })
+
+  it('keeps the crit cycle inside its own table, at every power the game allows', () => {
+    // The cycle is a lookup, and the index is grade times 势 times 神 — three
+    // things that multiply. `Math.min` is the only thing keeping it in the
+    // table; turning it into `Math.max` reads past the end, and `critEvery`
+    // becomes undefined rather than a number. Nothing noticed.
+    const critArt = ARTS.find((a) => a.effect === 'crit')!
+    const weapon = WEAPONS.find((w) => w.id === critArt.weapon)!
+    for (const spirit of [0, 20]) {
+      for (const level of [1, 3, MAX_ART_LEVEL]) {
+        const spent = { ...emptyAttributes(), spirit }
+        const base = deriveStats(new Map(), { ...emptyKit(), weapon, spent })
+        const out = deriveStats(new Map(), { ...emptyKit(), weapon, spent })
+        const active = createSense().active
+        active[critArt.condition] = true
+        const fired = applyArts(base, [{ art: critArt, level }], active, out, 1, {
+          spent: MAX_MOMENTUM,
+          desperate: true,
+        })
+        expect(Number.isFinite(fired.critEvery), `grade ${level}, 神 ${spirit}`).toBe(true)
+        // A cycle of 1 is "every sweep crits", which is damage under another
+        // name; 0 would be a divide waiting to happen.
+        expect(fired.critEvery, `grade ${level}, 神 ${spirit}`).toBeGreaterThan(1)
+      }
+    }
+  })
+
+  it('takes the shorter of two crit cycles rather than stacking them', () => {
+    // The existing version of this passed for the wrong reason: only ONE art
+    // in the game uses crit, so "two overlapping" was one art and the
+    // comparison was against itself. Built here from two real arts on
+    // different conditions, which is the case the rule exists for.
+    const critArt = ARTS.find((a) => a.effect === 'crit')!
+    // A CHARGING condition, so it fires from its posture alone — picking any
+    // art at all can land on the spending one, which needs 势 and then simply
+    // does not fire, and the test reads that as the rule failing.
+    const other = ARTS.find(
+      (a) =>
+        a.weapon === critArt.weapon &&
+        a.condition !== critArt.condition &&
+        conditionKind(a.condition) === 'charge',
+    )!
+    const twin = { ...other, effect: 'crit' as const }
+    const weapon = WEAPONS.find((w) => w.id === critArt.weapon)!
+    const base = deriveStats(new Map(), { ...emptyKit(), weapon })
+    const active = createSense().active
+    active[critArt.condition] = true
+    active[twin.condition] = true
+    const one = applyArts(base, [{ art: critArt, level: 1 }], active,
+      deriveStats(new Map(), { ...emptyKit(), weapon }))
+    const both = applyArts(base, [{ art: critArt, level: 1 }, { art: twin, level: 5 }], active,
+      deriveStats(new Map(), { ...emptyKit(), weapon }))
+    expect(both.critEvery).toBeLessThan(one.critEvery)
+    expect(both.critEvery).toBeGreaterThan(1)
+  })
+})
+
 describe('the loop is a loop', () => {
   it('has both halves, and every condition belongs to exactly one', () => {
     const kinds = CONDITIONS.map((c) => c.kind)

@@ -1,0 +1,61 @@
+name: Jianying · Equilíbrio
+
+# The measurement that nothing was required to look at.
+#
+# `tools/artsBalance.mts` answers "is a scroll of arts worth more than the
+# technique cards", and the answer was NO for a long stretch without anybody
+# noticing — the arts sat 26% under a pilot that takes the first card offered
+# every time. It exits non-zero past a floor now, but a check nobody runs is
+# the same as no check, which is the whole reason this file exists.
+#
+# It is NOT part of the APK workflow, and that is deliberate. A single
+# comparison is twelve runs of a simulation that slows to a few thousand ticks
+# a second once a late crowd is on the grid; folding three minutes into every
+# push would push contributors toward skipping the suite, which is how this
+# project lost its balance tests once already. So it runs only when the
+# simulation or its data actually change.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+    paths:
+      - 'jianying/src/sim/**'
+      - 'jianying/src/data/**'
+      - 'jianying/src/meta/**'
+      - 'jianying/tools/artsBalance.mts'
+      - 'jianying/tools/runLength.mts'
+      - '.github/workflows/jianying-balance.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: jianying
+
+jobs:
+  balance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jianying/package-lock.json
+
+      - run: npm ci
+
+      # Fails the run when a scroll of arts falls too far under the cards. The
+      # floor and the reasoning behind it are in the tool itself.
+      - name: As artes valem mais do que as cartas
+        run: npx tsx tools/artsBalance.mts
+
+      # Every rift has to be reachable by BOTH classes. This is the check that
+      # caught a gate one class could not open, and it belongs next to the one
+      # above because both are about the game being playable rather than about
+      # the code being correct.
+      - name: As fendas continuam ao alcance das duas classes
+        run: npx vitest run tests/regions.spec.ts

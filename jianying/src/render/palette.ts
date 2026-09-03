@@ -33,13 +33,6 @@ export const palette = {
   jade: 0x3f6b46,
 } as const
 
-export const paletteCss = {
-  ink: '#0d0d0d',
-  paper: '#e8dcc0',
-  cinnabar: '#c1272d',
-  gold: '#d4af37',
-} as const
-
 /** Mixes two packed 0xRRGGBB colours. `t` 0 = a, 1 = b. */
 export function mixColor(a: number, b: number, t: number): number {
   const ar = (a >> 16) & 0xff
