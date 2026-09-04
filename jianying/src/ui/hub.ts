@@ -44,6 +44,7 @@ import {
   BAG_CAPACITY,
   baseOf,
   carried,
+  carriedInSlot,
   equip,
   equippedIn,
   equippedItems,
@@ -216,6 +217,15 @@ export function createHub(
 
   /** Cells across the pack. Mirrors `grid-template-columns` on `.pack`. */
   const PACK_COLUMNS = 4
+
+  /**
+   * Which slot the pack is narrowed to, or null for everything.
+   *
+   * Lives beside `openCard` rather than inside the pane, because the pane is
+   * rebuilt on every render and a filter that forgot itself on each tap would
+   * be a filter you could never use.
+   */
+  let focus: Slot | null = null
   let character: Character | null = null
   let onSetOutHandler: ((depth: number) => void) | null = null
   let chosenDepth = 1
@@ -331,6 +341,9 @@ export function createHub(
     cell.className = 'cell' + (worn ? ' cell-worn' : '') + (openCard === entry.uid ? ' cell-on' : '')
     cell.setAttribute('style', rarityStyle(tier))
     cell.setAttribute('aria-label', `${item.name}, ${tier.name}`)
+    // Which slot it belongs to, so the harness can prove a filtered pack really
+    // holds one kind rather than merely holding fewer things.
+    cell.dataset.slot = slot
     cell.innerHTML =
       itemIconSvg(slot, item.styleId, palette.ink, 0.82, 'cell-icon') +
       `<i class="cell-seal">${tier.seal}</i>` +
@@ -353,26 +366,51 @@ export function createHub(
   const dollSlot = (c: Character, slot: Slot): HTMLElement => {
     const entry = equippedIn(c.inventory, slot)
     const base = entry ? baseOf(entry) : null
+    const spares = carriedInSlot(c.inventory, slot).length
     const box = document.createElement('button')
     box.type = 'button'
+    const focused = focus === slot
+
+    // ONE TAP DOES BOTH HALVES OF THE QUESTION.
+    //
+    // The pack holds twenty-four pieces for four slots, so "what else could go
+    // on my head" was a question the screen could not answer — you scanned
+    // icons. Tapping a slot now narrows the pack to it AND, when something is
+    // worn there, opens that piece's sheet, because the two things a player
+    // wants at that moment are "what are my options" and "what am I giving up".
+    // Tapping it again clears both.
+    const onTap = () => {
+      if (focused) {
+        focus = null
+        openCard = null
+      } else {
+        focus = slot
+        openCard = entry ? entry.uid : null
+      }
+      render()
+    }
+
     if (!entry || !base) {
-      box.className = 'doll-slot doll-empty'
+      // An empty slot was drawn but dead. It is the single most useful thing
+      // this screen says — "you have nothing here" — and tapping it did
+      // nothing, which is the worst possible answer to the question it raises.
+      box.className = 'doll-slot doll-empty' + (focused ? ' doll-on' : '')
       box.innerHTML =
         packIconSvg(PACK_SLOT_ICON[slot] ?? '', palette.ink, 0.35, 'doll-icon') +
-        `<b>${SLOT_NAMES[slot]}</b><span>${strings.slotEmpty}</span>`
-      box.disabled = true
+        `<b>${SLOT_NAMES[slot]}</b>` +
+        `<span>${spares > 0 ? `${spares} ${strings.inPack}` : strings.slotEmpty}</span>`
+      box.addEventListener('click', onTap)
       return box
     }
     const tier = rarityOf(entry.rarity)
-    box.className = 'doll-slot' + (openCard === entry.uid ? ' doll-on' : '')
+    box.className = 'doll-slot' + (focused ? ' doll-on' : '')
     box.setAttribute('style', rarityStyle(tier))
     box.innerHTML =
       itemIconSvg(slot, base.styleId, palette.ink, 0.85, 'doll-icon') +
-      `<b>${escapeHtml(base.name)}</b><span>${tier.seal} ${tier.name}</span>`
-    box.addEventListener('click', () => {
-      openCard = openCard === entry.uid ? null : entry.uid
-      render()
-    })
+      `<b>${escapeHtml(base.name)}</b><span>${tier.seal} ${tier.name}</span>` +
+      // How many others could go here. The number is the whole reason to tap.
+      (spares > 0 ? `<u class="doll-spares">${spares}</u>` : '')
+    box.addEventListener('click', onTap)
     return box
   }
 
@@ -654,14 +692,31 @@ export function createHub(
     // nowhere: a player only learned the limit by losing a find, in a line on
     // the reward screen after the expedition was over. That is the wrong
     // moment — the decision it should inform is made here, before setting out.
-    const loose = carried(c.inventory)
+    const all = carried(c.inventory)
+    const loose = focus === null ? all : all.filter((e) => baseOf(e)?.slot === focus)
     const bag = document.createElement('div')
-    bag.className = 'bag' + (loose.length >= BAG_CAPACITY ? ' bag-full' : '')
+    bag.className = 'bag' + (all.length >= BAG_CAPACITY ? ' bag-full' : '')
+    // The heading says what you are looking at. Filtered, it says which slot
+    // and offers the way back — a grid that silently shows a quarter of the
+    // pack with no label is a grid a player thinks has lost their things.
     bag.innerHTML =
-      `<span>${strings.pack}</span><b>${loose.length} / ${BAG_CAPACITY}</b>` +
+      `<span>${focus ? SLOT_NAMES[focus] : strings.pack}</span>` +
+      `<b>${loose.length} / ${focus ? all.length : BAG_CAPACITY}</b>` +
       `<div class="bag-bar"><i style="width:${Math.round(
-        (loose.length / BAG_CAPACITY) * 100,
+        (all.length / BAG_CAPACITY) * 100,
       )}%"></i></div>`
+    if (focus) {
+      const clear = document.createElement('button')
+      clear.type = 'button'
+      clear.className = 'bag-clear'
+      clear.textContent = strings.showAll
+      clear.addEventListener('click', () => {
+        focus = null
+        openCard = null
+        render()
+      })
+      bag.appendChild(clear)
+    }
     pane.appendChild(bag)
 
     const grid = document.createElement('div')
@@ -688,7 +743,12 @@ export function createHub(
       cells.splice(Math.min(cells.length, (Math.floor(openAt / PACK_COLUMNS) + 1) * PACK_COLUMNS), 0, sheet)
     }
     for (const cell of cells) grid.appendChild(cell)
-    for (let i = sorted.length; i < BAG_CAPACITY; i++) {
+    // Twenty-four cells when you are looking at everything, because the empty
+    // ones are the pack's remaining room and that is worth seeing. Narrowed to
+    // one slot they would mean nothing — four spare hats is not "twenty spare
+    // hat spaces" — so a filtered grid draws only what it holds.
+    const floor = focus === null ? BAG_CAPACITY : Math.ceil(cells.length / PACK_COLUMNS) * PACK_COLUMNS
+    for (let i = sorted.length; i < floor; i++) {
       const void_ = document.createElement('div')
       void_.className = 'cell cell-void'
       grid.appendChild(void_)
@@ -1004,6 +1064,7 @@ export function createHub(
         // sheet you opened three screens ago is a sheet answering a question
         // you have stopped asking.
         openCard = null
+        focus = null
         render()
       })
       tabs.appendChild(button)
@@ -1024,6 +1085,7 @@ export function createHub(
       // what the death bought before deciding where to go next.
       tab = 'self'
       openCard = null
+      focus = null
       render()
       panel.hidden = false
       shown = true

@@ -302,6 +302,33 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
       process.exitCode = 1
     }
 
+    // TAPPING A SLOT NARROWS THE PACK TO IT.
+    //
+    // Without this the pack is twenty-four mixed pieces and "what else could go
+    // on my head" is a question you answer by scanning icons. The check is that
+    // the grid actually shrinks and that every cell left belongs to one slot.
+    const wide = await packCount()
+    await page.locator('.doll-slot').first().click()
+    await page.waitForTimeout(250)
+    const narrow = await packCount()
+    const kinds = await page
+      .locator('.pack .cell:not(.cell-void)')
+      .evaluateAll((els) => new Set(els.map((el) => el.getAttribute('data-slot'))).size)
+      .catch(() => 0)
+    await page.screenshot({ path: join(OUT, 'gear-focus.png') })
+    if (narrow >= wide || kinds > 1) {
+      console.error(`focus:  tapped a slot, pack went ${wide} -> ${narrow} across ${kinds} slots`)
+      process.exitCode = 1
+    } else {
+      console.log(`focus:  ${wide} -> ${narrow}, one slot`)
+    }
+    await page.locator('.bag-clear').click()
+    await page.waitForTimeout(200)
+    if ((await packCount()) !== wide) {
+      console.error('focus:  "show all" did not put the pack back')
+      process.exitCode = 1
+    }
+
     if (gold < 4) {
       console.error(`rank:   NOT WORN — only ${gold} gold marks on a swordsman ranked 5/4/3/2`)
       process.exitCode = 1

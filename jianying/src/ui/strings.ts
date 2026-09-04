@@ -169,6 +169,14 @@ export const strings = {
   noChange: 'Changes nothing you can feel',
   /** Heading over the pack count. See BAG_CAPACITY in meta/inventory. */
   pack: 'Pack',
+  /**
+   * On an empty slot card that has candidates waiting. "Head · Empty" tells a
+   * player nothing they can act on; "Head · 3 in pack" tells them to tap.
+   */
+  inPack: 'in pack',
+  /** The way out of a slot filter. A grid showing a quarter of the pack with
+   *  no way back reads as a pack that lost things. */
+  showAll: 'Show all',
   /** Shown only after a death — never after banking. See settleFound. */
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',
