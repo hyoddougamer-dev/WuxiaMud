@@ -14,6 +14,8 @@ import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
 import {
   PACK_ICON,
   PACK_SLOT_ICON,
+  PACK_WEAPON_ICON,
+  itemIconSvg,
   PACK_CONDITION_ICON,
   PACK_CREDIT,
   packIconSvg,
@@ -22,10 +24,45 @@ import {
 } from '../src/render/packIcons'
 import { PACK_ICON_DATA } from '../src/render/packIconData'
 import { ARTS, CONDITIONS } from '../src/data/arts'
+import { WEAPONS } from '../src/data/weapons'
+import { ITEMS } from '../src/data/items'
 
 const icons = (iconSet as unknown as { icons: Record<string, unknown> }).icons
 
 describe('pack icons', () => {
+  /**
+   * THE ONE THAT SHIPPED BROKEN. PACK_WEAPON_ICON was written for a six-weapon
+   * roster and never updated when the roster became two, so 飞刀 — half of
+   * every weapon that drops — mapped to nothing and drew an empty card. The
+   * lookup fails silently, which is why a whole class of item went out with no
+   * icon and nobody saw it.
+   */
+  it('draws a shape for every weapon in the roster', () => {
+    for (const weapon of WEAPONS) {
+      const name = PACK_WEAPON_ICON[weapon.id]
+      expect(name, `no pack icon for the weapon style ${weapon.id}`).toBeTruthy()
+      expect(PACK_ICON_DATA[name!], `${weapon.id} names a missing icon`).toBeTruthy()
+    }
+  })
+
+  it('leaves no dead style in the weapon table', () => {
+    // The other half of the same bug: entries for weapons that no longer exist
+    // are what made the missing one hard to notice.
+    const live = new Set(WEAPONS.map((w) => w.id))
+    expect(Object.keys(PACK_WEAPON_ICON).filter((id) => !live.has(id))).toEqual([])
+  })
+
+  it('renders a non-empty icon for every item base the game can drop', () => {
+    // itemIconSvg is what the pack, the reward screen and the ground drop all
+    // call. An empty string from any of them is an item with no picture.
+    for (const item of ITEMS) {
+      expect(
+        itemIconSvg(item.slot, item.styleId, 0x0d0d0d),
+        `${item.id} draws no icon`,
+      ).not.toBe('')
+    }
+  })
+
   it('names an icon for every effect an art actually uses', () => {
     for (const art of ARTS) {
       expect(PACK_ICON[art.effect], `${art.id} uses "${art.effect}" with no pack icon`).toBeTruthy()

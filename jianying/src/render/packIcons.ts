@@ -133,17 +133,22 @@ export const PACK_SLOT_ICON: Record<string, string> = {
  * The equipment tab was a column of text cards with a single icon at the top of
  * each slot heading — reported from a device as "no icons". A slot icon alone
  * cannot help, because every card under one heading shares it; what a player
- * scanning for their sabre needs is the card itself to look like a sabre. The
- * six styles map onto six shapes already in the bundle, so this costs no new
- * icon data.
+ * scanning for their sabre needs is the card itself to look like a sabre.
+ *
+ * THIS TABLE OUTLIVED ITS ROSTER. It was written for six weapon styles, and the
+ * roster was later cut to two — 斩马刀 and 飞刀. Nobody updated it, so 飞刀 —
+ * half of every weapon that drops — mapped to nothing and drew an empty card.
+ * `packIconSvg` returns an empty string for a name it does not know, which
+ * fails silently and reads as an item that simply has no icon. It shipped that
+ * way. The four dead entries are gone and the daggers have a shape;
+ * tests/packIcons.spec.ts now walks the weapon table so the next roster change
+ * cannot repeat it.
  */
 export const PACK_WEAPON_ICON: Record<string, string> = {
-  jian: 'katana',
-  dao: 'crescent-blade',
   great: 'broadsword',
-  twin: 'triple-scratches',
-  spear: 'barbed-spear',
-  fan: 'concentric-crescents',
+  // Three blades leaving the hand. `striking-arrows` is the only shape in the
+  // bundle that reads as thrown rather than held, which is the whole class.
+  feidao: 'striking-arrows',
 }
 
 /**
