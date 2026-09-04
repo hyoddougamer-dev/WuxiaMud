@@ -100,7 +100,7 @@ Capacitor Preferences), que só o APK exercita.
 ### 3. As verificações, antes de qualquer commit
 
 ```bash
-npm run check        # typecheck + lint + 335 testes
+npm run check        # typecheck + lint + 394 testes
 ```
 
 Um só comando de propósito. Correr os três separadamente é o que faz com que se
@@ -121,23 +121,38 @@ escrito não tem telemóvel — no teu PC continua a valer, porque é o que apan
 
 Nota: `--full` corre uma expedição em tempo real, portanto é lento.
 
-### 5. As ferramentas de medição
+### 5. As ferramentas de medição, e o que estão a dizer agora
 
 É aqui que o PC compensa mais, porque estas correm em segundos e respondem a
 perguntas que jogar não responde:
 
 ```bash
-npx tsx tools/runLength.mts     # quanto tempo demora uma corrida e o que rende
-npx tsx tools/attune.mts        # a curva de poder do 器蕴, a 24 seeds
-npx tsx tools/artsBalance.mts   # quanto vale cada arte, medido
-npx tsx tools/regions.mts       # cada região joga mesmo de forma diferente?
-npx tsx tools/perf.mts          # onde vai o tempo de frame, num browser real
-npx tsx tools/classes.ts        # folha de contacto das duas classes
+npx tsx tools/runLength.mts           # quanto tempo demora uma corrida e o que rende
+npx tsx tools/attrValue.mts           # vinte pontos, quatro maneiras — há escolha?
+npx tsx tools/attrValue.mts --geared  # a mesma pergunta com tudo a degrau 4
+npx tsx tools/attune.mts              # a curva de poder do 器蕴, a 24 seeds
+npx tsx tools/artsBalance.mts         # quanto vale cada arte, contra o piso das cartas
+npx tsx tools/regions.mts             # cada região joga mesmo de forma diferente?
+npx tsx tools/perf.mts                # onde vai o tempo de frame, num browser real
+npx tsx tools/classes.ts              # folha de contacto das duas classes
 ```
 
 Nenhuma abre uma janela — usam a mesma simulação determinística dos testes, com
 seeds fixas, por isso duas execuções dão o mesmo número. É o que torna
 "parece-me mais forte" numa medição.
+
+Três coisas que estão a dizer neste momento, e que continuam por resolver:
+
+- **体 Body domina onde o jogo mata.** No Broken Cliff, vinte pontos em Body dão
+  130s e limpam sempre; em Edge dão 55s e nunca limpam; não gastar nada dá 48s.
+  A ofensiva não tem canal que se converta em sobrevivência a não ser o alcance.
+- **As artes das 飞刀 não se pagam.** +25% de sobrevivência para o 斩马刀 contra
+  o piso das cartas, −19% para as facas. O 斩马刀 tem uma arte de `guard`; as
+  cinco das facas são todas ofensiva ou mobilidade.
+- **O conteúdo acaba antes do equipamento.** Com tudo a degrau 4, todas as
+  folhas limpam todas as regiões — incluindo a que não gastou um ponto. Não há
+  estrada que um espadachim equipado possa perder, portanto não há nada para
+  medir no topo.
 
 ### 6. O APK, localmente
 
