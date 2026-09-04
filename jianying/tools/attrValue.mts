@@ -27,6 +27,7 @@ import { deriveStats } from '../src/sim/loadout'
 import { applyArts, attune, equippedIds, surgeOf } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes, type AttributeId, type Attributes } from '../src/meta/character'
+import type { OwnedItem } from '../src/meta/inventory'
 import { PILOTS } from './runLength.mts'
 
 const SEEDS = [4242, 90210, 31337, 8675309]
@@ -34,6 +35,17 @@ const SEEDS = [4242, 90210, 31337, 8675309]
 const CAP = 300
 /** Deep enough that the game kills you, so survival is what is being measured. */
 const REGION = 'cliff'
+/**
+ * Where the GEARED reading is taken.
+ *
+ * Not the Cliff. Measured there at rung 4, every sheet cleared the gate and
+ * every sheet took about 101 seconds — including the one that spent no points
+ * at all. The number the tool exists for came out at 1.04x, which is not the
+ * finding "attributes do not matter"; it is the finding that the ruler had run
+ * out of markings. A place a geared swordsman walks through cannot measure what
+ * their choices were worth, so the geared reading moves to the deepest road.
+ */
+const GEARED_REGION = 'pass'
 export const BUDGET = 20
 
 export interface Row {
@@ -42,20 +54,51 @@ export interface Row {
   cleared: number
 }
 
-export function play(spent: Attributes, weaponId: string, regionId = REGION): Row {
+/**
+ * A worn set at one rung, for measuring an attribute at the top of the game
+ * rather than only at the bottom.
+ *
+ * WHY BOTH READINGS ARE NEEDED. The bare measurement is an attribute's FLOOR,
+ * and for three of the four that is nearly the whole story — Body is health,
+ * Edge is power, Swiftness is rate, and gear adds more of the same. Spirit is
+ * different in kind: it multiplies the arts, and the arts are woken and graded
+ * by what you wear. Tuning Spirit from the bare number alone is tuning it in
+ * the one condition where it cannot work, and would over-pay it everywhere
+ * else. See ARTS_FROM_GEAR in sim/arts.ts.
+ */
+const GEARED_RUNG = 4
+const gearedSet = (): OwnedItem[] =>
+  (['head', 'shoulders', 'robe'] as const).map((slot, i) => ({
+    uid: `g${i}`,
+    baseId: { head: 'h-hat', shoulders: 's-pauldron', robe: 'r-lamellar' }[slot],
+    rarity: GEARED_RUNG as 4,
+    affixes: [{ kind: 'body' as const, amount: 14 }, { kind: 'edge' as const, amount: 14 }],
+    power: null,
+    depth: 4,
+  }))
+
+export function play(
+  spent: Attributes,
+  weaponId: string,
+  regionId = REGION,
+  geared = false,
+): Row {
   const region = REGIONS.find((r) => r.id === regionId)!
   const weapon = WEAPONS.find((w) => w.id === weaponId)!
+  const worn = geared ? gearedSet() : []
   const out: Row = { secs: 0, kills: 0, cleared: 0 }
   for (const seed of SEEDS) {
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), region)
-    const stats = deriveStats(new Map(), { spent, weapon, worn: [] })
-    const live = deriveStats(new Map(), { spent, weapon, worn: [] })
+    const stats = deriveStats(new Map(), { spent, weapon, worn })
+    const live = deriveStats(new Map(), { spent, weapon, worn })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
     run.riftTarget = region.riftBase
     const sense = createSense()
-    const carried = attune(equippedIds({}, weapon.id), 2, [2, 2, 2, 2])
+    // The rungs the arts are attuned from: the weapon's, then the worn pieces'.
+    const rung = geared ? GEARED_RUNG : 2
+    const carried = attune(equippedIds({}, weapon.id), rung, [rung, rung, rung, rung])
     const ctx = {
       run, player, swarm, motes: new Motes(), bolts: new Bolts(),
       hazards: new Hazards(), stats: live, rng: new Rng(seed ^ 77), depth: region.depth,
@@ -131,13 +174,21 @@ if (process.argv[1]?.endsWith('attrValue.mts')) {
     `Twenty points, four ways. ${REGIONS.find((r) => r.id === REGION)!.name}, ` +
       `${SEEDS.length} seeds, engaged pilot, no equipment.\n`,
   )
+  const geared = process.argv.includes('--geared')
+  const where = geared ? GEARED_REGION : REGION
+  if (geared) {
+    console.log(
+      `Geared: every slot at rung ${GEARED_RUNG}, on ` +
+        `${REGIONS.find((r) => r.id === GEARED_REGION)!.name}.\n`,
+    )
+  }
   for (const weapon of WEAPONS) {
     console.log(`${weapon.name}`)
     console.log('  sheet         secs   kills  cleared')
     const rows: Array<[string, Row]> = []
-    for (const id of ATTRS) rows.push([id + ' 20', play(pure(id, BUDGET), weapon.id)])
-    rows.push(['spread', play(spread(BUDGET), weapon.id)])
-    rows.push(['nothing', play(emptyAttributes(), weapon.id)])
+    for (const id of ATTRS) rows.push([id + ' 20', play(pure(id, BUDGET), weapon.id, where, geared)])
+    rows.push(['spread', play(spread(BUDGET), weapon.id, where, geared)])
+    rows.push(['nothing', play(emptyAttributes(), weapon.id, where, geared)])
     for (const [name, r] of rows) {
       console.log(
         '  ' + name.padEnd(13) + r.secs.toFixed(0).padStart(4) +

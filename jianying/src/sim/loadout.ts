@@ -238,12 +238,29 @@ export function afterArmour(raw: number, armour: number): number {
 /**
  * 神 — fractional bonus to how hard every art fires, per point.
  *
- * Five percent a point reads small next to Edge's four points of Power, and it
- * is not: it multiplies the GRADE an art fires at, so it compounds with the
- * 势 behind a discharge rather than adding to a pool. Twenty points is a third
- * again on every art in the scroll, at every grade, on both halves of the loop.
+ * It multiplies the GRADE an art fires at, so it compounds with the 势 behind a
+ * discharge rather than adding to a pool. Twenty points is triple every art in
+ * the scroll, at every grade, on both halves of the loop.
+ *
+ * IT WAS 0.05 AND THAT WAS THREE TIMES TOO SMALL, measured rather than felt. On
+ * the Broken Cliff — deep enough that a run ends by dying rather than by
+ * clearing — twenty into Spirit bought 63 seconds against 48 for spending
+ * nothing, while twenty into Body bought 130. A stat worth a third of another
+ * is not a choice. Swept at 0.25 it reached 103s and cleared three seeds in
+ * four, so 0.15 lands it at 101s and 50%: a real second answer behind Body, and
+ * still behind it.
+ *
+ * THE CEILING COULD NOT BE MEASURED, and that is worth saying rather than
+ * hiding. Spirit is the one attribute whose value GROWS with gear, since the
+ * gear wakes and grades the arts — so it should have been tuned against a
+ * geared reading too. `attrValue.mts --geared` exists now and it returns
+ * nothing usable: at rung 4 every sheet clears every region including the one
+ * that spent no points at all, best over worst 1.04x. That is not "attributes
+ * stop mattering"; it is the content running out before the gear does. Until a
+ * road exists that a geared swordsman can lose, this number is tuned from the
+ * floor alone.
  */
-export const SPIRIT_ART = 0.05
+export const SPIRIT_ART = 0.15
 
 /**
  * Baseline stats a character with no attributes and no techniques would have.

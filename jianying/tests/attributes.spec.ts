@@ -81,13 +81,21 @@ describe('twenty points', () => {
     // both weapons left this list. See slashRange in sim/loadout.ts for the two
     // channels that were tried before reach and measured worse.
     //
-    // 神 ON THE THROWER IS WHAT IS LEFT, and I did not predict it. Spirit does
-    // reach the arts now — at grade 3 with a full bank, eighteen points take a
-    // burst from 154 damage to 260, which is pinned in momentum.spec.ts — but
-    // on the Post Road with the daggers that does not move the run by 5%. The
-    // stat is wired; what it buys there is not yet enough to matter. Recorded
-    // rather than smoothed over, because the difference between "wired" and
-    // "worth buying" is exactly what I got wrong about it once already.
+    // 神 ON THE THROWER IS WHAT IS LEFT, and the reason is now known rather
+    // than merely recorded. Spirit multiplies the arts, so what it is worth is
+    // whatever the weapon's scroll converts art power INTO. The zhanmadao's
+    // scroll carries `guard` — 山, ringed in, what reaches you lands lighter —
+    // which is survival, and survival is what a deep road is priced in: twenty
+    // into Spirit takes it from 63 seconds to 101 on the Broken Cliff. The
+    // daggers' five arts are pierce, rate, echo, arc and speed. Not one of them
+    // is survival, so multiplying them buys a faster kill on a road that does
+    // not end for lack of kills.
+    //
+    // Left here rather than patched, because the patch is a design decision:
+    // giving the thrower a `guard` art contradicts the note in data/arts.ts
+    // that a thrower's answer to danger is to LEAVE. Moving `speed` onto
+    // `surrounded` was tried and came back bit-identical, which says the
+    // mobility art is not converting either.
     //
     // Left failing-shaped on purpose: when these are given a job, the list
     // shrinks and the test tightens by itself.
@@ -106,6 +114,32 @@ describe('twenty points', () => {
     // leaving it does too — which is how a recorded defect tightens by itself
     // rather than waiting for somebody to remember to loosen it.
     expect(inert.sort()).toEqual(['feidao:spirit'])
+  }, 120000)
+
+  /**
+   * THE SAME QUESTION, WHERE THE GAME KILLS YOU — and a different answer.
+   *
+   * Every other case here measures the Post Road, where a run ends by clearing
+   * the gate. Deep enough that it ends by DYING instead, run length is bought
+   * almost entirely by how much punishment you can absorb, and Body wins by a
+   * mile: on the Broken Cliff, twenty into Body clears every seed at 130s while
+   * Edge and Swiftness die around 55 and never clear.
+   *
+   * Pinned as a defect being TRACKED, not as a standard being met. 2.6 is a
+   * ceiling on a gap that is already too wide, so the test goes red if it gets
+   * worse and tightens by itself the day it gets better — the same shape as the
+   * inert list above. What is missing is not a number: offence has no channel
+   * that converts into survival on a deep road, which is the whole of the
+   * Phase 3 work. See slashRange in sim/loadout.ts for the one channel that
+   * does (reach), and the two that were tried and measured worse.
+   */
+  it('records how far ahead Body is where the game kills you', () => {
+    for (const weapon of WEAPONS) {
+      const rows = ATTRS.map((id) => play(pure(id, BUDGET), weapon.id, 'cliff').secs)
+      rows.push(play(spread(BUDGET), weapon.id, 'cliff').secs)
+      const gap = Math.max(...rows) / Math.max(1, Math.min(...rows))
+      expect(gap, `${weapon.name}: best sheet over worst, deep`).toBeLessThan(2.6)
+    }
   }, 120000)
 
   it('never makes one attribute the answer to everything', () => {
