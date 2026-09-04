@@ -93,35 +93,22 @@ interface Open {
 
 const OPEN: Open[] = [
   {
-    title: '体 Body domina onde o jogo mata',
+    title: 'Uma corrida equipada não acaba',
     body:
-      'Numa estrada funda, uma corrida acaba por morreres, e o comprimento da corrida é ' +
-      'quase todo comprado com quanto castigo aguentas. A ofensiva não tem canal que se ' +
-      'converta em sobrevivência — só o alcance, e é fraco.',
-    evidence:
-      'Broken Cliff, 4 sementes: Body 20 → 130s e limpa sempre. Edge 20 → 55s, nunca limpa. ' +
-      'Não gastar nada → 48s. Melhor sobre pior: 2,35×.',
-    tool: 'npx tsx tools/attrValue.mts',
-  },
-  {
-    title: '飞刀 as artes das facas não se pagam',
-    body:
-      'O 神 multiplica as artes, portanto vale o que a escola da arma converte. O 斩马刀 tem ' +
-      '山 guard — cercado, o que te acerta pesa menos — e isso é sobrevivência. As cinco artes ' +
-      'das facas são pierce, rate, echo, arc e speed: nenhuma é sobrevivência.',
-    evidence:
-      'Contra o piso das cartas: 斩马刀 +25% de sobrevivência, 飞刀 −19%. Duas ferramentas ' +
-      'diferentes chegam ao mesmo veredicto.',
-    tool: 'npx tsx tools/artsBalance.mts',
-  },
-  {
-    title: 'O conteúdo acaba antes do equipamento',
-    body:
-      'Com tudo a degrau 4, todas as folhas limpam todas as regiões — incluindo a que não ' +
-      'gastou um ponto. Não é que os atributos deixem de contar: é que não há estrada que um ' +
-      'espadachim equipado possa perder, portanto não há nada para medir no topo.',
-    evidence: 'Rung 4, The Pass: melhor sobre pior 1,04×. Todas limpam, todas em ~66s.',
+      'Com tudo a degrau 4, ninguém morre em 700 segundos — a corrida só para porque o ' +
+      'relógio da medição para. A escada de tiers sobe 24% de vida por portão e isso não ' +
+      'chega para acompanhar um espadachim que também está a subir de nível.',
+    evidence: 'The Pass, rung 4: 18 portões em 700s, 25 mil mortes, zero mortes tuas.',
     tool: 'npx tsx tools/attrValue.mts --geared',
+  },
+  {
+    title: 'As artes das facas continuam a pagar menos',
+    body:
+      'O parry deu-lhes um canal de sobrevivência — o leque abate o que vem no ar — mas a ' +
+      'escola continua sem uma arte que reduza dano. Equipadas chegam a 4 portões contra ' +
+      '18 do 斩马刀, o que é uma diferença de classe grande demais para ser sabor.',
+    evidence: '飞刀 4,8 portões · 斩马刀 18. Antes do parry era pior; ainda não está resolvido.',
+    tool: 'npx tsx tools/artsBalance.mts',
   },
   {
     title: 'Fugir sobrevive a lutar, no Passo',
@@ -129,8 +116,63 @@ const OPEN: Open[] = [
       'Numa das cinco estradas o piloto que só foge dura mais do que o que combate. É uma ' +
       'decisão de desenho por tomar — rampa de dificuldade, ou uma regra que puna a fuga — ' +
       'não um bug a corrigir às cegas.',
-    evidence: 'Uma região em cinco. Preso por um teste para não piorar em silêncio.',
+    evidence: 'Uma região em cinco. Presa por um teste para não piorar em silêncio.',
     tool: 'npx tsx tools/runLength.mts',
+  },
+]
+
+interface Win {
+  seal: string
+  title: string
+  before: string
+  after: string
+  body: string
+}
+
+/** What this pass changed, in the terms a player would notice. */
+const WINS: Win[] = [
+  {
+    seal: '挡',
+    title: 'A lâmina corta as flechas',
+    before: 'só o 体 Body valia a pena',
+    after: 'os quatro atributos pagam-se',
+    body:
+      'Contei o que estava a acontecer no instante da morte e ninguém te toca: 0,0 a 0,5 ' +
+      'inimigos em contacto. Morres alvejado, de fora do teu alcance. Todo o teu ataque ' +
+      'alimentava um golpe que não chegava ao único que te matava. Agora o golpe apara — ' +
+      'e assim alcance vira guarda-chuva, cadência vira menos buracos entre guarda-chuvas.',
+  },
+  {
+    seal: '音',
+    title: 'O jogo tem som',
+    before: 'silêncio absoluto',
+    after: '14 sons, sintetizados',
+    body:
+      'Sem ficheiros de áudio: dois primitivos — um sopro de ruído filtrado e um deslize de ' +
+      'tom — fazem tudo, porque o jogo cabe num ficheiro e um jogo desenhado a pincel quer ' +
+      'sons que se comportem como pinceladas. Os hápticos são racionados: quarenta ' +
+      'vibrações por segundo seria inutilizável.',
+  },
+  {
+    seal: '断',
+    title: 'Vê-se onde a lâmina deixa de chegar',
+    before: 'contar linhas cinzentas',
+    after: 'uma linha, com o nome da tua arma',
+    body:
+      'Tudo acima dela dispara, tudo abaixo não. Era a linha mais importante do ecrã das ' +
+      'artes e só se encontrava a contar. Agora uma lâmina melhor vê-se a empurrá-la para ' +
+      'baixo do pergaminho.',
+  },
+  {
+    seal: '尺',
+    title: 'A régua parava no primeiro portão',
+    before: '"os atributos deixam de contar"',
+    after: 'cedo compras vida, tarde compras débito',
+    body:
+      'Eu tinha-te dito que o conteúdo acabava antes do equipamento. Estava errado, e o erro ' +
+      'era da ferramenta: parava no primeiro portão. Medido para lá dele as folhas voltam a ' +
+      'separar-se e INVERTEM — descalço o Body ganha de longe, equipado é o último. Isso é ' +
+      'uma razão para mudar de build, e saiu dos números, não do desenho.',
   },
 ]
 
@@ -213,6 +255,29 @@ const page = async (): Promise<string> => `<title>剑影 — Onde Estamos</title
   }
   .sc figcaption { margin-top: 9px; font-size: 12.5px; color: var(--dim); }
   .sc figcaption b { display: block; color: var(--text); font-weight: 600; font-size: 13.5px; }
+
+  /* What changed, in a player's terms. The before/after is the whole point: a
+     change nobody can state as "it used to X, now it Y" is a change nobody
+     asked for. */
+  .wins { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .win {
+    padding: 15px 17px 16px; background: var(--wall-2);
+    border: 1px solid var(--edge); border-left: 3px solid var(--gold); border-radius: 2px;
+  }
+  .win-hd { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+  .win-seal {
+    width: 32px; height: 32px; flex: none; display: grid; place-items: center;
+    background: var(--gold); color: #12110f; border-radius: 2px; font-size: 17px;
+  }
+  .win h3 { margin: 0; font: 600 17px/1.2 var(--display); }
+  .win-arrow {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 10px;
+    font-size: 12.5px;
+  }
+  .win-arrow s { color: var(--dim); text-decoration-color: var(--cinnabar); }
+  .win-arrow i { font-style: normal; color: var(--dim); }
+  .win-arrow b { color: var(--green); font-weight: 600; }
+  .win p { margin: 0; font-size: 13.5px; color: var(--text); max-width: 62ch; }
 
   /* What is open. The point of the page, so it gets the loudest treatment on
      it — and every entry carries the measurement and the command to repeat it,
@@ -313,9 +378,23 @@ const page = async (): Promise<string> => `<title>剑影 — Onde Estamos</title
   </section>
 
   <section>
+    <h2>O que mudou nesta passagem</h2>
+    <p class="lede">${WINS.length} coisas, em linguagem de jogador.</p>
+    <div class="wins">
+      ${WINS.map(
+        (w) => `<div class="win">
+          <div class="win-hd"><div class="win-seal">${w.seal}</div><h3>${w.title}</h3></div>
+          <div class="win-arrow"><s>${w.before}</s><i>→</i><b>${w.after}</b></div>
+          <p>${w.body}</p>
+        </div>`,
+      ).join('')}
+    </div>
+  </section>
+
+  <section>
     <h2>O que está aberto</h2>
-    <p class="lede">Quatro coisas medidas e não resolvidas. Cada uma traz o número e o comando
-      que o reproduz.</p>
+    <p class="lede">${OPEN.length} coisas medidas e não resolvidas. Cada uma traz o número e o
+      comando que o reproduz.</p>
     <div class="opens">
       ${OPEN.map(
         (o) => `<div class="op">
