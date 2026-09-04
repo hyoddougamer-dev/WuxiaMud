@@ -397,7 +397,29 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // is worth the same proportion however much pool you already have, which
     // is exactly why it is rare and why relics will live here.
     slashInterval: (weapon.interval / (1 + speed / 100)) * Math.pow(0.86, lv('swift')),
-    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach),
+    // POWER REACHES FURTHER, and that is what finally gave 锋 a job.
+    //
+    // Measured before this, twenty points of Edge changed nothing at all on the
+    // Post Road: 154 seconds and 631 kills with none, 154 and 631 with twenty,
+    // dying at the same second to the same enemy. `slashDamage` really did go
+    // from 30 to 126 — the number was never the problem. Everything common dies
+    // to ONE blow, so across fifty sweeps 3.7x the damage bought a single extra
+    // kill. The player has damage to spare and dies to what arrives OUTSIDE the
+    // arc; damage per hit had nowhere to go.
+    //
+    // Two other channels were tried first and both are recorded because they
+    // cost a day between them. Tripling every enemy's health left the Edge run
+    // bit-identical, because the kill count is spawn-limited rather than
+    // damage-limited. Giving the blow knockback made it WORSE, 154 seconds down
+    // to 143, since shoving a body out of the arc is shoving it out of the
+    // sweep. Reach was the third, and it is the only one that moves every
+    // region and both classes: +20% kills on the Road and +105% on the Cliff.
+    //
+    // It reads the same Power pool the damage does, so a piece that rolls 锋
+    // lengthens your cut as well as weighting it — one currency, as with 疾 and
+    // movement. A quarter of the pool: twenty points is about two levels of the
+    // 远 card, which is a real gain and not a second weapon.
+    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach) * (1 + power / 250),
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
     slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),

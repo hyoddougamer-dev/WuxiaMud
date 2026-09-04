@@ -49,7 +49,7 @@ export interface Attribute {
  */
 export const ATTRIBUTES: readonly Attribute[] = [
   { id: 'body', seal: '体', name: 'Body', effect: '+7 health, +4 armour' },
-  { id: 'edge', seal: '锋', name: 'Edge', effect: '+4% sweep damage' },
+  { id: 'edge', seal: '锋', name: 'Edge', effect: '+4% sweep damage, +1.6% reach' },
   { id: 'swift', seal: '疾', name: 'Swiftness', effect: '+2.5% sweep speed, +0.5% movement' },
   { id: 'spirit', seal: '神', name: 'Spirit', effect: '+5% to every art' },
 ] as const

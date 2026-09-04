@@ -73,16 +73,15 @@ describe('what each attribute is wired to', () => {
 
 describe('twenty points', () => {
   it('buys something in three of the four, and records the one it does not', () => {
-    // 锋 IS THE ONE, and it is recorded rather than asserted away. Measured on
-    // every region and at every level from five points to eighty, Edge changes
-    // nothing: 154 seconds on the Post Road with none and 154 with twenty, 44
-    // on the Cliff with none and 44 with eighty, dying at the same second to
-    // the same enemy. The cause is not the number — `slashDamage` really does
-    // go from 30 to 126 — it is that a common enemy dies to ONE blow at 30, so
-    // in fifty sweeps 3.7x the damage bought a single extra kill. Damage per
-    // hit is a stat with no job while nothing needs a second hit.
+    // 锋 WAS THE HEADLINE HERE AND IS NOT ANY MORE. It changed nothing at all —
+    // 154 seconds and 631 kills on the Post Road with no points, the same 154
+    // and 631 with twenty — because everything common dies to one blow and the
+    // player has damage to spare. Power now lengthens the sweep as well as
+    // weighting it, which puts the surplus somewhere the player can use, and
+    // both weapons left this list. See slashRange in sim/loadout.ts for the two
+    // channels that were tried before reach and measured worse.
     //
-    // 神 ON THE THROWER IS THE THIRD, and I did not predict it. Spirit does
+    // 神 ON THE THROWER IS WHAT IS LEFT, and I did not predict it. Spirit does
     // reach the arts now — at grade 3 with a full bank, eighteen points take a
     // burst from 154 damage to 260, which is pinned in momentum.spec.ts — but
     // on the Post Road with the daggers that does not move the run by 5%. The
@@ -103,9 +102,10 @@ describe('twenty points', () => {
         if (!moved) inert.push(`${weapon.id}:${id}`)
       }
     }
-    // Exactly these three. A fourth joining turns this red, which is the whole
-    // point of recording a defect instead of ignoring it.
-    expect(inert.sort()).toEqual(['feidao:edge', 'feidao:spirit', 'great:edge'])
+    // Exactly this one. Anything joining it turns the test red, and anything
+    // leaving it does too — which is how a recorded defect tightens by itself
+    // rather than waiting for somebody to remember to loosen it.
+    expect(inert.sort()).toEqual(['feidao:spirit'])
   }, 120000)
 
   it('never makes one attribute the answer to everything', () => {
