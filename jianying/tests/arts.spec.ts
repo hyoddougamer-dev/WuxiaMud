@@ -448,3 +448,36 @@ describe('内力 — what a level-up grants now', () => {
     expect(b.slashDamage).toBe(before)
   })
 })
+
+describe('the ranking is the build', () => {
+  /**
+   * THE EARLIEST AND SHARPEST DECISION IN THE GAME, and nothing was holding it.
+   *
+   * `awakeCount` is one plus the weapon's rung, taken off the TOP of the
+   * player's order — so a swordsman carrying a 凡 blade wakes exactly ONE art
+   * and the 法 tab is where they choose which of the five it is. The suite
+   * checked how MANY woke and never once checked that the ranking decided
+   * WHICH, which is the half a player can feel.
+   */
+  it('wakes the art the player ranked first, on a common blade', () => {
+    expect(awakeCount(0, 5)).toBe(1)
+    for (const id of ['great-onecut', 'great-mountain', 'great-sink']) {
+      const carried = attune(equippedIds({ great: [id] }, 'great'), 0, [0, 0, 0, 0])
+      expect(carried.map((c) => c.art.id)).toEqual([id])
+    }
+  })
+
+  it('opens the scroll downward as the blade improves, in the ranked order', () => {
+    const order = ['great-onecut', 'great-mountain', 'great-sink']
+    for (const rung of [0, 1, 2]) {
+      const carried = attune(equippedIds({ great: order }, 'great'), rung, [0, 0, 0, 0])
+      // The blade decides how far down; the player decides what is up there.
+      expect(carried.map((c) => c.art.id)).toEqual(order.slice(0, rung + 1))
+    }
+  })
+
+  it('never wakes more than the scroll holds, however good the blade', () => {
+    const scroll = equippedIds({}, 'great')
+    expect(attune(scroll, 5, [5, 5, 5, 5])).toHaveLength(scroll.length)
+  })
+})

@@ -771,11 +771,16 @@ export function createHub(
    * picking up a spear is picking up a different way to fight, and a list that
    * mixed all thirty would bury that.
    *
-   * ORDER IS SHOWN BUT DOES NOT BITE YET. Each 感悟 is meant to advance the next
-   * art in this list, and `advanceArt` is written and tested for it — but the
-   * run still grows by technique cards, so the numbering here is a promise
-   * rather than a rule. The pane says so in as many words rather than letting a
-   * player carefully arrange four rows that nothing reads.
+   * ORDER BITES, AND HARDER THAN ANYTHING ELSE ON THIS SCREEN. This comment
+   * said the opposite for a long time — "a promise rather than a rule" — and it
+   * was left over from the 秘笈 ladder, which is gone. What decides an art's
+   * grade is now the rungs of the gear (see `artGrade`), and what decides WHICH
+   * arts wake is `awakeCount`: one plus the weapon's rung, taken off the TOP of
+   * this list. So a swordsman carrying a 凡 blade is not being handed a random
+   * art, they are choosing their single one out of five — measured: rank 一斩
+   * and 一斩 is what wakes; rank 山 and 山 wakes instead. It is the earliest and
+   * sharpest build decision the game has, and a stale comment had it filed as
+   * decoration.
    */
   const paneArts = (c: Character, weapon: WeaponClass): HTMLElement => {
     const pane = document.createElement('div')
