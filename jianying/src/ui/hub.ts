@@ -41,7 +41,9 @@ import {
 import { MAX_DEPTH, REGIONS, depthReward, regionAt } from '../data/regions'
 import { schoolById } from '../meta/schools'
 import {
+  BAG_CAPACITY,
   baseOf,
+  carried,
   carriedInSlot,
   equip,
   equippedIn,
@@ -50,6 +52,8 @@ import {
   type OwnedItem,
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
+import { type Loadout } from '../data/techniques'
+import { kitOf } from '../meta/kit'
 import { POWER_BY_ID, affixLine } from '../data/affixes'
 import { rarityOf, rarityStyle } from '../data/rarity'
 import { weaponById, type WeaponClass } from '../data/weapons'
@@ -60,7 +64,10 @@ import {
   SPIRIT_ART,
   SWIFT_SPEED,
   attributeBonuses,
+  deriveStats,
   wornAttributes,
+  type Kit,
+  type Stats,
 } from '../sim/loadout'
 import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
@@ -195,6 +202,8 @@ export function createHub(
   root.appendChild(panel)
 
   let shown = false
+  /** Which card is open for reading. One at a time; a tap elsewhere closes it. */
+  let openCard: string | null = null
   let character: Character | null = null
   let onSetOutHandler: ((depth: number) => void) | null = null
   let chosenDepth = 1
@@ -232,13 +241,67 @@ export function createHub(
     )
   }
 
+  // --- the comparison sheet ----------------------------------------------
   /**
-   * One tappable equipment chip.
+   * The kit a swordsman would have with `entry` in `slot` — or with the slot
+   * empty when it is null.
    *
-   * A weapon shows how it plays rather than a stat, because that is what
-   * changes when you equip it — "+2 damage" on a spear would describe the least
-   * interesting thing about picking up a spear.
+   * The same shape `main.ts` builds from the live character, so what the sheet
+   * predicts and what the expedition runs on come from one function rather
+   * than two that can drift.
    */
+  /** No in-run technique cards: the sheet compares the swordsman who sets out. */
+  const EMPTY: Loadout = new Map()
+
+  const kitWith = (c: Character, slot: Slot, entry: OwnedItem | null): Kit =>
+    kitOf(c, { slot, entry })
+
+  /**
+   * What a player is deciding between, in the numbers they actually feel.
+   *
+   * NOT the rolled lines. A card already says "+8 Spirit", and a card saying
+   * "+8 Spirit" answers a question nobody asked: the question is whether to
+   * put this on, and that is answered by what happens to the cut, the reach
+   * and the health. Spirit reaching art power, Edge reaching reach, Swiftness
+   * reaching movement — none of that is legible from an affix name, and all of
+   * it is legible here.
+   *
+   * Sweeps per second rather than the interval, because "bigger is better" for
+   * every row on the sheet is worth more than matching the field name.
+   */
+  const SHEET: ReadonlyArray<{ name: string; of: (s: Stats) => number; unit?: string }> = [
+    { name: 'Sweep damage', of: (s) => s.slashDamage },
+    { name: 'Sweeps per second', of: (s) => 1 / s.slashInterval },
+    { name: 'Reach', of: (s) => s.slashRange },
+    { name: 'Health', of: (s) => s.maxHp },
+    { name: 'Armour', of: (s) => s.armour },
+    { name: 'Movement', of: (s) => s.moveSpeed },
+    { name: 'Art power', of: (s) => s.artScale * 100, unit: '%' },
+  ]
+
+  /** Rounds the way the row is drawn, so a change too small to SEE is not one. */
+  const asDrawn = (n: number): number => Math.round(n * 10) / 10
+
+  const compareRows = (before: Stats, after: Stats): HTMLElement | null => {
+    const moved = SHEET.filter((r) => asDrawn(r.of(before)) !== asDrawn(r.of(after)))
+    if (moved.length === 0) return null
+    const box = document.createElement('div')
+    box.className = 'cmp'
+    box.innerHTML = moved
+      .map((r) => {
+        const a = asDrawn(r.of(before))
+        const b = asDrawn(r.of(after))
+        const up = b > a
+        return (
+          `<div class="cmp-row"><span>${r.name}</span>` +
+          `<b class="${up ? 'up' : 'down'}">${a}${r.unit ?? ''} → ${b}${r.unit ?? ''}` +
+          `<i>${up ? '+' : ''}${asDrawn(b - a)}${r.unit ?? ''}</i></b></div>`
+        )
+      })
+      .join('')
+    return box
+  }
+
   const itemCard = (
     item: Item,
     entry: OwnedItem,
@@ -269,23 +332,69 @@ export function createHub(
       <div class="item-line">${escapeHtml(line)}</div>
       ${power ? `<div class="item-power">${power.seal} ${escapeHtml(power.name)}</div>` : ''}
     `
-    // Tapping a worn piece TAKES IT OFF, and that was missing entirely: the
-    // handler returned early on `worn`, so once something was on there was no
-    // way in the game to remove it. `unequip` existed in meta/inventory.ts the
-    // whole time with nothing calling it — which is how a dead-code audit found
-    // a missing feature rather than a spare function.
+    // ONE TAP SHOWS WHAT CHANGES, THE SECOND DOES IT.
     //
-    // It matters beyond tidiness. A weapon decides which arts you have, so
-    // being unable to take one off means a swordsman who picks up a blade can
-    // never go back to the scroll they were building toward.
+    // Equipping straight off the first tap was faster and told the player
+    // nothing: the card says "+8 Spirit", and "+8 Spirit" answers a question
+    // nobody asked. The question is whether to put it on, and that is answered
+    // by what happens to the cut, the reach and the health — none of which is
+    // legible from an affix name now that Spirit reaches art power, Edge
+    // reaches reach and Swiftness reaches movement.
+    //
+    // Opening in place rather than in a sheet over the screen, because the
+    // decision is a comparison with the card ABOVE it, and a panel that covers
+    // that card is a panel that hides the other half of the question.
     card.addEventListener('click', () => {
       if (!character) return
+      if (openCard !== entry.uid) {
+        openCard = entry.uid
+        render()
+        return
+      }
+      // Second tap on the open card: do the thing.
+      //
+      // Taking a worn piece off was missing entirely until recently — the
+      // handler returned early on `worn`, so once something was on there was no
+      // way in the game to remove it. It matters beyond tidiness: a weapon
+      // decides which arts you have, so a swordsman who picked up a blade could
+      // never go back to the scroll they were building toward.
       if (worn) unequip(character.inventory, slot)
       else if (!equip(character.inventory, entry.uid)) return
+      openCard = null
       onSave()
       render()
     })
+    if (openCard === entry.uid) card.classList.add('item-open')
     return card
+  }
+
+  /**
+   * The sheet for the open card, drawn BELOW the row rather than inside it.
+   *
+   * It lived inside the card first, and the card lives in a row that scrolls
+   * sideways — so a sheet wide enough to hold "Reach 118 → 134  +16" was a
+   * sheet whose right half sat off the screen. Every number was rendered and
+   * none of them could be read.
+   *
+   * Below the row is also the better shape for the decision. The cards stay
+   * side by side, which is the comparison — this is the piece, that is what
+   * you are wearing — and the sheet answers underneath both of them instead of
+   * covering one.
+   */
+  const sheetFor = (c: Character, slot: Slot, entry: OwnedItem, worn: boolean): HTMLElement => {
+    const before = deriveStats(EMPTY, kitWith(c, slot, equippedIn(c.inventory, slot)))
+    const after = deriveStats(EMPTY, kitWith(c, slot, worn ? null : entry))
+    const rows = compareRows(before, after)
+    const sheet = document.createElement('div')
+    sheet.className = 'item-sheet'
+    if (rows) sheet.appendChild(rows)
+    const act = document.createElement('div')
+    act.className = 'item-act'
+    // Says what the next tap will DO, not what the thing is. A worn piece
+    // coming off is a loss, and the copy should not pretend otherwise.
+    act.textContent = worn ? strings.takeOff : rows ? strings.wearThis : strings.noChange
+    sheet.appendChild(act)
+    return sheet
   }
 
   // --- the panes ---------------------------------------------------------
@@ -459,6 +568,21 @@ export function createHub(
     stage.innerHTML = portrait(c, 84)
     pane.appendChild(stage)
 
+    // HOW FULL THE PACK IS, BEFORE THE SLOTS AND NOT AFTER THEM.
+    //
+    // The pack has held 24 pieces since it existed and the number appeared
+    // nowhere: a player only learned the limit by losing a find to it, in a
+    // line on the reward screen after the expedition was over. That is the
+    // wrong moment — the decision it should inform (drop something, or go out
+    // with room) is made here.
+    const used = carried(c.inventory).length
+    const bag = document.createElement('div')
+    bag.className = 'bag' + (used >= BAG_CAPACITY ? ' bag-full' : '')
+    bag.innerHTML =
+      `<span>${strings.pack}</span><b>${used} / ${BAG_CAPACITY}</b>` +
+      `<div class="bag-bar"><i style="width:${Math.round((used / BAG_CAPACITY) * 100)}%"></i></div>`
+    pane.appendChild(bag)
+
     for (const slot of SLOTS) {
       // Worn first, then the pack's pieces for this slot, best rung first —
       // so the comparison a player actually makes is the two cards side by
@@ -492,12 +616,15 @@ export function createHub(
         // Scrolls sideways rather than stacking. A slot with six finds used to
         // add six full-width cards to a page that was already too long.
         row.className = 'slot-items'
+        let open: OwnedItem | null = null
         for (const entry of owned) {
           const base = baseOf(entry)
           if (!base) continue
+          if (entry.uid === openCard) open = entry
           row.appendChild(itemCard(base, entry, entry.uid === wornUid, slot))
         }
         group.appendChild(row)
+        if (open) group.appendChild(sheetFor(c, slot, open, open.uid === wornUid))
       }
       pane.appendChild(group)
     }
@@ -807,6 +934,10 @@ export function createHub(
       button.addEventListener('click', () => {
         if (tab === item.id) return
         tab = item.id
+        // Leaving the tab closes whatever was open on it. Coming back to a
+        // sheet you opened three screens ago is a sheet answering a question
+        // you have stopped asking.
+        openCard = null
         render()
       })
       tabs.appendChild(button)
@@ -826,6 +957,7 @@ export function createHub(
       // Opens on the swordsman. A player returning from a death wants to see
       // what the death bought before deciding where to go next.
       tab = 'self'
+      openCard = null
       render()
       panel.hidden = false
       shown = true

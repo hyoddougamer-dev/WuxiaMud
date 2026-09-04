@@ -1133,6 +1133,103 @@
         color: rgba(232, 220, 192, 0.62);
       }
 
+      /* HOW FULL THE PACK IS. A bar rather than only the fraction, because
+         "19 / 24" is read and "nearly full" is seen. */
+      .bag {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .bag b {
+        font-weight: 600;
+        color: var(--ink);
+        letter-spacing: 0.02em;
+      }
+      .bag-bar {
+        flex: 1;
+        height: 3px;
+        background: rgba(13, 13, 13, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .bag-bar i {
+        display: block;
+        height: 100%;
+        background: var(--ink);
+        opacity: 0.45;
+        transition: width 180ms ease-out;
+      }
+      .bag-full b,
+      .bag-full span {
+        color: var(--cinnabar);
+      }
+      .bag-full .bag-bar i {
+        background: var(--cinnabar);
+        opacity: 0.8;
+      }
+
+      /* THE OPEN CARD. Marked, not resized — the sheet is a sibling below the
+         row, so the card only has to say which one is being asked about. */
+      .item-open {
+        box-shadow: 0 0 0 1px rgba(var(--rung-rgb, 13, 13, 13), 0.55),
+          0 3px 14px -3px rgba(var(--rung-rgb, 13, 13, 13), 0.5);
+      }
+      /* Below the row, at the full width of the pane, so nothing is clipped by
+         the horizontal scroll the cards live in. */
+      .item-sheet {
+        margin-top: 7px;
+        padding: 8px 10px 9px;
+        background: rgba(255, 252, 244, 0.55);
+        border: 1px solid rgba(13, 13, 13, 0.1);
+        border-radius: 2px;
+      }
+      .cmp-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11px;
+        line-height: 1.7;
+        color: rgba(13, 13, 13, 0.55);
+      }
+      .cmp-row b {
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        color: rgba(13, 13, 13, 0.8);
+      }
+      /* The delta is the only coloured thing on the sheet, so the eye lands on
+         the answer (better or worse) before it reads a single number. */
+      .cmp-row i {
+        display: inline-block;
+        min-width: 46px;
+        margin-left: 8px;
+        text-align: right;
+        font-style: normal;
+        font-weight: 600;
+      }
+      .cmp-row .up i {
+        color: #2f7a4a;
+      }
+      .cmp-row .down i {
+        color: var(--cinnabar);
+      }
+      /* Says what the NEXT tap does. Without it the open card is a dead end:
+         the player has read the numbers and has no way to see how to act on
+         them. */
+      .item-act {
+        margin-top: 8px;
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+
       /* Loot on the reward screen. */
       .rw-found {
         margin-top: 14px;

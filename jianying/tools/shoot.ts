@@ -158,14 +158,29 @@ const RANKED_SAVE = JSON.stringify({
       runs: 9,
       depth: 3,
       taught: true,
+      // Instances, not base ids. This was a v1 blob for a long time after v1
+      // stopped being the shape the game writes — so every run of this harness
+      // was really a test of the MIGRATION, and the ranked swordsman it was
+      // supposed to photograph came out of it wearing whatever the migration
+      // could salvage. It also had a bare pack, which meant the one screen it
+      // exists to check had nothing to compare.
       inventory: {
         owned: [
-          { id: 'r-lamellar', rank: 5, rites: [] },
-          { id: 's-pauldron', rank: 4, rites: [] },
-          { id: 'h-hat', rank: 3, rites: [] },
-          { id: 'w-dao', rank: 2, rites: [] },
+          { uid: 'a', baseId: 'r-lamellar', rarity: 5, depth: 5, power: null,
+            affixes: [{ kind: 'body', amount: 34 }, { kind: 'guard', amount: 9 }] },
+          { uid: 'b', baseId: 's-pauldron', rarity: 4, depth: 4, power: null,
+            affixes: [{ kind: 'guard', amount: 7 }, { kind: 'edge', amount: 11 }] },
+          { uid: 'c', baseId: 'h-hat', rarity: 3, depth: 4, power: null,
+            affixes: [{ kind: 'spirit', amount: 12 }] },
+          { uid: 'd', baseId: 'w-great', rarity: 2, depth: 3, power: null,
+            affixes: [{ kind: 'edge', amount: 6 }] },
+          // Spares in the pack, so the comparison sheet has a decision to draw.
+          { uid: 'e', baseId: 'r-plain', rarity: 4, depth: 5, power: null,
+            affixes: [{ kind: 'swift', amount: 16 }, { kind: 'body', amount: 12 }] },
+          { uid: 'f', baseId: 'w-feidao', rarity: 3, depth: 4, power: null,
+            affixes: [{ kind: 'spirit', amount: 9 }] },
         ],
-        equipped: { robe: 'r-lamellar', shoulders: 's-pauldron', head: 'h-hat', weapon: 'w-dao' },
+        equipped: { robe: 'a', shoulders: 'b', head: 'c', weapon: 'd' },
       },
     },
   ],
@@ -205,20 +220,49 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
       .locator('.pane .stage .portrait-svg polygon[fill="#d4af37"]')
       .count()
       .catch(() => 0)
-    // And the pips on the cards, which is the other half of the same claim.
+    // And the rung on the cards, which is the other half of the same claim.
+    // This used to count `.item-rank`, a class the game stopped drawing when
+    // ranks became rarity — so it counted zero and failed forever, quietly,
+    // because nobody reads a harness that always prints the same complaint.
+    // What the card draws now is a seal per card and a --rung colour per rung.
     await page.locator('.hub-tabs .tab').nth(1).click()
     await page.waitForTimeout(250)
-    const pips = await page.locator('.item-rank').count().catch(() => 0)
+    const seals = await page.locator('.slot-items .item .item-seal').count().catch(() => 0)
+    const rungs = await page
+      .locator('.slot-items .item')
+      .evaluateAll((els) => new Set(els.map((el) => el.style.getPropertyValue('--rung'))).size)
+      .catch(() => 0)
     await page.screenshot({ path: join(OUT, 'gear-ranked.png') })
+
+    // THE COMPARISON SHEET, WHICH ONLY EXISTS ON THE SECOND STATE OF A CARD.
+    //
+    // A screenshot of the gear tab shows the cards closed, which is exactly
+    // the state that was already fine. The thing worth photographing — and
+    // worth failing the build over — is what a tap reveals: the rows that say
+    // what the piece does to the cut, the reach and the health.
+    const spare = page.locator('.slot-items .item:not(.item-worn)').first()
+    let rows = 0
+    if ((await spare.count()) > 0) {
+      await spare.click()
+      await page.waitForTimeout(250)
+      rows = await page.locator('.slot .item-sheet .cmp-row').count().catch(() => 0)
+      await page.screenshot({ path: join(OUT, 'gear-compare.png') })
+    }
+    if (rows === 0) {
+      console.error('sheet:  a card opened and compared NOTHING — the sheet is not reading the kit')
+      process.exitCode = 1
+    } else {
+      console.log(`sheet:  ${rows} rows moved on the open card`)
+    }
 
     if (gold < 4) {
       console.error(`rank:   NOT WORN — only ${gold} gold marks on a swordsman ranked 5/4/3/2`)
       process.exitCode = 1
-    } else if (pips === 0) {
-      console.error('rank:   marks drawn, but no rank pips on the equipment cards')
+    } else if (seals === 0 || rungs < 3) {
+      console.error(`rank:   marks drawn, but the cards show ${seals} seals in ${rungs} rungs`)
       process.exitCode = 1
     } else {
-      console.log(`rank:   ${gold} marks on the figure, ${pips} pips on the cards`)
+      console.log(`rank:   ${gold} marks on the figure, ${seals} seals in ${rungs} rungs`)
     }
   } finally {
     await context.close()

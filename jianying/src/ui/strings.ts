@@ -153,6 +153,15 @@ export const strings = {
   raised: 'sharpened',
   /** Shown when a find had nowhere to go. See BAG_CAPACITY in meta/inventory. */
   packWasFull: 'No room in your pack',
+  /**
+   * The comparison sheet, opened by tapping a piece once. The second tap acts,
+   * so the label has to say what that tap will DO — not what the piece is.
+   */
+  takeOff: 'Tap again to take off',
+  wearThis: 'Tap again to wear',
+  noChange: 'Changes nothing you can feel',
+  /** Heading over the pack count. See BAG_CAPACITY in meta/inventory. */
+  pack: 'Pack',
   /** Shown only after a death — never after banking. See settleFound. */
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',

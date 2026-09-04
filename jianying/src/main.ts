@@ -59,6 +59,7 @@ import {
   rewardFor,
   settleFound,
 } from './meta/character'
+import { kitOf } from './meta/kit'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
@@ -198,21 +199,9 @@ async function boot(): Promise<void> {
    */
   const inSlot = (slot: Slot): OwnedItem | null => equippedIn(character.inventory, slot) ?? null
 
-  const currentKit = (): Kit => {
-    const school = schoolById(character.origin)
-    const weaponItem = inSlot('weapon')
-    return {
-      spent: character.spent,
-      weapon: weaponById((weaponItem ? baseOf(weaponItem) : null)?.styleId ?? school.weaponId),
-      // Every worn piece, instance and all: the lines it rolled are what it
-      // grants, so the instance IS the thing that goes into the kit. The
-      // weapon is excluded because its contribution is the WeaponClass above,
-      // not a set of lines.
-      worn: SLOTS.filter((slot) => slot !== 'weapon')
-        .map((slot) => inSlot(slot))
-        .filter((entry): entry is OwnedItem => entry !== null),
-    }
-  }
+  // Shared with the hub's comparison sheet — see meta/kit.ts for why that
+  // matters more than the four lines it saves.
+  const currentKit = (): Kit => kitOf(character)
 
   /** The wardrobe styles the equipped armour and weapon add up to. */
   const currentGear = () => {
