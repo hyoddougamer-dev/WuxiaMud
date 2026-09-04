@@ -84,6 +84,7 @@ import { createBanners } from './ui/banner'
 import { createCodex } from './ui/codex'
 import { createCreator } from './ui/create'
 import { createHud, type Found, type RunSummary } from './ui/hud'
+import { feel, unlock as unlockFeel } from './feel'
 import { createHub } from './ui/hub'
 import { createJoystick } from './ui/joystick'
 import { strings } from './ui/strings'
@@ -639,6 +640,8 @@ async function boot(): Promise<void> {
     const found = onGround.get(uid)
     return (found ? baseOf(found) : null)?.slot ?? 'robe'
   }
+  /** Wall clock of the last qi tick, for the throttle in `events.qi`. */
+  let lastQiSound = 0
   /** True only when the run ends by choosing "leave", never by dying. */
   let bankedThisEnd = false
   /**
@@ -657,6 +660,11 @@ async function boot(): Promise<void> {
   const events = {
     hit(x: number, y: number, amount: number, killed: boolean, crit?: boolean): void {
       floaters.hit(x, y, amount, killed, crit)
+      // Three different sounds for one event, because the player is told three
+      // different things: it landed, it landed doubled, it was the last of it.
+      if (crit) feel.crit()
+      else if (killed) feel.kill()
+      else feel.hit()
     },
     mend(x: number, y: number, amount: number): void {
       floaters.mend(x, y, amount)
@@ -664,6 +672,32 @@ async function boot(): Promise<void> {
     hurt(amount: number, source: string): void {
       floaters.hurt(player.x, player.y, amount)
       banners.show(source, 'danger', `−${Math.round(amount)}`)
+      feel.hurt()
+    },
+    /**
+     * Qi reaching the swordsman. THROTTLED, and that is the whole design of it.
+     *
+     * A magnet pulling in a stream fires this on most frames, which at sixty a
+     * second is not a sound, it is a tone. Rationing it to about twelve a
+     * second turns the same stream into a rattle — you still hear that qi is
+     * flowing and how fast, without the mix being eaten by it.
+     */
+    qi(): void {
+      const now = performance.now()
+      if (now - lastQiSound < 80) return
+      lastQiSound = now
+      feel.qi()
+    },
+    swing(thrown: boolean): void {
+      if (thrown) feel.throw()
+      else feel.sweep()
+    },
+    parry(x: number, y: number, count: number): void {
+      floaters.parry(x, y, count)
+      // A short, dry tick of haptics: the parry has to be FELT as well as seen,
+      // because it happens while the player is looking at the crowd and not at
+      // the swordsman. See haptics.ts for why this is the lightest tap there is.
+      feel.parry()
     },
     drop(x: number, y: number, itemId: string, luck: number): void {
       const item = ITEM_BY_ID.get(itemId)
@@ -893,6 +927,7 @@ async function boot(): Promise<void> {
       // to shrink at the exact moment the player was told they got stronger.
       run.hp += MIGHT.maxHp
       banners.show(strings.mightGained, 'gold', `${strings.level} ${run.level}`)
+      feel.level()
     }
 
     // The gate freezes the field exactly like the cards used to: the player is
@@ -907,6 +942,7 @@ async function boot(): Promise<void> {
         // here is secured whether the player then leaves or pushes on. See
         // settleFound in meta/character.ts for the whole rule this feeds.
         securedFindCount = foundThisRun.length
+        feel.gate()
         ui.showGate(
           tier,
           () => {
@@ -1024,6 +1060,7 @@ async function boot(): Promise<void> {
       foundThisRun.push(found)
       const base = baseOf(found)
       floaters.found(player.x, player.y)
+      feel.found()
       if (!base) continue
       // NOT WORN. A find goes into the pack and is dealt with at the end.
       //
@@ -1530,6 +1567,7 @@ async function boot(): Promise<void> {
       // which is what shipped in the first version of this screen.
       banners.clear()
       floaters.clear()
+      feel.death()
       ui.showGameOver(settleExpedition(), openHub)
     }
 
@@ -1755,6 +1793,11 @@ async function boot(): Promise<void> {
 
   const enter = (): void => {
     title.show(isFirstLaunch ? null : character.name, () => {
+      // THE FIRST REAL GESTURE IN THE SESSION, and the only place audio can be
+      // started. A context created before a tap lands 'suspended' and stays
+      // that way silently — the game would simply have no sound and nothing
+      // would say why. See feel/sound.ts.
+      unlockFeel()
       title.hide()
       if (!isFirstLaunch) {
         openHub()

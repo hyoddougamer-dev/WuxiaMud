@@ -794,7 +794,10 @@ export function createHub(
     // the tail of the scroll, shown but not ranked.
     const chosen = (c.arts[weapon.id] ?? []).filter((id) => scroll.some((a) => a.id === id))
     const rungs = SLOTS.map((slot) => equippedIn(c.inventory, slot)?.rarity ?? 0)
-    const awake = awakeCount(rungs[0]!, scroll.length)
+    const weaponRung = rungs[0]!
+    const wornWeapon = equippedIn(c.inventory, 'weapon')
+    const weaponName = (wornWeapon ? baseOf(wornWeapon) : null)?.name ?? weapon.name
+    const awake = awakeCount(weaponRung, scroll.length)
     const grade = artGrade(rungs)
 
     const head = document.createElement('div')
@@ -871,7 +874,26 @@ export function createHub(
     // ones at the top, and the next one to wake is the one directly below.
     ranked.forEach((id, i) => {
       const art = scroll.find((a) => a.id === id)
-      if (art) list.appendChild(artRow(art, i + 1))
+      if (!art) return
+      // WHERE THE BLADE STOPS REACHING, drawn as a line rather than counted.
+      //
+      // The rule was already stated in words at the top of the pane and the
+      // rows were already greyed below the cut, and a player still had to count
+      // to find the boundary. It is the single most important line on this
+      // screen — everything above it fires, everything below it does not — so
+      // it is a thing you can see, labelled with the blade that draws it and
+      // coloured by that blade's rung. A better weapon does not just grey one
+      // fewer row: it visibly MOVES this line down the scroll.
+      if (i === awake && awake < ranked.length) {
+        const cut = document.createElement('div')
+        cut.className = 'art-cut'
+        cut.setAttribute('style', rarityStyle(rarityOf(weaponRung)))
+        cut.innerHTML =
+          `<span>${rarityOf(weaponRung).seal} ${escapeHtml(weaponName)}</span>` +
+          `<b>${strings.artsReach}</b>`
+        list.appendChild(cut)
+      }
+      list.appendChild(artRow(art, i + 1))
     })
     pane.appendChild(list)
 

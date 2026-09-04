@@ -188,6 +188,15 @@ export const strings = {
   artsAwake: 'awake',
   artsGrade: 'grade',
   artsAsleep: 'a better blade wakes this one next',
+  /**
+   * On the line across the 法 list where the blade stops reaching.
+   *
+   * Everything above it fires and everything below it does not, which was true
+   * before and could only be found by counting rows. A line you can see, named
+   * for the weapon that draws it, turns "get a better blade" from a rule you
+   * read once into a boundary you watch move.
+   */
+  artsReach: 'reaches this far',
   artsFromGear: 'The blade in your hand decides how many wake. Everything you wear decides their grade.',
 
   // --- codex -------------------------------------------------------------

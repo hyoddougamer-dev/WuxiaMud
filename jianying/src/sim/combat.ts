@@ -175,6 +175,14 @@ export interface RunState {
    * indefensible.
    */
   gateCleared: boolean
+  /**
+   * Shafts cut out of the air this run.
+   *
+   * Counted rather than merely felt, because it is the number that says whether
+   * the parry is doing anything — and because the reward screen should be able
+   * to tell a player that reach bought them something they never saw happen.
+   */
+  parried: number
 }
 
 /** `firstSweep` delays the opening sweep by the equipped weapon's interval. */
@@ -213,6 +221,7 @@ export function createRun(firstSweep = DEFAULT_WEAPON.interval): RunState {
     riftValue: 0,
     riftTarget: Infinity,
     gateCleared: false,
+    parried: 0,
   }
 }
 
@@ -239,6 +248,17 @@ export interface CombatEvents {
    * inferred later because by the time the caller rolls, the corpse is gone.
    */
   drop?(x: number, y: number, itemId: string, luck: number): void
+  /** `count` shafts were cut out of the air by a sweep centred at (x, y). */
+  parry?(x: number, y: number, count: number): void
+  /**
+   * The blade moved. `thrown` for a volley, false for a sweep.
+   *
+   * Reported even when it hits nothing, because the sound of the weapon is how
+   * a player learns its rhythm — and rhythm is the thing Speed buys.
+   */
+  swing?(thrown: boolean): void
+  /** Qi reached the swordsman this frame. Fires often; the caller throttles. */
+  qi?(): void
 }
 
 /** Shortest absolute angular distance between two directions, in radians. */
@@ -439,6 +459,7 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
 
   // --- qi motes --------------------------------------------------------
   const gained = ctx.motes.update(player.x, player.y, stats.pickupRadius, dt)
+  if (gained > 0) ctx.events?.qi?.()
   if (gained > 0) {
     run.xp += gained
     // A loop, not an if: a dense harvest can cross several thresholds at once,
@@ -532,8 +553,30 @@ export function updateCombat(ctx: CombatContext, dt: number): void {
     // Stats.critEvery for why a chance would have cost the run its seed.
     const crit = stats.critEvery > 0 && run.slashCount % stats.critEvery === 0
     const damage = crit ? stats.slashDamage * 2 : stats.slashDamage
+    ctx.events?.swing?.(stats.strike === 'throw')
     if (stats.strike === 'throw') volley(aimX, aimY, damage)
     else cut(aimX, aimY, damage, crit)
+
+    // THE BLADE ANSWERS ARROWS. See Hazards.parry for the measurement that
+    // forced this: nothing in this game kills you by touching you, and until
+    // the sweep could meet a shaft, no offensive stat converted into survival.
+    //
+    // A thrower parries too, and its arc is the volley's spread, so 散 widening
+    // the fan widens what it swats down. That is the class's answer to danger
+    // written in its own language — distance and coverage — rather than the
+    // guard art the design note in data/arts.ts rules out for it.
+    const swatted = ctx.hazards.parry(
+      player.x,
+      player.y,
+      aimX,
+      aimY,
+      stats.slashRange,
+      stats.slashHalfAngle,
+    )
+    if (swatted > 0) {
+      run.parried += swatted
+      ctx.events?.parry?.(player.x, player.y, swatted)
+    }
 
     // 影 — the blow leaves a copy of itself where you were aiming. Queued
     // rather than struck twice at once, or it would read as one bigger number

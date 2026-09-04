@@ -250,15 +250,21 @@ export function afterArmour(raw: number, armour: number): number {
  * four, so 0.15 lands it at 101s and 50%: a real second answer behind Body, and
  * still behind it.
  *
- * THE CEILING COULD NOT BE MEASURED, and that is worth saying rather than
- * hiding. Spirit is the one attribute whose value GROWS with gear, since the
- * gear wakes and grades the arts — so it should have been tuned against a
- * geared reading too. `attrValue.mts --geared` exists now and it returns
- * nothing usable: at rung 4 every sheet clears every region including the one
- * that spent no points at all, best over worst 1.04x. That is not "attributes
- * stop mattering"; it is the content running out before the gear does. Until a
- * road exists that a geared swordsman can lose, this number is tuned from the
- * floor alone.
+ * THE CEILING NOW MEASURES, AND IT INVERTS. `--geared` first reported 1.04x and
+ * I read that as the content running out before the gear does. It was the
+ * RULER: it stopped at the first gate, which any geared sheet reaches, so every
+ * sheet scored the same. The game does not stop there — clearing a gate offers
+ * a push and each push raises the tier — and measured through that ladder the
+ * sheets separate again, on gates rather than seconds.
+ *
+ * What they say is the opposite of the floor, which is the best thing to come
+ * out of this work and was not designed. Bare on a deep road, Body wins by a
+ * mile because a run ends when you die. Geared and pushing, Body is LAST — tied
+ * with spending nothing at 15 gates — while Swiftness and Spirit reach 18.
+ * Early you buy survival; late you buy throughput, because late nothing kills
+ * you and the only limit is how fast you can fill the next rift. That arc is a
+ * reason to respec, and it emerged from the numbers rather than being put
+ * there.
  */
 export const SPIRIT_ART = 0.15
 
@@ -436,7 +442,7 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // lengthens your cut as well as weighting it — one currency, as with 疾 and
     // movement. A quarter of the pool: twenty points is about two levels of the
     // 远 card, which is a real gain and not a second weapon.
-    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach) * (1 + power / 250),
+    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach) * (1 + power / 130),
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
     slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),

@@ -19,6 +19,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { WEAPONS } from '../src/data/weapons'
+import { Hazards } from '../src/sim/hazards'
 import { emptyAttributes, type AttributeId } from '../src/meta/character'
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
 import { play, pure, spread, BUDGET } from '../tools/attrValue.mts'
@@ -125,22 +126,62 @@ describe('twenty points', () => {
    * mile: on the Broken Cliff, twenty into Body clears every seed at 130s while
    * Edge and Swiftness die around 55 and never clear.
    *
-   * Pinned as a defect being TRACKED, not as a standard being met. 2.6 is a
-   * ceiling on a gap that is already too wide, so the test goes red if it gets
-   * worse and tightens by itself the day it gets better — the same shape as the
-   * inert list above. What is missing is not a number: offence has no channel
-   * that converts into survival on a deep road, which is the whole of the
-   * Phase 3 work. See slashRange in sim/loadout.ts for the one channel that
-   * does (reach), and the two that were tried and measured worse.
+   * IT WAS 2.35x AND THE REASON WAS NOT A NUMBER. tools/death.mts counted what
+   * was actually happening at the moment of death and found that the number of
+   * enemies TOUCHING the player was 0.0 to 0.5 — nobody dies to the crowd in
+   * this game — while the three things that killed a bare swordsman were two
+   * shooters and a darter. Every offensive stat fed a sweep, and the sweep
+   * could not touch the only thing that was killing anyone.
+   *
+   * The blade answers arrows now (see Hazards.parry), which is the conversion
+   * that was missing: reach is a bigger umbrella, rate is fewer gaps between
+   * umbrellas, arc is a wider one. The gap fell to 1.74x with no stat nerfed,
+   * and every attribute now beats spending nothing by a wide margin instead of
+   * by noise — Edge went from +15% to +45%.
+   *
+   * Still a ceiling on a tracked gap rather than a standard being met: 2.0
+   * fails if this regresses, and tightens by itself the day it improves again.
    */
   it('records how far ahead Body is where the game kills you', () => {
     for (const weapon of WEAPONS) {
       const rows = ATTRS.map((id) => play(pure(id, BUDGET), weapon.id, 'cliff').secs)
       rows.push(play(spread(BUDGET), weapon.id, 'cliff').secs)
       const gap = Math.max(...rows) / Math.max(1, Math.min(...rows))
-      expect(gap, `${weapon.name}: best sheet over worst, deep`).toBeLessThan(2.6)
+      expect(gap, `${weapon.name}: best sheet over worst, deep`).toBeLessThan(2.0)
     }
   }, 120000)
+
+  /**
+   * THE CONVERSION ITSELF, held directly rather than through a run length.
+   *
+   * A run-length test would go green again if some unrelated change happened to
+   * lengthen runs, so the thing that actually has to keep working — a sweep
+   * meeting a shaft — is asserted on its own.
+   */
+  it('cuts shafts out of the air, and reach decides how many', () => {
+    const near = new Hazards()
+    const far = new Hazards()
+    for (const h of [near, far]) {
+      // A line of shafts straight ahead, at 40, 80, 120, 160, 200 units.
+      for (let d = 40; d <= 200; d += 40) h.fire(d, 0, -1, 0, 5)
+    }
+    expect(near.parry(0, 0, 1, 0, 100, Math.PI / 3)).toBe(2)
+    expect(far.parry(0, 0, 1, 0, 220, Math.PI / 3)).toBe(5)
+
+    // And the arc decides too: the same shafts, faced the other way.
+    const behind = new Hazards()
+    for (let d = 40; d <= 200; d += 40) behind.fire(d, 0, -1, 0, 5)
+    expect(behind.parry(0, 0, -1, 0, 220, Math.PI / 3)).toBe(0)
+  })
+
+  it('consumes what it parries, so one sweep cannot swat the same shaft twice', () => {
+    const h = new Hazards()
+    h.fire(50, 0, -1, 0, 5)
+    expect(h.parry(0, 0, 1, 0, 200, Math.PI / 3)).toBe(1)
+    expect(h.parry(0, 0, 1, 0, 200, Math.PI / 3)).toBe(0)
+    // And it is gone for the player too, not merely uncounted.
+    expect(h.strike(50, 0, 40)).toBe(0)
+  })
 
   it('never makes one attribute the answer to everything', () => {
     // The failure this guards is a stat so far ahead that the other three are

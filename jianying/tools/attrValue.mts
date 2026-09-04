@@ -27,12 +27,21 @@ import { deriveStats } from '../src/sim/loadout'
 import { applyArts, attune, equippedIds, surgeOf } from '../src/sim/arts'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes, type AttributeId, type Attributes } from '../src/meta/character'
+import { riftTargetFor } from '../src/data/enemies'
 import type { OwnedItem } from '../src/meta/inventory'
 import { PILOTS } from './runLength.mts'
 
 const SEEDS = [4242, 90210, 31337, 8675309]
 /** Long enough to separate the sheets, short enough to run in a minute. */
 const CAP = 300
+/**
+ * The geared run gets longer, because nothing kills it inside 300 seconds.
+ *
+ * A cap that every sheet reaches is not a measurement, it is a stopwatch on a
+ * wall — which is what made the first geared reading report 1.00x. Given room,
+ * the sheets separate on GATES instead.
+ */
+const GEARED_CAP = 700
 /** Deep enough that the game kills you, so survival is what is being measured. */
 const REGION = 'cliff'
 /**
@@ -50,6 +59,8 @@ export const BUDGET = 20
 
 export interface Row {
   secs: number
+  /** Gates pushed past. 1 means the swordsman never cleared the first. */
+  tier: number
   kills: number
   cleared: number
 }
@@ -77,16 +88,32 @@ const gearedSet = (): OwnedItem[] =>
     depth: 4,
   }))
 
+/**
+ * Whether the pilot takes the push when a gate opens.
+ *
+ * OFF is the floor reading, and it is what every existing caller means: the run
+ * ends when it ends, clearing counts as an ending, and what is compared is how
+ * far a bare sheet gets on one floor. ON is the ceiling reading — the pilot
+ * always pushes, which is the greediest player there is, and the yardstick
+ * becomes gates rather than seconds.
+ *
+ * It is a parameter rather than a default because turning it on globally
+ * changes what `secs` MEANS, and three tests read `secs` expecting the floor.
+ * That is exactly the kind of silent redefinition that makes a suite go green
+ * on a question nobody asked.
+ */
 export function play(
   spent: Attributes,
   weaponId: string,
   regionId = REGION,
   geared = false,
+  pushOn = geared,
 ): Row {
+  const cap = geared ? GEARED_CAP : CAP
   const region = REGIONS.find((r) => r.id === regionId)!
   const weapon = WEAPONS.find((w) => w.id === weaponId)!
   const worn = geared ? gearedSet() : []
-  const out: Row = { secs: 0, kills: 0, cleared: 0 }
+  const out: Row = { secs: 0, kills: 0, cleared: 0, tier: 0 }
   for (const seed of SEEDS) {
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), region)
@@ -94,7 +121,8 @@ export function play(
     const live = deriveStats(new Map(), { spent, weapon, worn })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
-    run.riftTarget = region.riftBase
+    let tier = 1
+    run.riftTarget = riftTargetFor(region.riftBase, tier)
     const sense = createSense()
     // The rungs the arts are attuned from: the weapon's, then the worn pieces'.
     const rung = geared ? GEARED_RUNG : 2
@@ -113,8 +141,31 @@ export function play(
     const rule = region.rule
     const drift = rule.drift ?? 0
     let t = 0
-    for (let i = 0; i < Math.round(CAP / TICK_S); i++) {
-      if (run.over || run.gateCleared) break
+    for (let i = 0; i < Math.round(cap / TICK_S); i++) {
+      if (run.over) break
+      // THE RULER USED TO STOP AT THE FIRST GATE, and that is why a geared
+      // swordsman measured as unbeatable: reaching one gate is something any
+      // sheet manages, so every sheet scored the same and the tool reported
+      // 1.04x — "attributes stop mattering" — when what it had actually
+      // measured was the easiest question the game asks.
+      //
+      // The game does not stop there. Clearing a gate offers a push, and each
+      // push raises the tier: enemy health by 24%, the rift's target by 32%.
+      // That ladder has no top, so pushing through it here is what turns this
+      // from "can you reach the gate" into "how far can this build go" — which
+      // is the question a build is actually for. The pilot always pushes, which
+      // is the greediest possible player and therefore the honest ceiling.
+      if (run.gateCleared) {
+        if (!pushOn) break
+        tier++
+        swarm.reset(seed ^ (tier * 0x9e3779b9), region, tier)
+        ctx.motes.clear()
+        ctx.bolts.clear()
+        ctx.hazards.clear()
+        run.gateCleared = false
+        run.riftValue = 0
+        run.riftTarget = riftTargetFor(region.riftBase, tier)
+      }
       t += TICK_S
       const [ix, iy] = PILOTS[1]![1](run.elapsed)
       const wind = rule.driftPeriod ? (t / rule.driftPeriod) * Math.PI * 2 : 0
@@ -152,10 +203,13 @@ export function play(
     }
     out.secs += run.elapsed
     out.kills += run.kills
-    out.cleared += run.gateCleared ? 1 : 0
+    out.tier += tier
+    // "Cleared" now means cleared at least one gate, which is what it always
+    // meant — the run no longer ENDS there, so it has to be read off the tier.
+    out.cleared += tier > 1 ? 1 : 0
   }
   const n = SEEDS.length
-  return { secs: out.secs / n, kills: out.kills / n, cleared: out.cleared / n }
+  return { secs: out.secs / n, kills: out.kills / n, cleared: out.cleared / n, tier: out.tier / n }
 }
 
 export const pure = (id: AttributeId, points: number): Attributes => ({
@@ -184,7 +238,7 @@ if (process.argv[1]?.endsWith('attrValue.mts')) {
   }
   for (const weapon of WEAPONS) {
     console.log(`${weapon.name}`)
-    console.log('  sheet         secs   kills  cleared')
+    console.log('  sheet         secs   kills  cleared   gates')
     const rows: Array<[string, Row]> = []
     for (const id of ATTRS) rows.push([id + ' 20', play(pure(id, BUDGET), weapon.id, where, geared)])
     rows.push(['spread', play(spread(BUDGET), weapon.id, where, geared)])
@@ -192,13 +246,23 @@ if (process.argv[1]?.endsWith('attrValue.mts')) {
     for (const [name, r] of rows) {
       console.log(
         '  ' + name.padEnd(13) + r.secs.toFixed(0).padStart(4) +
-          r.kills.toFixed(0).padStart(8) + (r.cleared * 100).toFixed(0).padStart(8) + '%',
+          r.kills.toFixed(0).padStart(8) + (r.cleared * 100).toFixed(0).padStart(8) + '%' +
+          (r.tier - 1).toFixed(1).padStart(8),
       )
     }
     // The number the whole tool exists for: how much better the best sheet is
     // than the worst. A build system where that gap is large has one build.
-    const best = Math.max(...rows.slice(0, 5).map(([, r]) => r.secs))
-    const worst = Math.min(...rows.slice(0, 5).map(([, r]) => r.secs))
-    console.log(`  best / worst: ${(best / worst).toFixed(2)}x\n`)
+    //
+    // MEASURED IN WHATEVER THE RUN IS ACTUALLY LIMITED BY. Bare, a run ends by
+    // dying, so seconds are the yardstick. Geared, nothing kills you inside the
+    // cap and every sheet reads the same number of seconds — so the yardstick
+    // becomes GATES, which is what a geared build is spending itself on. A tool
+    // that keeps reporting seconds there reports 1.00x and calls it a finding.
+    const of = (r: Row): number => (geared ? r.tier : r.secs)
+    const best = Math.max(...rows.slice(0, 5).map(([, r]) => of(r)))
+    const worst = Math.min(...rows.slice(0, 5).map(([, r]) => of(r)))
+    console.log(
+      `  best / worst: ${(best / worst).toFixed(2)}x  (${geared ? 'gates' : 'seconds'})\n`,
+    )
   }
 }

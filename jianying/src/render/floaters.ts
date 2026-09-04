@@ -43,6 +43,8 @@ export interface Floaters {
   hurt(x: number, y: number, amount: number): void
   /** A mark where equipment dropped. Always finds a slot. */
   found(x: number, y: number): void
+  /** Shafts cut out of the air by a sweep. Always finds a slot. */
+  parry(x: number, y: number, count: number): void
   /** Health mended by an art. Always finds a slot — see `mend` below. */
   mend(x: number, y: number, amount: number): void
   update(dt: number): void
@@ -199,6 +201,19 @@ export function createFloaters(): Floaters {
       const slot = take(true)
       if (!slot) return
       start(slot, '!', x, y - 34, palette.goldDeep, 0.55, HURT_LIFE)
+    },
+
+    parry(x, y, count) {
+      // 挡 — the shafts that would have hit you and did not. This is the ONLY
+      // feedback for the mechanic that makes reach and rate worth buying, and
+      // the whole difficulty of it is that a parry is the absence of an event:
+      // no damage number, no flash, nothing. A player who never sees this
+      // learns that reach does nothing, which is what they used to be right
+      // about. So it may always evict — being told you were saved beats one
+      // more damage figure.
+      const slot = take(true)
+      if (!slot) return
+      start(slot, count > 1 ? `挡 ${count}` : '挡', x, y - 52, palette.gold, 0.5, HURT_LIFE)
     },
 
     update(dt) {

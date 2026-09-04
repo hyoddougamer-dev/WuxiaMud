@@ -108,6 +108,56 @@ export class Hazards {
   }
 
   /**
+   * Cuts every hazard inside the arc out of the air, and says how many.
+   *
+   * WHY THIS EXISTS, and it is the largest single finding of the balance work.
+   * Measured on the Broken Cliff, the number of enemies TOUCHING the player at
+   * any moment was 0.0 to 0.5, and the three things that killed a bare
+   * swordsman were a Windbell Adept, a Crossbow Hand and a Cliff Hawk — two
+   * shooters and a darter. Nobody dies to the crowd in this game. You are shot
+   * to death from beyond your own reach.
+   *
+   * That is why twenty points of offence bought almost nothing on a deep road
+   * while twenty into Body nearly tripled the run: every offensive stat feeds a
+   * sweep, and the sweep could not touch the only thing that was killing you.
+   * The doc at the top of this file said as much without noticing — "cannot be
+   * answered by facing, only by moving" — which, once shooters became the whole
+   * threat, made facing decorative.
+   *
+   * So the blade answers arrows. It is the oldest image the genre has, and
+   * mechanically it is the missing conversion: REACH becomes a bigger umbrella,
+   * RATE becomes fewer gaps between umbrellas, ARC becomes a wider one. Damage
+   * deliberately buys nothing here — a sweep either meets the shaft or it does
+   * not — which keeps Power honest as the stat that kills rather than the stat
+   * that saves.
+   */
+  parry(
+    px: number,
+    py: number,
+    aimX: number,
+    aimY: number,
+    range: number,
+    halfAngle: number,
+  ): number {
+    let cut = 0
+    this.pool.forEachActive((h) => {
+      const dx = h.x - px
+      const dy = h.y - py
+      const distance = Math.hypot(dx, dy)
+      if (distance > range + h.radius) return false
+      // Straight overhead is inside every arc: a shaft already on top of the
+      // swordsman is not one they are turning away from.
+      if (distance > 0.001) {
+        const dot = (dx / distance) * aimX + (dy / distance) * aimY
+        if (Math.acos(Math.max(-1, Math.min(1, dot))) > halfAngle) return false
+      }
+      cut++
+      return true
+    })
+    return cut
+  }
+
+  /**
    * Returns the damage of the first hazard overlapping the player and consumes
    * it, or 0. Consuming matters: a projectile that passes through would keep
    * hitting on every tick the player stayed inside it.
