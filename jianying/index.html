@@ -986,160 +986,125 @@
         color: rgba(13, 13, 13, 0.5);
       }
 
-      /* --- equipment ---------------------------------------------------- */
-      .slot {
+      /* --- equipment: the paperdoll ------------------------------------- */
+      /* THE RUNG, IN FOUR CHANNELS, ON EVERY SURFACE THAT CARRIES A PIECE.
+         Hue alone made the ladder read as six shades rather than six steps, and
+         grey on aged paper is barely a line. Colour, border thickness,
+         background wash and outer halo all rise together — and every number
+         comes from data/rarity.ts through rarityStyle(), so the ladder is
+         defined once and cannot drift between the pack, the figure and the
+         reward screen. */
+      .pane-gear {
+        padding-bottom: 8px;
+      }
+      .doll {
+        display: grid;
+        /* The figure gets a fixed 168px and the two card columns split what is
+           left. Sized from the screen, not guessed: 390 less the pane's 14px
+           padding either side and two 6px gaps leaves 97px a card, which is a
+           two-line name and a rung at 11.5px. */
+        grid-template-columns: minmax(0, 1fr) 168px minmax(0, 1fr);
+        gap: 6px;
         margin-bottom: 12px;
       }
-      .slot-name {
-        display: flex;
-        align-items: center;
+      /* Two cards fill the figure's height rather than sitting short beside it,
+         which is what left a band of dead paper down both sides. */
+      .doll-col {
+        display: grid;
+        grid-template-rows: 1fr 1fr;
         gap: 6px;
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        color: rgba(13, 13, 13, 0.4);
-        margin-bottom: 5px;
+        min-width: 0;
       }
-      .slot-icon {
-        /* 15px at 0.45 was almost invisible beside the label — an icon nobody
-           can see is worse than no icon, because it still costs the row. */
-        width: 18px;
-        height: 18px;
-        flex: none;
-        opacity: 0.6;
+      .doll-fig {
+        display: grid;
+        place-items: center;
       }
-      /* An empty slot is the most useful line on this screen: it is the only
-         place that says what to go and look for. */
-      .slot-empty {
-        font-size: 11px;
-        color: rgba(193, 39, 45, 0.6);
-        padding: 7px 0 2px;
+      .doll-fig .portrait-svg {
+        width: 168px;
+        height: 186px;
       }
-      /* Horizontal and scrollable, so a slot with eight options costs one row
-         of height instead of eight. */
-      .slot-items {
-        display: flex;
-        gap: 7px;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        padding-bottom: 3px;
-      }
-      .item {
-        /* Grows to fill the row when a slot holds one find, overflows into the
-           horizontal scroll when it holds six. `flex: none` did the second half
-           and left a single item sitting in a half-empty row looking like a
-           layout that had failed. */
-        flex: 1 0 158px;
-        min-height: 58px;
-        position: relative;
-        /* Left padding makes room for the item's own icon, which is absolutely
-           positioned into it. */
-        padding: 9px 11px 9px 40px;
-        text-align: left;
+      /* A worn piece. Named, unlike a pack cell — these four ARE the answer to
+         "what am I wearing", and four icons do not answer it.
+
+         The icon sits ABOVE the name rather than beside it. Beside cost 32px of
+         a 97px card, which left "Heavy Zhanmadao" 57px to wrap into and broke
+         it mid-word into "Zhan / mada / o". Stacked, the name gets the whole
+         width and the card reads as a slot rather than as a list row. */
+      .doll-slot {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 1px;
+        min-width: 0;
+        min-height: 0;
+        padding: 6px 5px;
+        text-align: center;
         font: inherit;
         color: var(--ink);
-        /* THE RUNG, IN THREE CHANNELS. Hue alone made the ladder read as six
-           shades rather than six steps, and grey on aged paper is barely a
-           line. Every one of these comes from data/rarity.ts through
-           rarityStyle(), so the ladder is defined once. */
+        border-radius: 2px;
         background:
           linear-gradient(
-            90deg,
-            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 1.6)),
-            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 0.35)) 60%,
-            rgba(var(--rung-rgb, 13, 13, 13), 0)
+            180deg,
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 2.2)),
+            rgba(var(--rung-rgb, 13, 13, 13), 0) 72%
           ),
-          rgba(255, 252, 244, 0.5);
-        border: 1px solid rgba(13, 13, 13, 0.12);
-        border-left: var(--rung-edge, 3px) solid var(--rung, rgba(13, 13, 13, 0.14));
-        border-radius: 2px;
-        /* Only the top three rungs glow — see the `card` ladder's comment. At
-           0 the shadow is transparent and costs nothing. */
-        box-shadow: 0 0 0 1px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0)),
-          0 2px 10px -2px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
+          rgba(255, 252, 244, 0.55);
+        /* The full border, at the rung's own thickness. A 2px left edge was the
+           whole of the ladder on this screen; here all four sides carry it. */
+        border: var(--rung-edge, 2px) solid var(--rung, rgba(13, 13, 13, 0.18));
+        box-shadow: 0 0 14px -3px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
         cursor: pointer;
       }
-      /* The item's own shape, so a card is findable without reading it. It sits
-         in the padding at the left rather than above the name: a 158px card has
-         no vertical room to give away, and the name must stay the loudest thing
-         on it. */
-      .item-icon {
-        position: absolute;
-        left: 9px;
-        top: 50%;
-        width: 22px;
-        height: 22px;
-        transform: translateY(-50%);
+      .doll-icon {
+        width: 24px;
+        height: 24px;
+        margin-bottom: 1px;
       }
-      .item-worn .item-icon {
-        color: var(--paper);
-      }
-      /* The rung's colour is set inline, and the worn card is near-black — so a
-         grey 凡 name landed almost invisible against it. Lifting it keeps the
-         hue (the ladder still reads) while making the name legible on the dark
-         card, which is the one card a player looks at most. */
-      .item-worn .item-name {
-        filter: brightness(2.1) saturate(0.85);
-      }
-      .item-seal {
-        font-size: 0.85em;
-        opacity: 0.85;
-      }
-      /* The named power, on 神 and 仙 pieces only. */
-      .item-power {
-        margin-top: 3px;
-        font-size: 10.5px;
-        letter-spacing: 0.04em;
-        color: var(--gold);
-      }
-      .item-r1 {
-        border-left-color: var(--gold);
-      }
-      .item-r2 {
-        border-left-color: var(--cinnabar);
-      }
-      .item-worn {
-        /* The wash again, over ink instead of paper. Without this the worn
-           card — the one card a player looks at most — was the only place the
-           ladder stopped speaking, because a flat fill overrode it. */
-        background:
-          linear-gradient(
-            90deg,
-            rgba(var(--rung-rgb, 232, 220, 192), calc(var(--rung-wash, 0) * 2.2)),
-            rgba(var(--rung-rgb, 232, 220, 192), 0) 70%
-          ),
-          rgba(13, 13, 13, 0.9);
-        color: var(--paper);
-      }
-      .item:not(.item-worn):active {
-        transform: scale(0.97);
-      }
-      .item-name {
-        font-size: 13px;
+      .doll-slot b {
+        display: block;
+        /* Breaks at spaces; only a single word wider than the card is split,
+           and none of the item names are. */
+        overflow-wrap: break-word;
+        font-size: 11.5px;
         font-weight: var(--rung-weight, 500);
+        line-height: 1.2;
         color: var(--rung, var(--ink));
-        /* Two of the six rungs are near the paper's own value (grey) or near
-           the ink's (deep green). Nudging them here keeps ONE definition of
-           each colour while letting the name stay legible on both card
-           backgrounds — the pale one and the near-black worn one. */
-        filter: saturate(0.92) brightness(0.9);
+        filter: saturate(0.92) brightness(0.88);
       }
-      .item-line {
-        margin-top: 3px;
-        font-size: 11px;
-        line-height: 1.35;
+      .doll-slot span {
+        font-size: 9.5px;
+        letter-spacing: 0.02em;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      /* An empty slot is the most useful line on this screen: it is the only
+         place that says what to go and look for. It used to be skipped. */
+      .doll-empty {
+        border: 1px dashed rgba(13, 13, 13, 0.22);
+        background: none;
+        box-shadow: none;
+        cursor: default;
+      }
+      .doll-empty b {
         color: rgba(13, 13, 13, 0.55);
       }
-      .item-worn .item-line {
-        color: rgba(232, 220, 192, 0.62);
+      .doll-empty span {
+        color: rgba(193, 39, 45, 0.65);
+      }
+      .doll-on {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .doll-slot:not(.doll-empty):active {
+        transform: scale(0.98);
       }
 
-      /* HOW FULL THE PACK IS. A bar rather than only the fraction, because
+      /* HOW FULL THE PACK IS. A bar as well as the fraction, because
          "19 / 24" is read and "nearly full" is seen. */
       .bag {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin: 0 0 10px;
+        margin: 0 0 8px;
         font-size: 11px;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -1147,8 +1112,9 @@
       }
       .bag b {
         font-weight: 600;
-        color: var(--ink);
         letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
       }
       .bag-bar {
         flex: 1;
@@ -1165,7 +1131,7 @@
         transition: width 180ms ease-out;
       }
       .bag-full b,
-      .bag-full span {
+      .bag-full > span {
         color: var(--cinnabar);
       }
       .bag-full .bag-bar i {
@@ -1173,20 +1139,134 @@
         opacity: 0.8;
       }
 
-      /* THE OPEN CARD. Marked, not resized — the sheet is a sibling below the
-         row, so the card only has to say which one is being asked about. */
-      .item-open {
-        box-shadow: 0 0 0 1px rgba(var(--rung-rgb, 13, 13, 13), 0.55),
-          0 3px 14px -3px rgba(var(--rung-rgb, 13, 13, 13), 0.5);
+      /* The pack. Always all 24 cells: an empty one is as loud as a full one,
+         which is what makes "how much room have I got" a thing the SHAPE of the
+         screen answers rather than a number to read. */
+      .pack {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
       }
-      /* Below the row, at the full width of the pane, so nothing is clipped by
-         the horizontal scroll the cards live in. */
-      .item-sheet {
-        margin-top: 7px;
-        padding: 8px 10px 9px;
-        background: rgba(255, 252, 244, 0.55);
-        border: 1px solid rgba(13, 13, 13, 0.1);
+      .cell {
+        position: relative;
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        font: inherit;
+        color: var(--ink);
         border-radius: 2px;
+        background:
+          radial-gradient(
+            circle at 50% 45%,
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 2.6)),
+            rgba(var(--rung-rgb, 13, 13, 13), 0) 72%
+          ),
+          rgba(255, 252, 244, 0.5);
+        border: var(--rung-edge, 2px) solid var(--rung, rgba(13, 13, 13, 0.2));
+        box-shadow: 0 0 13px -2px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
+        cursor: pointer;
+      }
+      .cell-icon {
+        width: 30px;
+        height: 30px;
+      }
+      /* The seal names the rung for a player who has not yet learned the
+         colours — and stays out of the icon's way while they do. */
+      .cell-seal {
+        position: absolute;
+        right: 2px;
+        bottom: 0;
+        font-style: normal;
+        font-size: 10.5px;
+        line-height: 1.2;
+        color: var(--rung, rgba(13, 13, 13, 0.4));
+        filter: brightness(0.85);
+      }
+      /* A named power, on 神 and 仙 pieces. A gold pip, because the sheet is
+         where it gets explained and the grid only has to say "there is one". */
+      .cell-power {
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+      .cell-on {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .cell:not(.cell-void):active {
+        transform: scale(0.96);
+      }
+      .cell-void {
+        border: 1px dashed rgba(13, 13, 13, 0.16);
+        background: none;
+        box-shadow: none;
+        cursor: default;
+      }
+
+      /* The sheet, spanning the grid in the row under the cell that opened it.
+         It carries the name because the cell cannot: a 74px cell holds a shape
+         and a seal, and identity belongs where the decision is made. */
+      .sheet {
+        grid-column: 1 / -1;
+        margin: 1px 0 2px;
+        padding: 10px 12px 11px;
+        border-radius: 2px;
+        background:
+          linear-gradient(
+            180deg,
+            rgba(var(--rung-rgb, 13, 13, 13), calc(var(--rung-wash, 0) * 1.9)),
+            rgba(var(--rung-rgb, 13, 13, 13), 0) 60%
+          ),
+          rgba(255, 252, 244, 0.75);
+        border: 2px solid var(--rung, rgba(13, 13, 13, 0.2));
+        box-shadow: 0 0 24px -6px rgba(var(--rung-rgb, 13, 13, 13), var(--rung-glow, 0));
+      }
+      .sheet-hd b {
+        display: block;
+        font-size: 15px;
+        line-height: 1.2;
+        font-weight: var(--rung-weight, 500);
+        color: var(--rung, var(--ink));
+        filter: saturate(0.92) brightness(0.85);
+      }
+      .sheet-hd span {
+        font-size: 10.5px;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .sheet-line {
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: rgba(13, 13, 13, 0.72);
+        font-variant-numeric: tabular-nums;
+      }
+      .sheet-power {
+        margin-top: 7px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(13, 13, 13, 0.12);
+      }
+      .sheet-power b {
+        display: block;
+        font-size: 12px;
+        color: var(--gold);
+      }
+      .sheet-power span {
+        font-size: 11px;
+        line-height: 1.4;
+        color: rgba(13, 13, 13, 0.55);
+      }
+
+      /* What changes if you put it on. The only coloured thing here is the
+         delta, so the eye lands on the answer before it reads a number. */
+      .cmp {
+        margin-top: 8px;
+        padding-top: 7px;
+        border-top: 1px solid rgba(13, 13, 13, 0.12);
       }
       .cmp-row {
         display: flex;
@@ -1203,8 +1283,6 @@
         white-space: nowrap;
         color: rgba(13, 13, 13, 0.8);
       }
-      /* The delta is the only coloured thing on the sheet, so the eye lands on
-         the answer (better or worse) before it reads a single number. */
       .cmp-row i {
         display: inline-block;
         min-width: 46px;
@@ -1219,16 +1297,34 @@
       .cmp-row .down i {
         color: var(--cinnabar);
       }
-      /* Says what the NEXT tap does. Without it the open card is a dead end:
-         the player has read the numbers and has no way to see how to act on
-         them. */
-      .item-act {
-        margin-top: 8px;
-        font-size: 10.5px;
-        letter-spacing: 0.08em;
+
+      /* A real button, not a hint. The first version said "tap again" and put
+         the action on the cell — which meant the sheet could be read only by
+         holding the thing that would act on it. */
+      .sheet-act {
+        display: block;
+        width: 100%;
+        margin-top: 9px;
+        padding: 9px 0;
+        font: inherit;
+        font-size: 11px;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: var(--gold);
+        color: var(--paper);
+        background: var(--ink);
+        border: 0;
+        border-radius: 2px;
+        cursor: pointer;
       }
+      .sheet-act:active {
+        transform: scale(0.99);
+      }
+      .sheet-off {
+        color: var(--ink);
+        background: none;
+        border: 1px solid rgba(13, 13, 13, 0.3);
+      }
+
 
       /* Loot on the reward screen. */
       .rw-found {

@@ -44,7 +44,6 @@ import {
   BAG_CAPACITY,
   baseOf,
   carried,
-  carriedInSlot,
   equip,
   equippedIn,
   equippedItems,
@@ -204,6 +203,19 @@ export function createHub(
   let shown = false
   /** Which card is open for reading. One at a time; a tap elsewhere closes it. */
   let openCard: string | null = null
+
+  /**
+   * The viewBox height, in figure units, for the swordsman on this tab.
+   *
+   * The same 84 the 剑 tab uses, so both tabs draw one geometry at one scale
+   * and a robe cannot look different depending on which screen you are on. How
+   * BIG it lands is CSS — `.doll-fig .portrait-svg` — which is where the growth
+   * from a 120px thumbnail to a 168px figure actually happened.
+   */
+  const DOLL_BOX = 84
+
+  /** Cells across the pack. Mirrors `grid-template-columns` on `.pack`. */
+  const PACK_COLUMNS = 4
   let character: Character | null = null
   let onSetOutHandler: ((depth: number) => void) | null = null
   let chosenDepth = 1
@@ -302,97 +314,118 @@ export function createHub(
     return box
   }
 
-  const itemCard = (
-    item: Item,
-    entry: OwnedItem,
-    worn: boolean,
-    slot: Slot,
-  ): HTMLButtonElement => {
+  /**
+   * One piece as a tappable CELL: its shape, its rung, and nothing else.
+   *
+   * The card this replaces carried the name and the rolled lines, and a row of
+   * six of them was a sideways scroll a player had to work through one at a
+   * time. A cell is 74px, so twelve fit in a glance and the rung — border
+   * thickness, wash, halo and seal, all four channels of it — is what the eye
+   * sorts them by. Identity moves into the sheet, which is where the decision
+   * is actually made.
+   */
+  const itemCell = (item: Item, entry: OwnedItem, worn: boolean, slot: Slot): HTMLButtonElement => {
     const tier = rarityOf(entry.rarity)
-    const card = document.createElement('button')
-    card.type = 'button'
-    card.className = 'item' + (worn ? ' item-worn' : '')
-    // The rung is the loudest thing on the card, because it is what a player
-    // reads first and what tells them whether to read the rest at all — and it
-    // is loud in three channels now, not only in hue. See rarityStyle.
-    card.setAttribute('style', rarityStyle(tier))
-    // A weapon shows how it PLAYS rather than a line, because that is what
-    // changes when you equip it — a number on a spear describes the least
-    // interesting thing about picking up a spear.
-    const line =
-      slot === 'weapon'
-        ? weaponById(item.styleId).blurb
-        : entry.affixes.map(affixLine).join(' · ')
+    const cell = document.createElement('button')
+    cell.type = 'button'
+    cell.className = 'cell' + (worn ? ' cell-worn' : '') + (openCard === entry.uid ? ' cell-on' : '')
+    cell.setAttribute('style', rarityStyle(tier))
+    cell.setAttribute('aria-label', `${item.name}, ${tier.name}`)
+    cell.innerHTML =
+      itemIconSvg(slot, item.styleId, palette.ink, 0.82, 'cell-icon') +
+      `<i class="cell-seal">${tier.seal}</i>` +
+      (entry.power ? '<u class="cell-power"></u>' : '')
+    cell.addEventListener('click', () => {
+      openCard = openCard === entry.uid ? null : entry.uid
+      render()
+    })
+    return cell
+  }
+
+  /**
+   * A worn slot, beside the figure.
+   *
+   * Named, unlike a pack cell: these four are the answer to "what am I wearing"
+   * and that question is not answered by four icons. An empty one is drawn
+   * rather than skipped — "what am I missing" is the question that sends a
+   * player back out, and it used to be unanswerable from this screen.
+   */
+  const dollSlot = (c: Character, slot: Slot): HTMLElement => {
+    const entry = equippedIn(c.inventory, slot)
+    const base = entry ? baseOf(entry) : null
+    const box = document.createElement('button')
+    box.type = 'button'
+    if (!entry || !base) {
+      box.className = 'doll-slot doll-empty'
+      box.innerHTML =
+        packIconSvg(PACK_SLOT_ICON[slot] ?? '', palette.ink, 0.35, 'doll-icon') +
+        `<b>${SLOT_NAMES[slot]}</b><span>${strings.slotEmpty}</span>`
+      box.disabled = true
+      return box
+    }
+    const tier = rarityOf(entry.rarity)
+    box.className = 'doll-slot' + (openCard === entry.uid ? ' doll-on' : '')
+    box.setAttribute('style', rarityStyle(tier))
+    box.innerHTML =
+      itemIconSvg(slot, base.styleId, palette.ink, 0.85, 'doll-icon') +
+      `<b>${escapeHtml(base.name)}</b><span>${tier.seal} ${tier.name}</span>`
+    box.addEventListener('click', () => {
+      openCard = openCard === entry.uid ? null : entry.uid
+      render()
+    })
+    return box
+  }
+
+  /**
+   * Everything about one piece, and the button that acts on it.
+   *
+   * It carries the NAME now. It did not have to when a card sat above it
+   * holding the name and the lines, but the pack is icons in a grid, so a
+   * sheet without a header is a sheet about an unnamed shape. What it says, in
+   * order: what this is, what it rolled, what it does that no line can express,
+   * and — the part the rest of the screen cannot answer — what changes if you
+   * put it on.
+   */
+  const sheetFor = (c: Character, slot: Slot, entry: OwnedItem, worn: boolean): HTMLElement => {
+    const base = baseOf(entry)
+    const tier = rarityOf(entry.rarity)
     const power = entry.power ? POWER_BY_ID.get(entry.power) : null
-    card.innerHTML = `
-      ${itemIconSvg(slot, item.styleId, palette.ink, worn ? 0.9 : 0.5, 'item-icon')}
-      <div class="item-name">
-        <span class="item-seal">${tier.seal}</span> ${escapeHtml(item.name)}
-      </div>
-      <div class="item-line">${escapeHtml(line)}</div>
-      ${power ? `<div class="item-power">${power.seal} ${escapeHtml(power.name)}</div>` : ''}
-    `
-    // ONE TAP SHOWS WHAT CHANGES, THE SECOND DOES IT.
-    //
-    // Equipping straight off the first tap was faster and told the player
-    // nothing: the card says "+8 Spirit", and "+8 Spirit" answers a question
-    // nobody asked. The question is whether to put it on, and that is answered
-    // by what happens to the cut, the reach and the health — none of which is
-    // legible from an affix name now that Spirit reaches art power, Edge
-    // reaches reach and Swiftness reaches movement.
-    //
-    // Opening in place rather than in a sheet over the screen, because the
-    // decision is a comparison with the card ABOVE it, and a panel that covers
-    // that card is a panel that hides the other half of the question.
-    card.addEventListener('click', () => {
-      if (!character) return
-      if (openCard !== entry.uid) {
-        openCard = entry.uid
-        render()
-        return
-      }
-      // Second tap on the open card: do the thing.
-      //
-      // Taking a worn piece off was missing entirely until recently — the
-      // handler returned early on `worn`, so once something was on there was no
-      // way in the game to remove it. It matters beyond tidiness: a weapon
-      // decides which arts you have, so a swordsman who picked up a blade could
-      // never go back to the scroll they were building toward.
-      if (worn) unequip(character.inventory, slot)
-      else if (!equip(character.inventory, entry.uid)) return
+    const before = deriveStats(EMPTY, kitWith(c, slot, equippedIn(c.inventory, slot)))
+    const after = deriveStats(EMPTY, kitWith(c, slot, worn ? null : entry))
+    const rows = compareRows(before, after)
+
+    const sheet = document.createElement('div')
+    sheet.className = 'sheet'
+    sheet.setAttribute('style', rarityStyle(tier))
+    // A weapon says how it PLAYS rather than what it rolled: a number on a
+    // spear describes the least interesting thing about picking up a spear.
+    const lines =
+      slot === 'weapon' && base
+        ? [weaponById(base.styleId).blurb]
+        : entry.affixes.map(affixLine)
+    sheet.innerHTML =
+      `<div class="sheet-hd"><b>${escapeHtml(base?.name ?? '')}</b>` +
+      `<span>${tier.seal} ${tier.name} · ${SLOT_NAMES[slot]}</span></div>` +
+      lines.map((l) => `<div class="sheet-line">${escapeHtml(l)}</div>`).join('') +
+      (power
+        ? `<div class="sheet-power"><b>${power.seal} ${escapeHtml(power.name)}</b>` +
+          `<span>${escapeHtml(power.blurb)}</span></div>`
+        : '')
+    if (rows) sheet.appendChild(rows)
+
+    const act = document.createElement('button')
+    act.type = 'button'
+    act.className = 'sheet-act' + (worn ? ' sheet-off' : '')
+    // Says what the tap will DO, not what the thing is. A worn piece coming off
+    // is a loss, and the copy should not pretend otherwise.
+    act.textContent = worn ? strings.takeOff : rows ? strings.wearThis : strings.noChange
+    act.addEventListener('click', () => {
+      if (worn) unequip(c.inventory, slot)
+      else if (!equip(c.inventory, entry.uid)) return
       openCard = null
       onSave()
       render()
     })
-    if (openCard === entry.uid) card.classList.add('item-open')
-    return card
-  }
-
-  /**
-   * The sheet for the open card, drawn BELOW the row rather than inside it.
-   *
-   * It lived inside the card first, and the card lives in a row that scrolls
-   * sideways — so a sheet wide enough to hold "Reach 118 → 134  +16" was a
-   * sheet whose right half sat off the screen. Every number was rendered and
-   * none of them could be read.
-   *
-   * Below the row is also the better shape for the decision. The cards stay
-   * side by side, which is the comparison — this is the piece, that is what
-   * you are wearing — and the sheet answers underneath both of them instead of
-   * covering one.
-   */
-  const sheetFor = (c: Character, slot: Slot, entry: OwnedItem, worn: boolean): HTMLElement => {
-    const before = deriveStats(EMPTY, kitWith(c, slot, equippedIn(c.inventory, slot)))
-    const after = deriveStats(EMPTY, kitWith(c, slot, worn ? null : entry))
-    const rows = compareRows(before, after)
-    const sheet = document.createElement('div')
-    sheet.className = 'item-sheet'
-    if (rows) sheet.appendChild(rows)
-    const act = document.createElement('div')
-    act.className = 'item-act'
-    // Says what the next tap will DO, not what the thing is. A worn piece
-    // coming off is a loss, and the copy should not pretend otherwise.
-    act.textContent = worn ? strings.takeOff : rows ? strings.wearThis : strings.noChange
     sheet.appendChild(act)
     return sheet
   }
@@ -558,76 +591,109 @@ export function createHub(
     return block
   }
 
-  /** 装 — what you carry. The figure stays, because this is where it changes. */
+  /**
+   * 装 — what you carry, as a paperdoll.
+   *
+   * The version this replaces was four slot headings, each with a sideways row
+   * of full-width cards under it. It worked and it read as a form: the rarity
+   * ladder spoke through a left border 2–7px wide, the pack was never seen as a
+   * whole, and the piece you were wearing sat in the same row as the pieces you
+   * were not, distinguishable only by a darker fill.
+   *
+   * THE FIGURE IS THE SCREEN. What you wear is a picture, not a list. The four
+   * worn pieces flank the swordsman and the rung is drawn ON them, so the
+   * ladder finally lands where a player is looking while deciding — and the
+   * figure itself is already wearing what the cards describe, because
+   * portraitSvg reads the same equipment.
+   *
+   * THE PACK IS A FIXED GRID, NOT A LIST. Twenty-four cells, always all
+   * twenty-four: an empty cell is as loud as a full one, which turns "how much
+   * room do I have" and "what am I missing" into things the SHAPE of the screen
+   * answers. Four channels of rung on a 74px cell — colour, border thickness,
+   * background wash and halo — is enough to sort a full pack at a glance
+   * without reading a word.
+   *
+   * The sheet opens in the row below the cell you tapped, spanning the grid. It
+   * used to sit under the whole row of cards; in a grid that would put it below
+   * six rows of icons, far from the one you touched.
+   */
   const paneGear = (c: Character): HTMLElement => {
     const pane = document.createElement('div')
-    pane.className = 'pane'
+    pane.className = 'pane pane-gear'
 
-    const stage = document.createElement('div')
-    stage.className = 'stage stage-small'
-    stage.innerHTML = portrait(c, 84)
-    pane.appendChild(stage)
+    const doll = document.createElement('div')
+    doll.className = 'doll'
+    const left = document.createElement('div')
+    left.className = 'doll-col'
+    left.append(dollSlot(c, 'head'), dollSlot(c, 'shoulders'))
+    const fig = document.createElement('div')
+    fig.className = 'doll-fig'
+    // Big. It was a 120px thumbnail on the one screen whose whole subject is
+    // what the swordsman looks like, which meant a new robe changed a stamp.
+    fig.innerHTML = portrait(c, DOLL_BOX)
+    const right = document.createElement('div')
+    right.className = 'doll-col'
+    right.append(dollSlot(c, 'robe'), dollSlot(c, 'weapon'))
+    doll.append(left, fig, right)
+    pane.appendChild(doll)
 
-    // HOW FULL THE PACK IS, BEFORE THE SLOTS AND NOT AFTER THEM.
+    // A worn piece opens its sheet directly under the figure, because that is
+    // where it sits: taking something off is a decision about the four above,
+    // not about the pack.
+    const openWorn = SLOTS.map((slot) => equippedIn(c.inventory, slot)).find(
+      (e) => e !== null && e.uid === openCard,
+    )
+    if (openWorn) {
+      const base = baseOf(openWorn)
+      if (base) pane.appendChild(sheetFor(c, base.slot, openWorn, true))
+    }
+
+    // HOW FULL THE PACK IS, BEFORE THE GRID AND NOT AFTER IT.
     //
     // The pack has held 24 pieces since it existed and the number appeared
-    // nowhere: a player only learned the limit by losing a find to it, in a
-    // line on the reward screen after the expedition was over. That is the
-    // wrong moment — the decision it should inform (drop something, or go out
-    // with room) is made here.
-    const used = carried(c.inventory).length
+    // nowhere: a player only learned the limit by losing a find, in a line on
+    // the reward screen after the expedition was over. That is the wrong
+    // moment — the decision it should inform is made here, before setting out.
+    const loose = carried(c.inventory)
     const bag = document.createElement('div')
-    bag.className = 'bag' + (used >= BAG_CAPACITY ? ' bag-full' : '')
+    bag.className = 'bag' + (loose.length >= BAG_CAPACITY ? ' bag-full' : '')
     bag.innerHTML =
-      `<span>${strings.pack}</span><b>${used} / ${BAG_CAPACITY}</b>` +
-      `<div class="bag-bar"><i style="width:${Math.round((used / BAG_CAPACITY) * 100)}%"></i></div>`
+      `<span>${strings.pack}</span><b>${loose.length} / ${BAG_CAPACITY}</b>` +
+      `<div class="bag-bar"><i style="width:${Math.round(
+        (loose.length / BAG_CAPACITY) * 100,
+      )}%"></i></div>`
     pane.appendChild(bag)
 
-    for (const slot of SLOTS) {
-      // Worn first, then the pack's pieces for this slot, best rung first —
-      // so the comparison a player actually makes is the two cards side by
-      // side rather than a scroll and a memory.
-      const wornUid = c.inventory.equipped[slot]
-      const wornEntry = equippedIn(c.inventory, slot)
-      const owned = [...(wornEntry ? [wornEntry] : []), ...carriedInSlot(c.inventory, slot)]
-
-      const group = document.createElement('div')
-      group.className = 'slot'
-      const label = document.createElement('div')
-      label.className = 'slot-name'
-      // The slot's own icon, so the eye finds "where are my shoulders" without
-      // reading four headings. See src/render/packIcons.ts.
-      label.innerHTML =
-        packIconSvg(PACK_SLOT_ICON[slot] ?? '', palette.ink, 1, 'slot-icon') +
-        `<span>${SLOT_NAMES[slot]}</span>`
-      group.appendChild(label)
-
-      if (owned.length === 0) {
-        // An empty slot used to be skipped entirely, and that hid the single
-        // most useful thing this screen can say. "What am I missing?" is the
-        // question that sends a player back out, and it was unanswerable from
-        // the screen that should be asking it.
-        const empty = document.createElement('div')
-        empty.className = 'slot-empty'
-        empty.textContent = strings.slotEmpty
-        group.appendChild(empty)
-      } else {
-        const row = document.createElement('div')
-        // Scrolls sideways rather than stacking. A slot with six finds used to
-        // add six full-width cards to a page that was already too long.
-        row.className = 'slot-items'
-        let open: OwnedItem | null = null
-        for (const entry of owned) {
-          const base = baseOf(entry)
-          if (!base) continue
-          if (entry.uid === openCard) open = entry
-          row.appendChild(itemCard(base, entry, entry.uid === wornUid, slot))
-        }
-        group.appendChild(row)
-        if (open) group.appendChild(sheetFor(c, slot, open, open.uid === wornUid))
+    const grid = document.createElement('div')
+    grid.className = 'pack'
+    // Best rung first. A pack sorted by when you found things is a pack you
+    // have to read; sorted by rung, the top-left corner is always the answer.
+    const sorted = [...loose].sort((a, b) => b.rarity - a.rarity)
+    const cells: HTMLElement[] = []
+    let sheet: HTMLElement | null = null
+    let openAt = -1
+    for (const entry of sorted) {
+      const base = baseOf(entry)
+      if (!base) continue
+      if (entry.uid === openCard) {
+        openAt = cells.length
+        sheet = sheetFor(c, base.slot, entry, false)
       }
-      pane.appendChild(group)
+      cells.push(itemCell(base, entry, false, base.slot))
     }
+    // After the whole ROW that holds the tapped cell, not immediately after the
+    // cell — inserting mid-row leaves the piece stranded alone on a line with
+    // three empty tracks beside it, which reads as a layout that broke.
+    if (sheet && openAt >= 0) {
+      cells.splice(Math.min(cells.length, (Math.floor(openAt / PACK_COLUMNS) + 1) * PACK_COLUMNS), 0, sheet)
+    }
+    for (const cell of cells) grid.appendChild(cell)
+    for (let i = sorted.length; i < BAG_CAPACITY; i++) {
+      const void_ = document.createElement('div')
+      void_.className = 'cell cell-void'
+      grid.appendChild(void_)
+    }
+    pane.appendChild(grid)
     return pane
   }
 

@@ -174,11 +174,21 @@ const RANKED_SAVE = JSON.stringify({
             affixes: [{ kind: 'spirit', amount: 12 }] },
           { uid: 'd', baseId: 'w-great', rarity: 2, depth: 3, power: null,
             affixes: [{ kind: 'edge', amount: 6 }] },
-          // Spares in the pack, so the comparison sheet has a decision to draw.
-          { uid: 'e', baseId: 'r-plain', rarity: 4, depth: 5, power: null,
+          // Spares in the pack, spanning the ladder — the pack grid is the one
+          // surface where six rungs sit side by side, so the fixture has to
+          // carry more than one of them or the check proves nothing.
+          { uid: 'e', baseId: 'r-plain', rarity: 4, depth: 5, power: 'tide',
             affixes: [{ kind: 'swift', amount: 16 }, { kind: 'body', amount: 12 }] },
           { uid: 'f', baseId: 'w-feidao', rarity: 3, depth: 4, power: null,
             affixes: [{ kind: 'spirit', amount: 9 }] },
+          { uid: 'g', baseId: 'h-crown', rarity: 5, depth: 6, power: 'greed',
+            affixes: [{ kind: 'spirit', amount: 20 }, { kind: 'body', amount: 12 }] },
+          { uid: 'h', baseId: 's-wide', rarity: 1, depth: 2, power: null,
+            affixes: [{ kind: 'edge', amount: 5 }] },
+          { uid: 'i', baseId: 'r-court', rarity: 2, depth: 3, power: null,
+            affixes: [{ kind: 'vigour', amount: 28 }] },
+          { uid: 'j', baseId: 'h-topknot', rarity: 0, depth: 1, power: null,
+            affixes: [{ kind: 'body', amount: 4 }] },
         ],
         equipped: { robe: 'a', shoulders: 'b', head: 'c', weapon: 'd' },
       },
@@ -227,9 +237,9 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
     // What the card draws now is a seal per card and a --rung colour per rung.
     await page.locator('.hub-tabs .tab').nth(1).click()
     await page.waitForTimeout(250)
-    const seals = await page.locator('.slot-items .item .item-seal').count().catch(() => 0)
+    const seals = await page.locator('.pack .cell .cell-seal').count().catch(() => 0)
     const rungs = await page
-      .locator('.slot-items .item')
+      .locator('.pack .cell:not(.cell-void), .doll-slot:not(.doll-empty)')
       .evaluateAll((els) => new Set(els.map((el) => el.style.getPropertyValue('--rung'))).size)
       .catch(() => 0)
     await page.screenshot({ path: join(OUT, 'gear-ranked.png') })
@@ -240,12 +250,12 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
     // the state that was already fine. The thing worth photographing — and
     // worth failing the build over — is what a tap reveals: the rows that say
     // what the piece does to the cut, the reach and the health.
-    const spare = page.locator('.slot-items .item:not(.item-worn)').first()
+    const spare = page.locator('.pack .cell:not(.cell-void)').first()
     let rows = 0
     if ((await spare.count()) > 0) {
       await spare.click()
       await page.waitForTimeout(250)
-      rows = await page.locator('.slot .item-sheet .cmp-row').count().catch(() => 0)
+      rows = await page.locator('.pack .sheet .cmp-row').count().catch(() => 0)
       await page.screenshot({ path: join(OUT, 'gear-compare.png') })
     }
     if (rows === 0) {
@@ -253,6 +263,43 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
       process.exitCode = 1
     } else {
       console.log(`sheet:  ${rows} rows moved on the open card`)
+    }
+
+    // THE SHEET PROMISES; THE BUTTON HAS TO DELIVER.
+    //
+    // Reading the numbers and pressing the button are two different features
+    // and only one of them is visible in a screenshot. This walks the whole
+    // decision: open a piece, wear it, and check the figure's slot cards and
+    // the pack count both moved the way a swap moves them — the worn piece
+    // goes back to the pack, so the count holds while the names change.
+    const dollNames = () => page.locator('.doll-slot b').allTextContents()
+    const packCount = () => page.locator('.pack .cell:not(.cell-void)').count()
+    const before = (await dollNames()).join('|')
+    const heldBefore = await packCount()
+    const act = page.locator('.pack .sheet .sheet-act')
+    if ((await act.count()) > 0) {
+      await act.click()
+      await page.waitForTimeout(250)
+      const after = (await dollNames()).join('|')
+      const heldAfter = await packCount()
+      if (after === before) {
+        console.error('wear:   pressed the button and the figure wore nothing new')
+        process.exitCode = 1
+      } else if (heldAfter !== heldBefore) {
+        console.error(`wear:   a swap changed the pack count ${heldBefore} -> ${heldAfter}`)
+        process.exitCode = 1
+      } else {
+        console.log(`wear:   equipped, ${heldAfter} still in the pack`)
+      }
+    } else {
+      console.error('wear:   the open sheet has no button to press')
+      process.exitCode = 1
+    }
+    // The four slots of the paperdoll, drawn whether or not they hold anything.
+    const dolls = await page.locator('.doll-slot').count()
+    if (dolls !== 4) {
+      console.error(`doll:   ${dolls} slot cards beside the figure, expected 4`)
+      process.exitCode = 1
     }
 
     if (gold < 4) {

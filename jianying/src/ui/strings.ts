@@ -51,7 +51,12 @@ export const strings = {
   realm: 'Realm',
   attributes: 'Attributes',
   /** Shown where a slot has nothing in it — the question that sends you out. */
-  slotEmpty: 'Nothing found for this yet.',
+  /**
+   * On the empty slot card in the paperdoll, under the slot's own name. Short
+   * because the card is 97px wide — the sentence it replaces wrapped to four
+   * lines there, and the slot name above it already says what is missing.
+   */
+  slotEmpty: 'Empty',
   /** Heading for the five things a player can DO to wake an art. */
   conditions: 'What wakes them',
   /**
@@ -154,11 +159,13 @@ export const strings = {
   /** Shown when a find had nowhere to go. See BAG_CAPACITY in meta/inventory. */
   packWasFull: 'No room in your pack',
   /**
-   * The comparison sheet, opened by tapping a piece once. The second tap acts,
-   * so the label has to say what that tap will DO — not what the piece is.
+   * The button at the foot of the comparison sheet. It says what pressing it
+   * will DO — not what the piece is. It read "tap again to wear" while the
+   * sheet was a hint and the cell was the button; it is a real button now, and
+   * copy that describes a gesture nobody makes any more is worse than none.
    */
-  takeOff: 'Tap again to take off',
-  wearThis: 'Tap again to wear',
+  takeOff: 'Take it off',
+  wearThis: 'Wear this',
   noChange: 'Changes nothing you can feel',
   /** Heading over the pack count. See BAG_CAPACITY in meta/inventory. */
   pack: 'Pack',
