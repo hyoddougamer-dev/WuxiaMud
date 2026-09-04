@@ -42,6 +42,28 @@
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
+      /* THE PHONE FRAME, ON A SCREEN THAT IS NOT ONE.
+         Every layer below is `position: fixed` against the viewport, which is
+         exactly right on the device this is built for and wrong everywhere
+         else: opened on a desktop the HUD stretches to 1280px, the dodge button
+         lands under the far corner of the screen, and the sweep arc is a
+         sliver in the middle of a field of paper. A game designed for one
+         thumb should not be played across a metre of desk.
+         So on any viewport that is not clearly portrait, the four layers are
+         letterboxed into a 9:19.5 column — a modern phone — centred, with the
+         ink ground of the page around it. One set of variables drives all four,
+         because four layers that letterbox INDEPENDENTLY is four ways to drift
+         apart. A real phone never matches the query and is untouched. */
+      :root {
+        --frame-w: 100vw;
+        --frame-x: 0px;
+      }
+      @media (min-aspect-ratio: 3 / 4) {
+        :root {
+          --frame-w: min(100vw, calc(100dvh * 9 / 19.5));
+          --frame-x: calc((100vw - var(--frame-w)) / 2);
+        }
+      }
       #stage {
         position: fixed;
         inset: 0;
@@ -2593,6 +2615,19 @@
         letter-spacing: 0.3em;
         text-transform: uppercase;
       }
+      /* LAST IN THE SHEET ON PURPOSE. Every one of these layers sets `inset: 0`
+         or its own left/right further up, and a later rule of equal specificity
+         wins — so the frame has to have the last word or it silently does
+         nothing. See the --frame-* variables at the top. */
+      #stage,
+      #ui,
+      #hud,
+      #hint {
+        left: var(--frame-x);
+        right: auto;
+        width: var(--frame-w);
+      }
+
     </style>
   </head>
   <body>
