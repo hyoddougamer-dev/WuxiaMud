@@ -85,18 +85,19 @@ const STEPS: readonly Step[] = [
   {
     id: 'insight',
     when: (s) => s.insight >= 2,
-    text: 'Insight buys a technique',
-    sub: 'Gone when this road ends',
+    text: 'Insight deepens your inner force',
+    sub: 'A little more damage, a little more life',
   },
   {
     // TAUGHT AT THE FIRST PIECE ON THE GROUND, because the line only means
     // anything with the thing in front of you. It is also the single most
-    // important sentence in the game and was never said: techniques are
-    // temporary and GEAR IS NOT, which is the whole reason to go out again.
+    // important sentence in the game and was never said: everything a run
+    // gives you ends with the run, and GEAR DOES NOT — which is the whole
+    // reason to go out again.
     id: 'loot',
     when: (s) => s.found >= 1,
     text: 'That one you keep',
-    sub: 'Techniques end with the road. Equipment does not.',
+    sub: 'The road ends. Equipment does not.',
   },
   {
     id: 'hurt',

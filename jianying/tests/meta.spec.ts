@@ -313,58 +313,38 @@ describe('attribute points', () => {
 
 describe('attributes feed combat', () => {
   it('raises health, damage and rate', () => {
-    const base = deriveStats(new Map())
-    const grown = deriveStats(new Map(), kit(attrs({ body: 5, edge: 5, swift: 5 })))
+    const base = deriveStats()
+    const grown = deriveStats(kit(attrs({ body: 5, edge: 5, swift: 5 })))
     expect(grown.maxHp).toBeGreaterThan(base.maxHp)
     expect(grown.slashDamage).toBeGreaterThan(base.slashDamage)
     expect(grown.slashInterval).toBeLessThan(base.slashInterval)
   })
 
-  it('keeps a technique blurb literally true whatever the character invested', () => {
-    // "+12% sweep damage" must add twelve POINTS to the pool per level, on
-    // every weapon and at every level of investment. It reads as a constant
-    // absolute gain per weapon precisely because the pool is additive — which
-    // is what stops the level-up screen quoting a shifting percentage.
-    //
-    // The card was flat damage until the pool existed, and the blurb was "+4
-    // damage per sweep". That wording survived the change for about a minute
-    // and this test is what caught it: the same card had started giving +3.6
-    // on a zhanmadao and +1.3 on flying daggers.
-    const keen = new Map([['keen', 3]])
-    const expected = emptyKit().weapon.damage * 0.36
-    for (const edge of [0, 4, 20]) {
-      const without = deriveStats(new Map(), kit(attrs({ edge })))
-      const with3 = deriveStats(keen, kit(attrs({ edge })))
-      expect(with3.slashDamage - without.slashDamage).toBeCloseTo(expected, 9)
-    }
-  })
-
   it('never lets Swiftness reach a zero interval', () => {
     // Multiplicative decay approaches zero but cannot arrive, which is what
     // keeps the sweep from dividing the frame by nothing.
-    const absurd = deriveStats(new Map(), kit(attrs({ swift: 500 })))
+    const absurd = deriveStats(kit(attrs({ swift: 500 })))
     expect(absurd.slashInterval).toBeGreaterThan(0)
     expect(absurd.slashInterval).toBeLessThan(DEFAULT_WEAPON.interval)
     expect(Number.isFinite(absurd.slashInterval)).toBe(true)
   })
 
-  it('lets Spirit raise the arts without touching the sweep', () => {
-    const loadout = new Map([
-      ['orbit', 2],
-      ['bolt', 2],
-      ['nova', 2],
-    ])
-    const plain = deriveStats(loadout)
-    const spirited = deriveStats(loadout, kit(attrs({ spirit: 6 })))
-    expect(spirited.orbitDamage).toBeGreaterThan(plain.orbitDamage)
-    expect(spirited.boltDamage).toBeGreaterThan(plain.boltDamage)
+  it('lets Spirit raise what the skills grant, without touching the sweep', () => {
+    // 神 is the attribute that pays a build made of skills rather than of
+    // swings. It has to move `artScale` and the shockwave's reach and NOTHING
+    // on the sweep — the moment it also sharpened the blade it would stop
+    // being a choice against 锋 and become a strictly better version of it.
+    const plain = deriveStats()
+    const spirited = deriveStats(kit(attrs({ spirit: 6 })))
+    expect(spirited.artScale).toBeGreaterThan(plain.artScale)
     expect(spirited.novaRadius).toBeGreaterThan(plain.novaRadius)
     expect(spirited.slashDamage).toBeCloseTo(DEFAULT_WEAPON.damage, 9)
+    expect(spirited.slashInterval).toBeCloseTo(plain.slashInterval, 9)
   })
 
   it('produces finite stats for an empty and a maxed character alike', () => {
     for (const spent of [emptyAttributes(), attrs({ body: 80, edge: 80, swift: 80, spirit: 80 })]) {
-      const stats = deriveStats(new Map([['keen', 6]]), kit(spent))
+      const stats = deriveStats(kit(spent))
       // Every NUMBER, which is now not every field: `strike` is the one
       // discriminator on the block (see data/weapons.ts) and is a string. The
       // point of this test is that no arithmetic path produces a NaN, so it
@@ -524,7 +504,7 @@ describe('weapons', () => {
     const CEILING: Record<string, number> = { sweep: 1.1, throw: 0.7 }
     for (const school of SCHOOLS) {
       const weapon = WEAPON_BY_ID.get(school.weaponId)!
-      const stats = deriveStats(new Map(), { spent: emptyAttributes(), weapon, worn: [] })
+      const stats = deriveStats({ spent: emptyAttributes(), weapon, worn: [] })
       // A volley puts every blade on a single body only when they all connect;
       // against the opening bandit, on open ground, one does.
       const perBlow = stats.slashDamage
@@ -539,8 +519,8 @@ describe('weapons', () => {
   it('drives the attack through deriveStats, and carries the class with it', () => {
     const great = WEAPON_BY_ID.get('great')!
     const feidao = WEAPON_BY_ID.get('feidao')!
-    const withGreat = deriveStats(new Map(), { spent: emptyAttributes(), weapon: great, worn: [] })
-    const withDaggers = deriveStats(new Map(), { spent: emptyAttributes(), weapon: feidao, worn: [] })
+    const withGreat = deriveStats({ spent: emptyAttributes(), weapon: great, worn: [] })
+    const withDaggers = deriveStats({ spent: emptyAttributes(), weapon: feidao, worn: [] })
 
     // The one branch the simulation makes has to survive the derivation, or
     // the thrower silently swings an invisible arc. See Stats.strike.
@@ -903,8 +883,8 @@ describe('what a piece grants', () => {
   })
 
   it('lengthens the sweep and quickens it, through deriveStats', () => {
-    const bare = deriveStats(new Map(), emptyKit())
-    const kitted = deriveStats(new Map(), {
+    const bare = deriveStats(emptyKit())
+    const kitted = deriveStats({
       ...emptyKit(),
       worn: [wearing([{ kind: 'reach', amount: 20 }, { kind: 'haste', amount: 20 }])],
     })
@@ -923,7 +903,7 @@ describe('what a piece grants', () => {
         { kind: 'vigour', amount: 999 },
       ]),
     )
-    const stats = deriveStats(new Map(), { ...emptyKit(), worn: absurd })
+    const stats = deriveStats({ ...emptyKit(), worn: absurd })
     for (const value of Object.values(stats)) {
       if (typeof value !== 'number') continue
       expect(Number.isFinite(value)).toBe(true)
@@ -941,7 +921,7 @@ describe('what a piece grants', () => {
     expect(wornShape(many).reach).toBeLessThanOrEqual(1.5)
 
     const fast = Array.from({ length: 12 }, () => wearing([{ kind: 'haste', amount: 20 }]))
-    const stats = deriveStats(new Map(), { ...emptyKit(), worn: fast })
+    const stats = deriveStats({ ...emptyKit(), worn: fast })
     const floor = emptyKit().weapon.interval / (1 + SPEED_CAP / 100)
     expect(stats.slashInterval).toBeGreaterThanOrEqual(floor - 1e-9)
   })
@@ -1339,7 +1319,7 @@ describe('depth holds permanent power in check', () => {
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
     const run = createRun()
-    const stats = deriveStats(new Map(), kit(spent))
+    const stats = deriveStats(kit(spent))
     run.hp = stats.maxHp
 
     const ticks = Math.round(400 / TICK_S)

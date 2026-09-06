@@ -40,8 +40,8 @@ const ENTRIES: readonly Entry[] = [
   },
   {
     seal: '三',
-    title: 'Insight is spent on the road, and lost with it',
-    body: 'Qi gathered from the fallen raises your Insight, and each level offers three techniques. They compound fast and they are gone when the road ends.',
+    title: 'Three skills, and 势 to fire them',
+    body: 'You take three skills out. Two go off by themselves; the third is your button. Each costs 势 — four points that fill while you MOVE and buy nothing while you stand still. Standing still is what pays your damage off, and what stops paying for the next skill.',
   },
   {
     seal: '四',

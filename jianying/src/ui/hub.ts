@@ -52,7 +52,6 @@ import {
   type OwnedItem,
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
-import { type Loadout } from '../data/techniques'
 import { kitOf } from '../meta/kit'
 import { POWER_BY_ID, affixLine } from '../data/affixes'
 import { rarityOf, rarityStyle } from '../data/rarity'
@@ -73,14 +72,15 @@ import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
 import { packIconSvg, effectIconSvg, itemIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
+import { CONDITIONS, CONDITION_BY_ID } from '../data/arts'
 import {
-  CONDITIONS,
-  CONDITION_BY_ID,
-  EQUIPPED_ARTS,
-  artsFor,
-  type Art,
-} from '../data/arts'
-import { artGrade, awakeCount, equippedIds } from '../sim/arts'
+  SKILL_BY_ID,
+  SLOTTED_SKILLS,
+  defaultBar,
+  skillsFor,
+  type Skill,
+} from '../data/skills'
+import { skillReading } from '../sim/skills'
 import { palette } from '../render/palette'
 import { strings } from './strings'
 
@@ -124,7 +124,7 @@ interface Tab {
 const TABS: readonly Tab[] = [
   { id: 'self', seal: '剑', name: 'Swordsman' },
   { id: 'gear', seal: '装', name: 'Equipment' },
-  { id: 'arts', seal: '法', name: 'Arts' },
+  { id: 'arts', seal: '法', name: 'Skills' },
   { id: 'world', seal: '界', name: 'World' },
 ] as const
 
@@ -272,9 +272,6 @@ export function createHub(
    * predicts and what the expedition runs on come from one function rather
    * than two that can drift.
    */
-  /** No in-run technique cards: the sheet compares the swordsman who sets out. */
-  const EMPTY: Loadout = new Map()
-
   const kitWith = (c: Character, slot: Slot, entry: OwnedItem | null): Kit =>
     kitOf(c, { slot, entry })
 
@@ -428,8 +425,8 @@ export function createHub(
     const base = baseOf(entry)
     const tier = rarityOf(entry.rarity)
     const power = entry.power ? POWER_BY_ID.get(entry.power) : null
-    const before = deriveStats(EMPTY, kitWith(c, slot, equippedIn(c.inventory, slot)))
-    const after = deriveStats(EMPTY, kitWith(c, slot, worn ? null : entry))
+    const before = deriveStats(kitWith(c, slot, equippedIn(c.inventory, slot)))
+    const after = deriveStats(kitWith(c, slot, worn ? null : entry))
     const rows = compareRows(before, after)
 
     const sheet = document.createElement('div')
@@ -758,173 +755,127 @@ export function createHub(
   }
 
   /**
-   * 法 — the arts, which until now had nowhere to live.
+   * 法 — the three skills you take out, and everything else you could.
    *
-   * Every art in the game acts, the strip lights during a run, and none of it
-   * was visible from the hub: no list, no names, no way to see what a seal on
-   * the strip meant or to choose which four went out with you. The work existed
-   * and the player could not find it, which is indistinguishable from the work
-   * not existing.
+   * WHAT THIS REPLACES. A scroll of five arts, ranked by tapping, of which the
+   * blade's rung decided how many "woke". Nothing on it was a decision the
+   * player made in a fight: an art fired when a posture happened to hold, for
+   * as long as the accident lasted, and the screen's job was to explain a rule
+   * that could not be felt. The verdict was "não se percebe nada".
    *
-   * THE SCROLL BELONGS TO THE WEAPON. Only the arts of the blade in hand are
-   * shown, because that is the whole point of "your class is what you carry" —
-   * picking up a spear is picking up a different way to fight, and a list that
-   * mixed all thirty would bury that.
+   * A skill is now something you FIRE. So this screen answers three questions
+   * in the order a player asks them: what am I taking out, what does each one
+   * cost, and what else exists. Every number on it is read from the same table
+   * the simulation reads, through the same `skillPower`, so the tile in a fight
+   * and the row in the hub can never quote different figures.
    *
-   * ORDER BITES, AND HARDER THAN ANYTHING ELSE ON THIS SCREEN. This comment
-   * said the opposite for a long time — "a promise rather than a rule" — and it
-   * was left over from the 秘笈 ladder, which is gone. What decides an art's
-   * grade is now the rungs of the gear (see `artGrade`), and what decides WHICH
-   * arts wake is `awakeCount`: one plus the weapon's rung, taken off the TOP of
-   * this list. So a swordsman carrying a 凡 blade is not being handed a random
-   * art, they are choosing their single one out of five — measured: rank 一斩
-   * and 一斩 is what wakes; rank 山 and 山 wakes instead. It is the earliest and
-   * sharpest build decision the game has, and a stale comment had it filed as
-   * decoration.
+   * THE SLOTS ARE NOT YET EDITABLE HERE, and the screen says so rather than
+   * pretending. Choosing which three go out is the next slice; showing a
+   * fictional choice would be worse than showing a real constraint.
    */
-  const paneArts = (c: Character, weapon: WeaponClass): HTMLElement => {
+  const paneSkills = (weapon: WeaponClass): HTMLElement => {
     const pane = document.createElement('div')
     pane.className = 'pane'
 
-    const scroll = artsFor(weapon.id)
-    // The whole scroll, in the player's ranking. How far down it the arts
-    // actually wake is the gear's business — see `attune` in sim/arts.ts.
-    const ranked = equippedIds(c.arts, weapon.id)
-    // Chosen explicitly, which is what a tap toggles. The rest of `ranked` is
-    // the tail of the scroll, shown but not ranked.
-    const chosen = (c.arts[weapon.id] ?? []).filter((id) => scroll.some((a) => a.id === id))
-    const rungs = SLOTS.map((slot) => equippedIn(c.inventory, slot)?.rarity ?? 0)
-    const weaponRung = rungs[0]!
-    const wornWeapon = equippedIn(c.inventory, 'weapon')
-    const weaponName = (wornWeapon ? baseOf(wornWeapon) : null)?.name ?? weapon.name
-    const awake = awakeCount(weaponRung, scroll.length)
-    const grade = artGrade(rungs)
+    const roster = skillsFor(weapon.id)
+    const slotted = defaultBar(weapon.id)
 
     const head = document.createElement('div')
     head.className = 'block-head arts-head'
     head.innerHTML =
       `<span>${weapon.seal} ${escapeHtml(weapon.name)}</span>` +
-      `<b class="arts-count">${awake} ${strings.artsAwake} · ${strings.artsGrade} ${grade}</b>`
+      `<b class="arts-count">${SLOTTED_SKILLS} ${escapeHtml(strings.skillSlots)}</b>`
     pane.appendChild(head)
 
     const note = document.createElement('div')
     note.className = 'arts-note'
-    note.textContent = strings.artsNote
+    note.textContent = strings.skillsNote
     pane.appendChild(note)
 
     /**
-     * One art. Tapping toggles whether it is carried.
+     * One skill, as a row.
      *
-     * Unequipping is allowed down to zero rather than pinned at four: a player
-     * who wants to see what one art alone does should be able to, and the
-     * simulation reads whatever is here.
+     * `place` is 1-based; the last slotted one is the manual slot, and it is
+     * labelled rather than left to be inferred. Which of the three a player
+     * presses is the only in-fight decision the system has, so which one that
+     * is has to be legible from the screen that lists them.
      */
-    /**
-     * One art, at its place in the ranking.
-     *
-     * `place` is 1-based and always present — every art on the scroll has a
-     * rank now, whether the player set it or the table's own order did. What
-     * changes is whether the gear reaches that far down: an art past `awake` is
-     * shown greyed with the reason, rather than hidden. Hiding it would make
-     * the reward for a better blade invisible until the moment it arrived, and
-     * a reward nobody can see coming is not a reward.
-     */
-    const artRow = (art: Art, place: number): HTMLElement => {
-      const on = place <= awake
-      // The hint goes on the FIRST sleeping row only — the next one to wake.
-      // On every sleeping row it becomes a column of the same sentence four
-      // times over, which stops being information and starts being wallpaper.
-      const next = place === awake + 1
-      const ranked = chosen.includes(art.id)
-      const cond = CONDITION_BY_ID.get(art.condition)!
-      const row = document.createElement('button')
-      row.type = 'button'
-      row.className = 'art-row' + (on ? ' art-row-on' : ' art-row-off')
+    const skillRow = (skill: Skill, place: number | null): HTMLElement => {
+      const on = place !== null
+      const manual = place === SLOTTED_SKILLS
+      const cond = CONDITION_BY_ID.get(skill.boost.when)!
+      const row = document.createElement('div')
+      row.className = 'sk-row' + (on ? ' sk-on' : ' sk-off')
+      // FOUR LINES, IN THE ORDER THE QUESTIONS ARRIVE. What is it, what does it
+      // do, what does it cost me, and when is it worth more. An earlier draft
+      // put the posture in a narrow right-hand column and every reading wrapped
+      // to three lines inside it — the screen said everything and read as
+      // nothing, which is the failure this whole overhaul is answering.
       row.innerHTML = `
-        <span class="art-row-place">${place}</span>
-        ${effectIconSvg(art.effect, palette.ink, 1, 'art-row-icon')}
-        <span class="art-row-text">
-          <span class="art-row-name">${art.seal} ${escapeHtml(art.name)}</span>
-          <span class="art-row-blurb">${escapeHtml(art.blurb)}</span>
-          ${next ? `<span class="art-row-wake">${escapeHtml(strings.artsAsleep)}</span>` : ''}
+        <span class="sk-place">${on ? place : ''}</span>
+        ${effectIconSvg(skill.effect, palette.ink, 1, 'sk-icon')}
+        <span class="sk-body">
+          <span class="sk-name">
+            ${skill.seal} ${escapeHtml(skill.name)}
+            ${manual ? `<em class="sk-manual">${escapeHtml(strings.skillManual)}</em>` : ''}
+          </span>
+          <span class="sk-blurb">${escapeHtml(skill.blurb)}</span>
+          <span class="sk-line">
+            <b class="sk-does">${escapeHtml(skillReading(skill))}</b>
+            <span class="sk-cost">${'&#9679;'.repeat(skill.cost)} 势</span>
+            <span class="sk-time">${
+              skill.duration > 0 ? `${skill.duration}s` : strings.skillInstant
+            } · rest ${skill.cooldown}s</span>
+          </span>
+          <span class="sk-boost">
+            <span class="sk-seal">${cond.seal}</span>
+            ${escapeHtml(cond.name)} →
+            <b>${escapeHtml(skillReading(skill, true))}</b>
+          </span>
         </span>
-        <span class="art-row-cond">
-          <span class="art-row-seal">${cond.seal}</span>
-          <span class="art-row-how">${escapeHtml(cond.name)}</span>
-        </span>
-        <span class="art-row-grade">${on ? grade : ''}</span>
       `
-      row.addEventListener('click', () => {
-        if (!character) return
-        const next = chosen.filter((id) => id !== art.id)
-        // Adding appends, so the ranking is the order you tapped them in — the
-        // only reordering control a thumb needs, and one nobody has to learn.
-        if (!ranked && next.length < EQUIPPED_ARTS) next.push(art.id)
-        character.arts = { ...character.arts, [weapon.id]: next }
-        onSave()
-        render()
-      })
       return row
     }
 
     const list = document.createElement('div')
-    list.className = 'art-list'
-    // In the ranked order, awake ones first by construction. Sorting by state
-    // rather than by the table's order means the arts that fire are always the
-    // ones at the top, and the next one to wake is the one directly below.
-    ranked.forEach((id, i) => {
-      const art = scroll.find((a) => a.id === id)
-      if (!art) return
-      // WHERE THE BLADE STOPS REACHING, drawn as a line rather than counted.
-      //
-      // The rule was already stated in words at the top of the pane and the
-      // rows were already greyed below the cut, and a player still had to count
-      // to find the boundary. It is the single most important line on this
-      // screen — everything above it fires, everything below it does not — so
-      // it is a thing you can see, labelled with the blade that draws it and
-      // coloured by that blade's rung. A better weapon does not just grey one
-      // fewer row: it visibly MOVES this line down the scroll.
-      if (i === awake && awake < ranked.length) {
-        const cut = document.createElement('div')
-        cut.className = 'art-cut'
-        cut.setAttribute('style', rarityStyle(rarityOf(weaponRung)))
-        cut.innerHTML =
-          `<span>${rarityOf(weaponRung).seal} ${escapeHtml(weaponName)}</span>` +
-          `<b>${strings.artsReach}</b>`
-        list.appendChild(cut)
-      }
-      list.appendChild(artRow(art, i + 1))
+    list.className = 'sk-list'
+    slotted.forEach((id, i) => {
+      const skill = SKILL_BY_ID.get(id)
+      if (skill) list.appendChild(skillRow(skill, i + 1))
     })
+    // WHERE THE BAR STOPS, drawn as a line rather than counted. Everything
+    // above it goes out with you; everything below is known and not taken.
+    const cut = document.createElement('div')
+    cut.className = 'sk-cut'
+    cut.innerHTML = `<span>${weapon.seal} ${escapeHtml(strings.skillsKnown)}</span>`
+    list.appendChild(cut)
+    for (const skill of roster) {
+      if (slotted.includes(skill.id)) continue
+      list.appendChild(skillRow(skill, null))
+    }
     pane.appendChild(list)
 
-    // What the five conditions actually ask of the player. The strip during a
-    // run shows which is true; this is the only place that says what they are.
+    // 势. The one rule the whole bar rests on, and the one thing a player
+    // cannot work out by looking at the tiles: where the points come from.
     const legend = document.createElement('div')
     legend.className = 'block'
     const legendHead = document.createElement('div')
     legendHead.className = 'block-head'
     legendHead.innerHTML = `<span>${strings.conditions}</span>`
     legend.appendChild(legendHead)
-    // The loop, in one line, before the four rows that make it up. A player
-    // who reads the rows without it learns four separate rules; with it they
-    // learn one, and the rows become the detail rather than the lesson.
     const loop = document.createElement('div')
     loop.className = 'cond-loop'
-    loop.textContent = strings.momentumLoop
+    loop.textContent = strings.shiLoop
     legend.appendChild(loop)
     for (const cond of CONDITIONS) {
       const row = document.createElement('div')
-      row.className = `cond-row cond-${cond.kind}`
+      row.className = 'cond-row cond-charge'
       row.innerHTML =
         `<span class="cond-seal">${cond.seal}</span>` +
         `<span class="cond-name">${escapeHtml(cond.name)}</span>` +
-        `<span class="cond-how">${escapeHtml(cond.how)} <b>${escapeHtml(cond.does)}</b></span>`
+        `<span class="cond-how">${escapeHtml(cond.how)}</span>`
       legend.appendChild(row)
     }
-    const desperate = document.createElement('div')
-    desperate.className = 'cond-loop cond-desperate'
-    desperate.textContent = strings.desperateRule
-    legend.appendChild(desperate)
     pane.appendChild(legend)
 
     return pane
@@ -1037,7 +988,7 @@ export function createHub(
         : tab === 'gear'
           ? paneGear(c)
           : tab === 'arts'
-            ? paneArts(c, weapon)
+            ? paneSkills(weapon)
             : paneWorld(c),
     )
     panel.appendChild(body)

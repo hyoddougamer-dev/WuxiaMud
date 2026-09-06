@@ -33,8 +33,8 @@ import {
 import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
 import { MAX_MOMENTUM, createSense, type Conditions } from '../src/sim/conditions'
 
-const base = (): Stats => deriveStats(new Map(), emptyKit())
-const scratch = (): Stats => deriveStats(new Map(), emptyKit())
+const base = (): Stats => deriveStats(emptyKit())
+const scratch = (): Stats => deriveStats(emptyKit())
 
 /** No condition true. The state a player is in most of the time. */
 const nothing = (): Conditions => createSense().active

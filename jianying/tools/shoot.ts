@@ -552,78 +552,55 @@ async function main(): Promise<void> {
 
     // --- 法, and the fact that ranking there actually STICKS ---------------
     //
-    // This tab exists because every art in the game acted and none of it was
-    // reachable from the hub. The failure it has to be guarded against is the
-    // one that shape of bug always takes: a list that renders, responds to a
-    // tap, and writes nothing — so the player arranges a build, walks out, and
-    // carries the default anyway.
-    //
-    // What a tap MEANS changed with 器蕴: it sets the RANKING, and the gear
-    // decides how far down that ranking the arts wake. So the two things to
-    // prove are now separate — the ranking is stored, and the awake count is
-    // read off the gear rather than off the taps.
-    const artsTab = page.locator('.hub-tabs .tab', { hasText: 'Arts' })
+    // This tab exists because every ability in the game acted and none of it
+    // was reachable from the hub. What it has to prove changed with the
+    // overhaul: there is no ranking to store any more, because the gear no
+    // longer decides which abilities fire. A skill is slotted, it costs 势 and
+    // it rests — so the failure to guard against is a list that renders the
+    // NAMES and drops the numbers, which is exactly the state the arts screen
+    // was in when a playtest called it incomprehensible.
+    const artsTab = page.locator('.hub-tabs .tab', { hasText: 'Skills' })
     if ((await artsTab.count()) === 0) {
-      console.error('arts:   no 法 tab in the hub')
+      console.error('skills: no 法 tab in the hub')
       process.exitCode = 1
     } else {
       await artsTab.first().click()
       await page.waitForTimeout(250)
-      const rows = await page.locator('.art-row').count()
-      const awake = await page.locator('.art-row-on').count()
-      const asleep = await page.locator('.art-row-off').count()
-      const ranking = async (): Promise<string[]> =>
-        page.evaluate(() => {
-          const raw = localStorage.getItem('jianying.save.v2')
-          if (!raw) return []
-          const arts = JSON.parse(raw).swordsmen?.[0]?.arts ?? {}
-          const first = Object.values(arts)[0]
-          return Array.isArray(first) ? (first as string[]) : []
-        })
-      const rankedBefore = await ranking()
-      // Rank a sleeping art, then read the SAVE rather than the screen.
-      await page.locator('.art-row-off').last().click()
-      await page.waitForTimeout(250)
-      const rankedAfter = await ranking()
-      const awakeAfter = await page.locator('.art-row-on').count()
+      const rows = await page.locator('.sk-row').count()
+      const slotted = await page.locator('.sk-on').count()
+      const known = await page.locator('.sk-off').count()
+      // Every slotted row must carry all three figures. Counting rows proves
+      // the list rendered; counting these proves it says what a skill COSTS,
+      // which is the whole difference between this screen and the last one.
+      const costs = await page.locator('.sk-on .sk-cost').count()
+      const powers = await page.locator('.sk-on .sk-does').count()
+      const rests = await page.locator('.sk-on .sk-time').count()
+      // The boost line, with the figure it produces rather than only the
+      // posture that produces it — the difference between a rule and a
+      // decision, and the thing the arts screen never had.
+      const boosts = await page.locator('.sk-on .sk-boost b').count()
+      const manual = await page.locator('.sk-manual').count()
       await page.screenshot({ path: join(OUT, 'hub-arts.png') })
-      // Ranked art goes to the head of the list, so it is the awake row now —
-      // tapping it again un-ranks it.
-      await page.locator('.art-row-on').first().click()
-      await page.waitForTimeout(250)
-      const rankedRestored = await ranking()
-      // Then rank 静 first, deliberately, and leave it there.
-      //
-      // The expedition below can only provoke 静 疾 转 — 围 and 危 are
-      // situations, not postures. A common blade wakes ONE art, so leaving the
-      // default order means a three-in-five chance the awake art is one this
-      // harness can never trigger, and a verifier that fails at random teaches
-      // you to ignore it. Every weapon's scroll covers all five conditions
-      // exactly once (data/arts.ts, and a unit test), so there is always
-      // exactly one 静 row to tap.
-      const stillRow = page.locator('.art-row', { has: page.locator('.art-row-seal', { hasText: '静' }) })
-      if ((await stillRow.count()) > 0) {
-        await stillRow.first().click()
-        await page.waitForTimeout(250)
-      }
       const wired =
-        rows === 5 &&
-        awake >= 1 &&
-        awake + asleep === rows &&
-        rankedAfter.length === rankedBefore.length + 1 &&
-        awakeAfter === awake &&
-        rankedRestored.length === rankedBefore.length
+        slotted === 3 &&
+        known >= 1 &&
+        slotted + known === rows &&
+        costs === slotted &&
+        powers === slotted &&
+        rests === slotted &&
+        boosts === slotted &&
+        manual === 1
       if (!wired) {
         console.error(
-          `arts:   the 法 tab is not wired — ${rows} rows, ${awake} awake, ${asleep} asleep, ` +
-            `ranking ${rankedBefore.length} → ${rankedAfter.length}, ${awakeAfter} awake after`,
+          `skills: the 法 tab is not wired — ${rows} rows, ${slotted} slotted, ${known} known, ` +
+            `${costs} costs, ${powers} powers, ${rests} rests, ${boosts} boosts, ` +
+            `${manual} manual tag(s)`,
         )
         process.exitCode = 1
       } else {
         console.log(
-          `arts:   法 tab ${rows} rows, ${awake} awake off the gear, ` +
-            `ranking ${rankedBefore.length}→${rankedAfter.length}→${rankedRestored.length} ` +
-            `and still ${awakeAfter} awake`,
+          `skills: 法 tab ${slotted} slotted + ${known} known, each with cost, ` +
+            `power, rest and boost`,
         )
       }
       await tabs.first().click()
@@ -764,9 +741,9 @@ async function main(): Promise<void> {
 
     // --- the five conditions, provoked on purpose -------------------------
     // The unit tests exercise the detector. They cannot prove the wiring from a
-    // thumb on a joystick, through the simulation, to a lit tile on screen —
-    // and that wiring IS the feature, because a conditional system the player
-    // cannot see is a set of invisible rules.
+    // thumb on a joystick, through the simulation, to a boosted tile on screen
+    // — and that wiring IS the feature, because a multiplier the player cannot
+    // see coming is a multiplier they cannot build around.
     const conditions = async (): Promise<string> =>
       (await page.evaluate(() => document.body.dataset.conditions ?? '')) || '—'
     const held: string[] = []
@@ -820,24 +797,24 @@ async function main(): Promise<void> {
 
     const screen = await page.evaluate(() => document.body.dataset.screen)
     if (screen !== 'run' && screen !== 'over') {
-      console.error(`arts:   cannot provoke a condition — the game is on "${screen}", not running`)
+      console.error(`skills: cannot provoke a posture — the game is on "${screen}", not running`)
       process.exitCode = 1
     }
 
     /**
      * The live stats and the resting baseline, as the page reports them NOW.
      *
-     * An art is true for exactly as long as its condition is, so a sample taken
-     * after the last provocation is a sample of nothing. Both strings come from
-     * the same frame; the baseline already carries the run's 内力, so a
-     * difference between them can only ever be an art. See dataset.base.
+     * A skill is live for its duration and no longer, so a sample taken long
+     * after one fired is a sample of nothing. Both strings come from the same
+     * frame; the baseline already carries the run's 内力, so a difference
+     * between them can only ever be a live skill. See dataset.base.
      */
     const sampleActing = async (): Promise<{ live: string; base: string }> =>
       page.evaluate(() => {
         const d = document.body.dataset
         return { live: d.live ?? '', base: d.base ?? '' }
       })
-    /** Keeps the best evidence any posture produced: a sample where they differ. */
+    /** Keeps the best evidence the run produced: a sample where they differ. */
     let acting = { live: '', base: '' }
     const keepIfActing = async (): Promise<void> => {
       const sample = await sampleActing()
@@ -864,18 +841,35 @@ async function main(): Promise<void> {
     if (sawStill.includes('still')) held.push('静')
     // Sampled WHILE the posture is held, not once at the end of all three.
     //
-    // The end-of-run sample was fine while every character carried four arts,
-    // one per condition — something was always lit and something was always
-    // acting. Under 器蕴 a common blade wakes ONE art, so both the strip and
-    // the stats are legitimately unchanged unless the posture held right now
-    // happens to be that art's. Taking the best of three is what makes this a
-    // check on the wiring rather than a coin toss on which art ranked first.
-    let lit = await page.locator('.art-on, .art-armed').count()
-    // Sampled fast and repeatedly: a discharge lasts under a second, and one
-    // sample taken after it is a sample of the calm that follows it.
+    // Each of the three slotted skills has ONE boost posture, so at any moment
+    // at most one tile can be boosted and the other two are legitimately
+    // plain. Taking the best of the three provocations is what makes this a
+    // check on the wiring rather than a coin toss on which posture came last.
+    // WHAT IS SAMPLED IS THE BAR, not a strip of conditions. A tile is READY
+    // when it is off cooldown and affordable, LIVE while its effect is on the
+    // numbers, and BOOSTED while the posture that pays it holds. All three are
+    // separate claims and all three have to be seen at least once, because
+    // each is a different piece of wiring: the pool, the cast, and the sense.
+    const barState = async (): Promise<{ ready: number; live: number; boost: number }> => ({
+      ready: await page.locator('.skill.is-ready').count(),
+      live: await page.locator('.skill.is-live').count(),
+      boost: await page.locator('.skill.is-boosted').count(),
+    })
+    let best = { ready: 0, live: 0, boost: 0 }
+    const keepBar = async (): Promise<void> => {
+      const now = await barState()
+      best = {
+        ready: Math.max(best.ready, now.ready),
+        live: Math.max(best.live, now.live),
+        boost: Math.max(best.boost, now.boost),
+      }
+    }
+    // Sampled fast and repeatedly: a skill's duration is a few seconds and the
+    // two auto slots fire on their own, so a single sample taken at the wrong
+    // moment is a sample of the gap between casts.
     for (let i = 0; i < 14; i++) {
       await keepIfActing()
-      lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
+      await keepBar()
       await page.waitForTimeout(70)
     }
 
@@ -889,7 +883,7 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawRunning.includes('running')) held.push('疾')
-    lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
+    await keepBar()
     await keepIfActing()
     await page.screenshot({ path: join(OUT, 'arts-running.png') })
 
@@ -906,7 +900,7 @@ async function main(): Promise<void> {
       12_000,
     )
     if (sawTurn.includes('turn')) held.push('转')
-    lit = Math.max(lit, await page.locator('.art-on, .art-armed').count())
+    await keepBar()
     await keepIfActing()
     await page.mouse.up()
 
@@ -920,27 +914,37 @@ async function main(): Promise<void> {
       // the next person cannot tell which one they are looking at.
       const slowFps = await readFps(page)
       console.error(
-        `arts:   NOT WIRED — only ${held.join(' ') || 'none'} of 静 疾 转 held ` +
+        `skills: NOT WIRED — only ${held.join(' ') || 'none'} of 静 疾 转 held ` +
           `(saw still="${sawStill}" running="${sawRunning}" turn="${sawTurn}") ` +
           `at ${slowFps} fps`,
       )
       process.exitCode = 1
-    } else if (lit === 0) {
-      console.error(
-        'arts:   conditions hold but no tile lit or armed — the strip is not reading them',
-      )
+    } else if (best.ready === 0) {
+      // Nothing ever became fireable, which means 势 never filled — the player
+      // moved for the whole sample and the pool stayed empty.
+      console.error('skills: no tile ever went ready — 势 is not filling from movement')
+      process.exitCode = 1
+    } else if (best.live === 0) {
+      // Two of the three slots fire themselves the instant they can afford it,
+      // so nothing live across a whole sample means the cast never happened.
+      console.error('skills: tiles went ready but none ever fired — the bar is not casting')
+      process.exitCode = 1
+    } else if (best.boost === 0) {
+      // The postures held (checked above), so a tile that never showed its
+      // boost means setPostures is not reaching the bar.
+      console.error('skills: postures held but no tile showed its boost')
       process.exitCode = 1
     } else if (acting.live === '' || acting.live === acting.base) {
-      // Every weapon's scroll has at least one art on a posture this harness
-      // provokes, so an identical pair here means the layer is not wired.
+      // A skill was live in the same window, so an identical pair here means
+      // the effect never reached the numbers the simulation reads.
       console.error(
-        `arts:   a condition held but no stat moved — live="${acting.live}" base="${acting.base}"`,
+        `skills: a skill fired but no stat moved — live="${acting.live}" base="${acting.base}"`,
       )
       process.exitCode = 1
     } else {
       console.log(
-        `arts:   ${held.join(' ')} provoked, ${lit} tile(s) lit, stats moved ` +
-          `(${acting.base} → ${acting.live})`,
+        `skills: ${held.join(' ')} provoked, ${best.ready} ready / ${best.live} live / ` +
+          `${best.boost} boosted, stats moved (${acting.base} → ${acting.live})`,
       )
     }
 
@@ -952,20 +956,21 @@ async function main(): Promise<void> {
     if (wantFull) {
       console.log('full:   standing in the crowd until the expedition ends...')
       const deadline = Date.now() + 260_000
-      // 器蕴, watched across a whole expedition.
+      // THE BAR, watched across a whole expedition.
       //
-      // The unit tests prove `attune` returns the right list for a given kit.
-      // They cannot prove that WALKING OVER a better blade rebuilds the kit and
-      // the strip mid-fight, and that is the beat the whole design rests on —
-      // the one that replaced the in-run art treadmill. So the run is sampled:
-      // what the gear granted at the start, and the best it ever granted.
-      const readAttune = async (): Promise<string> =>
-        page.evaluate(() => document.body.dataset.attune ?? '')
-      const attuneStart = await readAttune()
-      let attuneBest = attuneStart
+      // The unit tests prove `updateBar` fires a slot when the pool can pay.
+      // They cannot prove that a thumb on a joystick fills that pool over ten
+      // minutes of real play and that the bar keeps turning over — the failure
+      // this catches is a run where 势 stalls after the opening seconds and the
+      // whole system quietly stops. So the run is sampled: slots filled, slots
+      // live, and the highest the pool ever reached.
+      const readBar = async (): Promise<string> =>
+        page.evaluate(() => document.body.dataset.bar ?? '')
+      const barStart = await readBar()
+      let barBest = barStart
       const score = (a: string): number => {
-        const [awake, grade] = a.split('/').map(Number)
-        return (awake ?? 0) * 10 + (grade ?? 0)
+        const [filled, live, pool] = a.split('/').map(Number)
+        return (filled ?? 0) * 100 + (live ?? 0) * 10 + (pool ?? 0)
       }
       // Two panels must never be up at once. This is the invariant the
       // "Leave with it" bug broke: banking set the run over and left the gate
@@ -999,8 +1004,8 @@ async function main(): Promise<void> {
         } else if (await push.isVisible().catch(() => false)) {
           await push.click()
         }
-        const now = await readAttune()
-        if (score(now) > score(attuneBest)) attuneBest = now
+        const now = await readBar()
+        if (score(now) > score(barBest)) barBest = now
         await page.waitForTimeout(1000)
       }
       if (stacked) {
@@ -1008,14 +1013,14 @@ async function main(): Promise<void> {
         process.exitCode = 1
       }
       const found = await page.evaluate(() => Number(document.body.dataset.found ?? '0'))
-      if (attuneBest !== attuneStart) {
-        console.log(`attune: gear woke the arts mid-run — ${attuneStart} → ${attuneBest} (awake/grade)`)
-      } else {
-        // Not a failure. At the field drop rate a short expedition can end
-        // without a single piece better than what is worn, and calling that a
-        // bug would be the verifier lying in the other direction.
-        console.log(`attune: held at ${attuneStart} (awake/grade) — ${found} found, none an upgrade`)
+      console.log(`bar:    ${barStart} → best ${barBest} (filled/live/势) over the expedition`)
+      // A bar that never had a skill live across a whole run is a broken bar,
+      // not a quiet one: two of the three slots fire themselves.
+      if (Number(barBest.split('/')[1] ?? '0') === 0) {
+        console.error('bar:    nothing was ever live across the whole expedition')
+        process.exitCode = 1
       }
+      console.log(`found:  ${found} pieces picked up`)
 
       const over = await page.locator('.over').isVisible().catch(() => false)
       if (!over) {

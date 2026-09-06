@@ -12,11 +12,9 @@
  * conversion is itemised. A player who dies at four minutes should be able to
  * read, without asking anyone, exactly what those four minutes bought.
  */
-import { ART_BY_ID, MAX_ART_LEVEL, conditionKind, type Art } from '../data/arts'
-import type { CarriedArt } from '../sim/arts'
+import { CONDITIONS, type Condition } from '../data/arts'
 import { MANUAL_SLOT, type SkillBar } from '../sim/skills'
-import { activeSeals, type ConditionSense } from '../sim/conditions'
-import { conditionIconSvg, effectIconSvg, itemIconSvg } from '../render/packIcons'
+import { conditionIconSvg, itemIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
 import { ITEM_BY_ID } from '../data/items'
 import type { OwnedItem } from '../meta/inventory'
@@ -87,16 +85,6 @@ export interface Hud {
   /** The road's name, shown beside the rift so the goal has a place. */
   setWhere(name: string): void
   /**
-   * The arts in hand, and the ones the gear has not woken yet.
-   *
-   * `asleep` is drawn as empty slots rather than left out, and that is the
-   * point of passing it at all. A player carrying a common blade sees ONE tile
-   * and has no way to know that four more exist — so the strip reads as "this
-   * is all there is" instead of as "this is what you have so far". Empty slots
-   * turn the same strip into a promise, and when a better blade fills one
-   * mid-fight the change happens in a place the player was already watching.
-   */
-  setScroll(carried: readonly CarriedArt[], asleep: readonly Art[]): void
   /**
    * The three skills and the pool that fires them.
    *
@@ -108,10 +96,15 @@ export interface Hud {
    */
   setBar(bar: SkillBar, shi: number): void
   /**
-   * Lights the tiles whose condition holds, and shows the 势 behind them.
-   * Called every frame.
+   * Which postures hold right now, so each tile can show whether its boost is
+   * being paid.
+   *
+   * This is the whole of what the five conditions do after the overhaul. They
+   * no longer decide WHETHER a skill happens — the player decides that, by
+   * pressing — they decide what it is WORTH, and a multiplier the player
+   * cannot see coming is a multiplier they cannot build around.
    */
-  setConditions(sense: ConditionSense): void
+  setPostures(active: Record<Condition, boolean>): void
   /**
    * The dodge's readiness, 0..1, and whether it can fire this instant.
    *
@@ -121,6 +114,16 @@ export interface Hud {
   setDodge(charge: number): void
   /** Called when the dodge button is pressed. */
   onDodge(handler: () => void): void
+  /**
+   * Called when the CAST button is pressed — the manual skill slot.
+   *
+   * A second thumb control, above the dodge and slightly smaller. It exists
+   * because a skill you never press is a skill you never chose: the two auto
+   * slots hold the floor of a build, and this one is the moment. Its face
+   * carries the slotted skill's seal rather than a generic word, so a player
+   * looking down learns which of their three this button is.
+   */
+  onCast(handler: () => void): void
   /** Shows the end screen. `onReturn` takes the player back to the hub. */
   showGameOver(summary: RunSummary, onReturn: () => void): void
   hideGameOver(): void
@@ -134,6 +137,9 @@ export interface Hud {
   /** Hides or reveals the whole in-run HUD, for the hub. */
   setPlaying(playing: boolean): void
 }
+
+/** In a fixed order, so the change key in `setPostures` is stable. */
+const POSTURES: readonly Condition[] = CONDITIONS.map((c) => c.id)
 
 /** mm:ss */
 function formatTime(seconds: number): string {
@@ -189,6 +195,19 @@ export function createHud(root: HTMLElement): Hud {
       </svg>
       <span class="hud-dodge-seal">Dodge</span>
     </button>
+    <!-- CAST. Directly above the dodge so the same thumb reaches both without
+         hunting, and smaller (60px, still well over the 44px floor) so the two
+         are never confused by touch alone: the panic button is the big one at
+         the bottom, always in the same place. Its dial is the skill's cooldown
+         and its face is the skill's seal. -->
+    <button class="hud-cast" type="button" hidden>
+      <svg viewBox="0 0 44 44" class="hud-cast-dial" aria-hidden="true">
+        <circle class="hud-cast-track" cx="22" cy="22" r="19"></circle>
+        <circle class="hud-cast-fill" cx="22" cy="22" r="19"></circle>
+      </svg>
+      <span class="hud-cast-seal"></span>
+      <u class="hud-cast-cost"></u>
+    </button>
     <div class="over" hidden>
       <div class="over-inner">
         <div class="over-seal">终</div>
@@ -227,16 +246,26 @@ export function createHud(root: HTMLElement): Hud {
   const bar = root.querySelector<HTMLElement>('.hud-bar')!
   const dodgeEl = root.querySelector<HTMLButtonElement>('.hud-dodge')!
   const dodgeFill = root.querySelector<SVGCircleElement>('.hud-dodge-fill')!
+  const castEl = root.querySelector<HTMLButtonElement>('.hud-cast')!
+  const castFill = root.querySelector<SVGCircleElement>('.hud-cast-fill')!
+  const castSeal = root.querySelector<HTMLElement>('.hud-cast-seal')!
+  const castCost = root.querySelector<HTMLElement>('.hud-cast-cost')!
   // The dial is drawn as a stroked circle whose dash offset is the charge, so
   // filling it costs one attribute write per frame rather than a redraw.
   const DIAL = 2 * Math.PI * 19
   dodgeFill.setAttribute('stroke-dasharray', `${DIAL}`)
+  castFill.setAttribute('stroke-dasharray', `${DIAL}`)
   let dodgeHandler: (() => void) | null = null
+  let castHandler: (() => void) | null = null
   // pointerdown, not click: a click waits for the release, and a dodge that
   // fires when the thumb comes UP is a dodge that arrives after the hit.
   dodgeEl.addEventListener('pointerdown', (event) => {
     event.preventDefault()
     dodgeHandler?.()
+  })
+  castEl.addEventListener('pointerdown', (event) => {
+    event.preventDefault()
+    castHandler?.()
   })
   // Keyboard, for playing at a desk. Space is the key everyone tries first and
   // Shift is the second guess; both sit under the hand that is not on the
@@ -245,13 +274,20 @@ export function createHud(root: HTMLElement): Hud {
   // continuous dodge.
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return
-    if (event.code !== 'Space' && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return
+    const dodgeKey =
+      event.code === 'Space' || event.code === 'ShiftLeft' || event.code === 'ShiftRight'
+    // The cast sits on the other hand's home keys, so a desk player can hold
+    // WASD and still fire: E is the ability key every ARPG on the reference
+    // list uses, and Q is the one they all use for the second.
+    const castKey = event.code === 'KeyE' || event.code === 'KeyQ'
+    if (!dodgeKey && !castKey) return
     // Never steal the key from a text field — a swordsman's name has spaces
     // in it.
     const focused = document.activeElement
     if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return
     event.preventDefault()
-    dodgeHandler?.()
+    if (dodgeKey) dodgeHandler?.()
+    else castHandler?.()
   })
   let lastMaxHp = -1
   // LONG-PRESS THE TIMER TO SEE THE FRAME TIMES.
@@ -320,13 +356,9 @@ export function createHud(root: HTMLElement): Hud {
   let lastRiftPct = -1
 
   /** The art tiles, in scroll order, so lighting one is a class toggle. */
-  let artTiles: HTMLElement[] = []
   let barTiles: HTMLElement[] = []
   let lastBarKey = ''
-  let lastScroll = ''
-  let lastLit = ''
-  let lastShi = -1
-  let lastBurst = false
+  let lastPostures = ''
 
   let returnHandler: (() => void) | null = null
   again.addEventListener('click', () => {
@@ -410,6 +442,7 @@ export function createHud(root: HTMLElement): Hud {
     setPlaying(playing) {
       bar.style.display = playing ? '' : 'none'
       dodgeEl.style.display = playing ? '' : 'none'
+      castEl.style.display = playing ? '' : 'none'
       if (!playing) rift.hidden = true
     },
 
@@ -421,12 +454,16 @@ export function createHud(root: HTMLElement): Hud {
     onDodge(handler) {
       dodgeHandler = handler
     },
+    onCast(handler) {
+      castHandler = handler
+    },
     setBar(bar, shi) {
       // Rebuilt only when the SET of skills changes; the per-frame work below
-      // is four class toggles and three transform writes.
+      // is a handful of class toggles and three transform writes.
       const key = bar.slots.map((s) => s.skill?.id ?? '-').join(',')
       if (key !== lastBarKey) {
         lastBarKey = key
+        lastPostures = ''
         artsEl.innerHTML = ''
         barTiles = bar.slots.map((slot, i) => {
           const tile = document.createElement('div')
@@ -437,16 +474,29 @@ export function createHud(root: HTMLElement): Hud {
             return tile
           }
           tile.dataset.skill = slot.skill.id
+          tile.dataset.when = slot.skill.boost.when
           // The seal reads at tile size where an effect glyph does not, and it
           // is the same character the skills screen and the codex use — one
-          // name for one thing, everywhere.
+          // name for one thing, everywhere. Beneath it, the cost in dots and
+          // the PICTOGRAM of the posture that pays extra: a player who reads
+          // no Chinese still learns "run and this one hits harder" by seeing
+          // that mark light while they run.
           tile.innerHTML =
             `<i class="skill-cool"></i>` +
             `<span class="skill-seal">${slot.skill.seal}</span>` +
-            `<u class="skill-cost">${'&#9679;'.repeat(slot.skill.cost)}</u>`
+            `<u class="skill-cost">${'&#9679;'.repeat(slot.skill.cost)}</u>` +
+            conditionIconSvg(slot.skill.boost.when, palette.ink, 1, 'skill-when')
           artsEl.appendChild(tile)
           return tile
         })
+        // The cast button wears the manual slot's face.
+        const manual = bar.slots[MANUAL_SLOT]?.skill ?? null
+        castEl.hidden = manual === null
+        if (manual) {
+          castEl.setAttribute('aria-label', manual.name)
+          castSeal.textContent = manual.seal
+          castCost.innerHTML = '&#9679;'.repeat(manual.cost)
+        }
       }
       const banked = Math.floor(shi)
       for (let i = 0; i < barTiles.length; i++) {
@@ -461,98 +511,34 @@ export function createHud(root: HTMLElement): Hud {
         // READY MEANS FIREABLE, not merely off cooldown. A tile that lights
         // when the pool cannot pay for it teaches the player that pressing is
         // pointless, which is worse than a dark tile.
-        tile.classList.toggle('is-ready', slot.cooling <= 0 && banked >= slot.skill.cost)
+        const ready = slot.cooling <= 0 && banked >= slot.skill.cost
+        tile.classList.toggle('is-ready', ready)
         tile.classList.toggle('is-live', slot.live > 0)
+        if (i === MANUAL_SLOT) {
+          // The button says the same thing the tile does, because a thumb on
+          // the right of the screen is not reading the strip on the left.
+          castFill.setAttribute('stroke-dashoffset', `${DIAL * Math.max(0, Math.min(1, left))}`)
+          castEl.classList.toggle('is-ready', ready)
+          castEl.classList.toggle('is-live', slot.live > 0)
+        }
       }
       for (let i = 0; i < shiPips.length; i++) shiPips[i]!.classList.toggle('on', i < banked)
     },
 
-    setScroll(carried, asleep) {
-      // The whole scroll used to show here regardless of grade; now each tile
-      // is one AWAKE art with the grade the gear has set it to, followed by an
-      // empty slot for each one still asleep.
-      const key =
-        carried.map((c) => `${c.art.id}:${c.level}`).join(',') +
-        '|' +
-        asleep.map((a) => a.id).join(',')
-      if (key === lastScroll) return
-      lastScroll = key
-      lastLit = ''
-
-      artsEl.innerHTML = ''
-      artTiles = carried.map(({ art, level }) => {
-        const tile = document.createElement('div')
-        tile.className = 'art'
-        tile.dataset.art = art.id
-        // The EFFECT's icon above, a PICTOGRAM of the condition below — not the
-        // condition's seal. A seal alone asked a player who reads no Chinese to
-        // learn that 静 means "stop moving" by dying a few times; see
-        // render/packIcons.ts PACK_CONDITION_ICON for the rule this follows.
-        // The seals keep their place in the hub, where there is time to read a
-        // name — see ui/hub.ts and the long-press panel there.
-        let html =
-          effectIconSvg(art.effect, palette.ink, 1, 'art-icon') +
-          conditionIconSvg(art.condition, palette.ink, 1, 'art-cond-icon')
-        html += '<div class="art-pips">'
-        for (let p = 0; p < MAX_ART_LEVEL; p++) {
-          html += `<span class="art-pip${p < level ? ' art-pip-on' : ''}"></span>`
-        }
-        html += '</div>'
-        tile.innerHTML = html
-        artsEl.appendChild(tile)
-        return tile
-      })
-
-      // The empty slots. No effect icon and no pips — an icon here would say
-      // "you have this, dimly", which is the opposite of true. What they carry
-      // is the CONDITION's pictogram, faint: the shape of the thing this slot
-      // will one day respond to, so the promise is specific rather than blank.
-      for (const art of asleep) {
-        const slot = document.createElement('div')
-        slot.className = 'art art-asleep'
-        slot.innerHTML = conditionIconSvg(art.condition, palette.ink, 1, 'art-cond-icon')
-        artsEl.appendChild(slot)
+    setPostures(active) {
+      // One string compare against one DOM write per change. The five postures
+      // change several times a second while a player is moving, and touching
+      // three tiles every frame for a state that is usually the same is how a
+      // HUD comes to cost more than the crowd it sits over.
+      const key = POSTURES.filter((c) => active[c]).join(',')
+      if (key === lastPostures) return
+      lastPostures = key
+      for (const tile of barTiles) {
+        const when = tile.dataset.when as Condition | undefined
+        tile.classList.toggle('is-boosted', when !== undefined && active[when])
       }
-    },
-
-    setConditions(sense) {
-      const { active } = sense
-      // 势 first: a pip that fills is the thing the player reads BEFORE
-      // deciding to plant their feet, so it cannot wait on the tiles changing.
-      const banked = Math.floor(sense.momentum)
-      if (banked !== lastShi) {
-        for (let i = 0; i < shiPips.length; i++) shiPips[i]!.classList.toggle('on', i < banked)
-        lastShi = banked
-      }
-      const bursting = sense.burst > 0
-      if (bursting !== lastBurst) {
-        shiEl.classList.toggle('spending', bursting)
-        lastBurst = bursting
-      }
-
-      // This is the tell, and without it the arts are invisible rules. A
-      // conditional system is only learnable if the player can see which
-      // condition is true at the moment it becomes true. A spending art lights
-      // while its BURST runs, not while its condition holds — otherwise the
-      // tile claims to be doing something for the whole minute you spend
-      // surrounded, and it is not.
-      const key = activeSeals(active).join(',') + (bursting ? '!' : '') + banked
-      if (key === lastLit) return
-      lastLit = key
-      for (const tile of artTiles) {
-        const art = ART_BY_ID.get(tile.dataset.art ?? '')
-        if (!art) continue
-        const spending = conditionKind(art.condition) === 'spend'
-        const holds = active[art.condition]
-        tile.classList.toggle('art-on', spending ? bursting : holds)
-        // ARMED, and this state is not decoration. A player whose one woken
-        // art is a spending one would otherwise stand in the right posture and
-        // see nothing at all happen — which is the exact failure this whole
-        // change set out to fix, moved to a new place. Armed says "you are
-        // doing the right thing and you have nothing banked to spend", which
-        // is the only way the loop can be learned from the screen.
-        tile.classList.toggle('art-armed', spending && holds && !bursting)
-      }
+      const manualWhen = barTiles[MANUAL_SLOT]?.dataset.when as Condition | undefined
+      castEl.classList.toggle('is-boosted', manualWhen !== undefined && active[manualWhen])
     },
 
     showGate(tier, onBank, onPush) {

@@ -40,7 +40,7 @@ function newSim(seed = 4242): Sim {
 }
 
 /** Baseline stats — no techniques taken. */
-const BASE_STATS = deriveStats(new Map())
+const BASE_STATS = deriveStats()
 
 /**
  * Runs the full simulation headlessly. This is the payoff of the deterministic

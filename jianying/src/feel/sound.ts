@@ -232,6 +232,18 @@ export const sfx = {
     tone({ hz: 220, toHz: 60, length: 1.4, gain: 0.3, type: 'sine' })
     noise({ length: 1.0, hz: 300, slideTo: 50, q: 0.5, gain: 0.26, type: 'lowpass' })
   },
+  /**
+   * A skill going off.
+   *
+   * A rising pair a fifth apart — related to `level`'s interval and clearly not
+   * it, because both say "something good just happened" and the player has to
+   * be able to tell which. Short, because two of the three slots fire
+   * themselves and a long sound would be playing most of the fight.
+   */
+  cast(): void {
+    tone({ hz: 620, toHz: 930, length: 0.14, gain: 0.13, type: 'triangle' })
+    noise({ length: 0.1, hz: 3000, slideTo: 1400, q: 6, gain: 0.09 })
+  },
   /** A tap on a menu. Barely there; it must never be the loudest thing. */
   tap(): void {
     noise({ length: 0.035, hz: 2600, q: 2.2, gain: 0.1 })

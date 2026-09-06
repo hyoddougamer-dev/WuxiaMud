@@ -35,7 +35,7 @@ for (const weapon of WEAPONS) {
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
     const run = createRun(weapon.interval)
-    const stats = deriveStats(new Map(), { spent: emptyAttributes(), weapon, worn: [] })
+    const stats = deriveStats({ spent: emptyAttributes(), weapon, worn: [] })
     run.hp = stats.maxHp
 
     let pauses = 0

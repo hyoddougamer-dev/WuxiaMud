@@ -12,14 +12,26 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MAX_SHI, createShi, spendShi, updateShi } from '../src/sim/shi'
-import { createBar, updateBar, applySkills, MANUAL_SLOT } from '../src/sim/skills'
-import { SKILLS, SKILL_BY_ID, SLOTTED_SKILLS, skillPower, skillsFor } from '../src/data/skills'
+import { createBar, updateBar, applySkills, skillReading, MANUAL_SLOT } from '../src/sim/skills'
+import {
+  SKILLS,
+  SKILL_BY_ID,
+  SLOTTED_SKILLS,
+  defaultBar,
+  skillPower,
+  skillsFor,
+  type SkillEffect,
+} from '../src/data/skills'
 import { noConditions } from '../src/sim/conditions'
 import { deriveStats } from '../src/sim/loadout'
 import type { Condition } from '../src/data/arts'
 
-const EMPTY = new Map<string, number>()
 const still = (): Record<Condition, boolean> => ({ ...noConditions(), still: true })
+/** Only `which` holds, so a boost can be read against exactly its own posture. */
+const posture = (which: Condition): Record<Condition, boolean> => ({
+  ...noConditions(),
+  [which]: true,
+})
 
 describe('势, the resource', () => {
   it('fills by moving and not at all by standing', () => {
@@ -155,8 +167,8 @@ describe('the posture pays, it does not decide', () => {
     const sink = SKILL_BY_ID.get('sink')!
     expect(bar.slots[0]!.cast).toBeCloseTo(skillPower(sink, still()), 6)
 
-    const base = deriveStats(EMPTY)
-    const out = deriveStats(EMPTY)
+    const base = deriveStats()
+    const out = deriveStats()
     applySkills(base, bar, out)
     expect(out.slashDamage).toBeCloseTo(base.slashDamage * (1 + bar.slots[0]!.cast), 6)
   })
@@ -168,8 +180,8 @@ describe('the posture pays, it does not decide', () => {
     updateBar(bar, shi, still(), false, 0.016)
     const sink = SKILL_BY_ID.get('sink')!
     for (let t = 0; t < sink.duration + 0.2; t += 0.1) updateBar(bar, shi, still(), false, 0.1)
-    const base = deriveStats(EMPTY)
-    const out = deriveStats(EMPTY)
+    const base = deriveStats()
+    const out = deriveStats()
     applySkills(base, bar, out)
     expect(out.slashDamage).toBeCloseTo(base.slashDamage, 6)
   })
@@ -195,5 +207,118 @@ describe('the roster', () => {
 
   it('never costs more than a full pool, or nothing could ever fire it', () => {
     for (const s of SKILLS) expect(s.cost).toBeLessThanOrEqual(MAX_SHI)
+  })
+})
+
+describe('what a skill says it does', () => {
+  it('gives every skill a reading, and never a bare number', () => {
+    // The failure this is written against is not a crash, it is a screen that
+    // prints `power` raw: "2.0" for a thrust, "+35%" for a speed buff and
+    // "1.2" for a rate, side by side under one heading. Every reading must
+    // carry its own unit, so a row cannot be misread as another row's unit.
+    for (const skill of SKILLS) {
+      const text = skillReading(skill)
+      expect(text.length).toBeGreaterThan(3)
+      expect(/^[\d.]+$/.test(text)).toBe(false)
+      // A unit, not just a figure: at least one letter after the number.
+      expect(/[a-z]/.test(text)).toBe(true)
+    }
+  })
+
+  it('reads the boost as a bigger number, in the same unit', () => {
+    for (const skill of SKILLS) {
+      const plain = skillReading(skill)
+      const boosted = skillReading(skill, true)
+      // The unit is whatever survives when the digits are stripped. It has to
+      // be identical, or the boosted line is answering a different question
+      // from the line above it.
+      const unit = (t: string): string => t.replace(/[\d.]+/g, '')
+      expect(unit(boosted)).toBe(unit(plain))
+    }
+  })
+
+  it('turns away exactly what a guard skill claims, and never the shield', () => {
+    // TWO CLAIMS, and the first is the one this caught. `stats.guard` is a POOL
+    // of hit points that absorbs damage and regrows; `damageScale` is the
+    // multiplier on what gets through. Written against `guard`, Mountain took a
+    // shield of twenty-one points down to 0.7 — a defensive skill that made you
+    // easier to kill, reported by no screen.
+    const guards = SKILLS.filter((s) => s.effect === 'guard')
+    expect(guards.length).toBeGreaterThan(0)
+    for (const skill of guards) {
+      const base = deriveStats()
+      const out = deriveStats()
+      const bar = createBar([skill.id])
+      const shi = createShi()
+      updateShi(shi, { pace: 1, turned: false }, 30)
+      // Cast IN the posture the tile's boosted line quotes, or the test would
+      // be comparing a boosted claim against an unboosted cast.
+      updateBar(bar, shi, posture(skill.boost.when), false, 0.016)
+      applySkills(base, bar, out)
+      expect(out.guard).toBe(base.guard)
+      // And the second: the number on the tile is the number that lands.
+      const quoted = Number(/[\d.]+/.exec(skillReading(skill, true))![0]) / 100
+      expect(1 - out.damageScale / base.damageScale).toBeCloseTo(quoted, 6)
+    }
+  })
+
+  it('never leaves a granted shockwave with no radius', () => {
+    // deriveStats supplies one, but a caller assembling Stats by hand may not,
+    // and a burst of radius zero hits nothing while every other number says it
+    // worked. Checked through a hand-built sheet on purpose.
+    const base = { ...deriveStats(), novaRadius: 0 }
+    const out = deriveStats()
+    const nova = SKILLS.find((s) => s.effect === 'nova')!
+    const bar = createBar([nova.id])
+    const shi = createShi()
+    updateShi(shi, { pace: 1, turned: false }, 30)
+    updateBar(bar, shi, still(), false, 0.016)
+    applySkills(base, bar, out)
+    expect(out.novaDamage).toBeGreaterThan(0)
+    expect(out.novaRadius).toBeGreaterThan(0)
+  })
+})
+
+describe('the bar a swordsman starts with', () => {
+  it('gives every weapon exactly the slots the bar has', () => {
+    for (const weaponId of ['great', 'feidao']) {
+      const ids = defaultBar(weaponId)
+      expect(ids).toHaveLength(SLOTTED_SKILLS)
+      expect(new Set(ids).size).toBe(SLOTTED_SKILLS)
+      // Slottable by this class, or the bar would offer a greatsword's
+      // techniques to somebody holding knives.
+      const allowed = new Set(skillsFor(weaponId).map((s) => s.id))
+      for (const id of ids) expect(allowed.has(id)).toBe(true)
+    }
+  })
+
+  it('opens with a shape rather than two copies of one idea', () => {
+    // The two auto slots must not both be offence. This is not taste: with 沉
+    // and 裂 — damage and reach — tools/skillBalance.mts read the greatsword's
+    // whole bar as worth +3% survival to a pilot that plants its feet, against
+    // +26% to one that circles. A default nobody edits has to hold a floor.
+    const DEFENSIVE = new Set<SkillEffect>(['guard', 'speed', 'heal'])
+    for (const weaponId of ['great', 'feidao']) {
+      const autos = defaultBar(weaponId)
+        .slice(0, MANUAL_SLOT)
+        .map((id) => SKILL_BY_ID.get(id)!)
+      expect(autos.some((s) => DEFENSIVE.has(s.effect))).toBe(true)
+      expect(autos.some((s) => !DEFENSIVE.has(s.effect))).toBe(true)
+    }
+  })
+
+  it('puts a skill worth a full pool in the manual slot', () => {
+    // The manual slot is the only decision the system has, and a decision
+    // about a one-点 skill is not much of one.
+    for (const weaponId of ['great', 'feidao']) {
+      const manual = SKILL_BY_ID.get(defaultBar(weaponId)[MANUAL_SLOT]!)!
+      const autos = defaultBar(weaponId)
+        .slice(0, MANUAL_SLOT)
+        .map((id) => SKILL_BY_ID.get(id)!)
+      expect(manual.cost).toBeGreaterThanOrEqual(Math.max(...autos.map((s) => s.cost)))
+      // And the pair has to be affordable back to back out of a full pool, or
+      // the opening of every run is a wait.
+      expect(autos.reduce((n, s) => n + s.cost, 0)).toBeLessThanOrEqual(MAX_SHI)
+    }
   })
 })

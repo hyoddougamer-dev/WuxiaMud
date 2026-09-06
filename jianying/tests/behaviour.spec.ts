@@ -238,7 +238,7 @@ describe('the world has to be able to reach you', () => {
    * un-catchable and the fix read as done. These tests compare against the
    * player, which is the only comparison that decides whether there is a game.
    */
-  const playerSpeed = (): number => deriveStats(new Map(), emptyKit()).moveSpeed
+  const playerSpeed = (): number => deriveStats(emptyKit()).moveSpeed
 
   it('gives the darters something worth the name', () => {
     // "darter — fast, fragile, arrives early" is the roster's own description.

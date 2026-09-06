@@ -186,3 +186,24 @@ export function skillsFor(weaponId: string): Skill[] {
 export function skillPower(skill: Skill, active: Record<Condition, boolean>): number {
   return active[skill.boost.when] ? skill.power * (1 + skill.boost.extra) : skill.power
 }
+
+/**
+ * The three a swordsman starts an expedition with, until they say otherwise.
+ *
+ * Two cheap ones that hold the floor of the build, and an expensive third for
+ * the manual slot — because the manual slot is the decision, and a decision
+ * about a one-点 skill is not much of one. The pair is deliberately one offence
+ * and one defence, so a player who never opens the skills screen still has a
+ * build with a shape rather than two copies of the same idea.
+ *
+ * THAT RULE WAS BROKEN AND MEASURED BROKEN. The greatsword's pair was 沉 and
+ * 裂 — damage and reach, two offences — and tools/skillBalance.mts read the
+ * whole bar as worth +3% survival to a pilot that plants its feet, against
+ * +26% to one that circles. Trading 裂 for 山 (guard, and it pays double while
+ * you are ringed in) is what makes the pair a shape rather than a sum.
+ */
+export function defaultBar(weaponId: string): string[] {
+  return weaponId === 'feidao'
+    ? ['steady', 'shadow', 'swordqi']
+    : ['sink', 'mountain', 'guardian']
+}

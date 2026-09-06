@@ -1,31 +1,36 @@
 /**
  * Turns what a player owns into the numbers combat actually uses.
  *
- * Two sources feed in, and keeping them distinct is the whole design:
+ * ONE SOURCE, and that is the point of this file after the overhaul. Every
+ * number below comes from what the character permanently carries: attributes
+ * bought across many expeditions, and the weapon and armour worn right now.
+ * Nothing here is temporary, nothing here is picked up mid-run, and nothing
+ * here changes between two frames of a fight.
  *
- *   - ATTRIBUTES are permanent. They come from the character record, they were
- *     bought with points earned across many expeditions, and they are the same
- *     at the first second of a run as at the last.
- *   - TECHNIQUES are temporary. They are picked up during a run, they compound
- *     fast, and they are gone when it ends.
+ * What IS temporary lives one layer up, in sim/skills.ts: a skill is fired,
+ * costs 势, and folds into a scratch copy of these numbers for the seconds it
+ * is live. Keeping the two apart is what lets a skill tile say "+35% damage"
+ * and have that be literally true whatever the character has invested — and it
+ * is what lets the hub quote a stat sheet that does not flicker.
  *
- * Attributes are applied first and techniques second, so a technique's stated
- * effect ("+4 damage per sweep") stays literally true no matter what the
- * character has invested. Reversing the order would make every card on the
- * level-up screen quietly lie by a percentage that changes week to week.
+ * This file used to take a second argument, a map of technique levels drawn
+ * from a level-up screen. Both are gone. The screen offered cards the player
+ * could not plan for and could not keep, which is the opposite of the vertical
+ * progression this is meant to be.
  *
- * Everything is derived in one place and recomputed only when something
- * changes. Scattering `if (has('keen'))` through the combat loop would put the
- * cost of every upgrade the player owns into every tick, and would make the
- * effect of a technique impossible to read without hunting through the code.
+ * Everything is derived in one place and recomputed only when the gear
+ * changes. Scattering the reads through the combat loop would put the cost of
+ * everything the player owns into every tick.
  */
-import type { Loadout } from '../data/techniques'
 import type { OwnedItem } from '../meta/inventory'
 import { DEFAULT_WEAPON, type Strike, type WeaponClass } from '../data/weapons'
 import { type Attributes, emptyAttributes } from '../meta/character'
 import { BASE_PICKUP_RADIUS } from './pickups'
 import { PLAYER_MAX_HP } from './combat'
 import { MAX_SPEED } from './player'
+
+/** How far a granted shockwave reaches before Spirit scales it. */
+export const NOVA_RADIUS = 95
 
 export interface Stats {
   /**
@@ -372,8 +377,7 @@ export function wornShape(worn: readonly Worn[]): WornShape {
   return out
 }
 
-export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
-  const lv = (id: string): number => loadout.get(id) ?? 0
+export function deriveStats(kit: Kit = emptyKit()): Stats {
   const gear = wornAttributes(kit.worn)
   const shape = wornShape(kit.worn)
 
@@ -398,12 +402,9 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
   // `keen` is a technique card rather than a permanent stat, and it pours into
   // the same pool: an in-run card and a worn item saying "+12% damage" should
   // mean the same thing, or the player has to learn two currencies.
-  const power = attr.power + lv('keen') * 12
+  const power = attr.power
   const speed = Math.min(SPEED_CAP, attr.speed + shape.speed)
 
-  const orbit = lv('orbit')
-  const bolt = lv('bolt')
-  const nova = lv('nova')
   const art = attr.artScale
 
   // The weapon supplies the baseline the whole sweep is built on. This is where
@@ -419,7 +420,7 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // the second layer of the model working as intended: a separate multiplier
     // is worth the same proportion however much pool you already have, which
     // is exactly why it is rare and why relics will live here.
-    slashInterval: (weapon.interval / (1 + speed / 100)) * Math.pow(0.86, lv('swift')),
+    slashInterval: weapon.interval / (1 + speed / 100),
     // POWER REACHES FURTHER, and that is what finally gave 锋 a job.
     //
     // Measured before this, twenty points of Edge changed nothing at all on the
@@ -442,10 +443,10 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // lengthens your cut as well as weighting it — one currency, as with 疾 and
     // movement. A quarter of the pool: twenty points is about two levels of the
     // 远 card, which is a real gain and not a second weapon.
-    slashRange: (weapon.range + lv('reach') * 16) * (1 + shape.reach) * (1 + power / 130),
+    slashRange: weapon.range * (1 + shape.reach) * (1 + power / 130),
     // Capped just under a full circle: at exactly PI the arc test stops being
     // able to miss, and "which way am I facing" would silently stop mattering.
-    slashHalfAngle: Math.min(3.0, weapon.halfAngle + lv('wide') * 0.28),
+    slashHalfAngle: Math.min(3.0, weapon.halfAngle),
     // MOVEMENT READS THE SPEED POOL TOO, and until now it did not.
     //
     // 疾 is called Swiftness and made you swing faster without making you move
@@ -463,9 +464,9 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // A FIFTH of the pool, not all of it: at parity 疾 would be one stat doing
     // two jobs, which is exactly what makes 体 dominant. See MOVE_FROM_SPEED
     // for why a third was too much.
-    moveSpeed: MAX_SPEED * (1 + lv('fleet') * 0.09) * (1 + (speed / 100) * MOVE_FROM_SPEED),
-    pickupRadius: BASE_PICKUP_RADIUS * (1 + lv('greed') * 0.85),
-    maxHp: PLAYER_MAX_HP + attr.maxHp + lv('vigour') * 25 + shape.vigour,
+    moveSpeed: MAX_SPEED * (1 + (speed / 100) * MOVE_FROM_SPEED),
+    pickupRadius: BASE_PICKUP_RADIUS,
+    maxHp: PLAYER_MAX_HP + attr.maxHp + shape.vigour,
     armour: attr.armour,
     // Guard scales off the same pool as health for now, so it is never the
     // only thing keeping somebody alive before any item that grants it exists.
@@ -473,19 +474,25 @@ export function deriveStats(loadout: Loadout, kit: Kit = emptyKit()): Stats {
     // to be a second health bar.
     guard: Math.round((PLAYER_MAX_HP + attr.maxHp) * 0.18),
 
-    orbitBlades: orbit === 0 ? 0 : 1 + orbit,
-    orbitDamage: (5 + orbit * 3) * art,
+    // THE SECOND ATTACKS ARE OFF UNTIL A SKILL TURNS THEM ON.
+    //
+    // Blades, bolts and the shockwave used to have a baseline here, scaled by
+    // a technique level that no longer exists. Zero is not a simplification of
+    // that — it is the rule the skill bar needs: `applySkills` grants an
+    // effect only where it finds nothing, so a non-zero floor would have meant
+    // Guardian Blades quietly kept the floor's damage instead of its own. The
+    // radius stays, because a nova that is granted still has to be a size.
+    orbitBlades: 0,
+    orbitDamage: 0,
 
-    boltInterval: bolt === 0 ? 0 : 1.5 * Math.pow(0.85, bolt - 1),
-    boltDamage: (9 + bolt * 5) * art,
+    boltInterval: 0,
+    boltDamage: 0,
 
-    novaInterval: nova === 0 ? 0 : 4.2 * Math.pow(0.87, nova - 1),
-    novaRadius: (95 + nova * 22) * art,
-    novaDamage: (12 + nova * 7) * art,
+    novaInterval: 0,
+    novaRadius: NOVA_RADIUS * art,
+    novaDamage: 0,
 
-    // At rest. Only the arts move these, and only while a condition holds —
-    // see sim/arts.ts. There is deliberately no technique that grants them:
-    // a card that made you tougher always would be a different game.
+    // At rest. Only a live skill moves these — see sim/skills.ts.
     critEvery: 0,
     echoDelay: 0,
     echoDamage: 0,

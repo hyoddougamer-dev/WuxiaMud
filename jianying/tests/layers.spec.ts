@@ -9,7 +9,7 @@ const kitWith = (spent: Partial<Attributes>) => ({
 
 /** Sweep damage per second — the number a build is actually judged on. */
 const dps = (spent: Partial<Attributes>): number => {
-  const s = deriveStats(new Map(), kitWith(spent))
+  const s = deriveStats(kitWith(spent))
   return (s.slashDamage * s.throwCount) / s.slashInterval
 }
 
@@ -51,7 +51,7 @@ describe('the damage layers', () => {
   it('never divides the rate by nothing, however much Speed is stacked', () => {
     const floor = emptyKit().weapon.interval / (1 + SPEED_CAP / 100)
     for (const swift of [50, 200, 5000]) {
-      expect(deriveStats(new Map(), kitWith({ swift })).slashInterval).toBeGreaterThanOrEqual(
+      expect(deriveStats(kitWith({ swift })).slashInterval).toBeGreaterThanOrEqual(
         floor - 1e-9,
       )
     }
@@ -65,7 +65,7 @@ describe('the damage layers', () => {
    */
   it('lands near the old numbers at ordinary totals', () => {
     const weapon = emptyKit().weapon
-    const s = deriveStats(new Map(), kitWith({ edge: 20, swift: 20 }))
+    const s = deriveStats(kitWith({ edge: 20, swift: 20 }))
     expect(s.slashDamage).toBeGreaterThan(weapon.damage * 1.6)
     expect(s.slashDamage).toBeLessThan(weapon.damage * 2.0)
     const rate = weapon.interval / s.slashInterval

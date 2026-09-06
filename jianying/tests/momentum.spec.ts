@@ -23,8 +23,8 @@ import { deriveStats, emptyKit, type Stats } from '../src/sim/loadout'
 import { emptyAttributes } from '../src/meta/character'
 
 const TICK = 1 / 60
-const base = (): Stats => deriveStats(new Map(), emptyKit())
-const scratch = (): Stats => deriveStats(new Map(), emptyKit())
+const base = (): Stats => deriveStats(emptyKit())
+const scratch = (): Stats => deriveStats(emptyKit())
 
 /** Runs the sense for `seconds` under one steady input. */
 function hold(sense: ConditionSense, input: Partial<ConditionInput>, seconds: number): void {
@@ -213,8 +213,8 @@ describe('神 reaches the arts', () => {
       const weapon = WEAPONS.find((w) => w.id === art.weapon)!
       const shot = (spirit: number): { before: number; after: number } => {
         const spent = sheet(spirit)
-        const base = deriveStats(new Map(), { ...emptyKit(), spent, weapon })
-        const out = deriveStats(new Map(), { ...emptyKit(), spent, weapon })
+        const base = deriveStats({ ...emptyKit(), spent, weapon })
+        const out = deriveStats({ ...emptyKit(), spent, weapon })
         const active = createSense().active
         if (!spending) active[art.condition] = true
         const fired = applyArts(base, [{ art, level: 3 }], active, out, 1, {
@@ -246,8 +246,8 @@ describe('神 reaches the arts', () => {
     // a field missing from it reads as whatever the scratch happened to hold,
     // and for a multiplier that is every art silently firing at the wrong
     // strength, from the quietest possible omission.
-    const base = deriveStats(new Map(), { ...emptyKit(), spent: sheet(18) })
-    const out = deriveStats(new Map(), { ...emptyKit(), spent: sheet(0) })
+    const base = deriveStats({ ...emptyKit(), spent: sheet(18) })
+    const out = deriveStats({ ...emptyKit(), spent: sheet(0) })
     expect(out.artScale).toBeLessThan(base.artScale)
     applyArts(base, [], createSense().active, out)
     expect(out.artScale).toBe(base.artScale)
@@ -270,8 +270,8 @@ describe('the edges a mutation audit found unguarded', () => {
     // the wrong way), and it is the reason this loop exists.
     for (const art of ARTS.filter((a) => conditionKind(a.condition) === 'spend')) {
       const weapon = WEAPONS.find((w) => w.id === art.weapon)!
-      const base = deriveStats(new Map(), { ...emptyKit(), weapon })
-      const out = deriveStats(new Map(), { ...emptyKit(), weapon })
+      const base = deriveStats({ ...emptyKit(), weapon })
+      const out = deriveStats({ ...emptyKit(), weapon })
       // Its own condition held, and nothing banked. It must do nothing at all.
       const active = createSense().active
       active[art.condition] = true
@@ -293,8 +293,8 @@ describe('the edges a mutation audit found unguarded', () => {
     for (const spirit of [0, 20]) {
       for (const level of [1, 3, MAX_ART_LEVEL]) {
         const spent = { ...emptyAttributes(), spirit }
-        const base = deriveStats(new Map(), { ...emptyKit(), weapon, spent })
-        const out = deriveStats(new Map(), { ...emptyKit(), weapon, spent })
+        const base = deriveStats({ ...emptyKit(), weapon, spent })
+        const out = deriveStats({ ...emptyKit(), weapon, spent })
         const active = createSense().active
         active[critArt.condition] = true
         const fired = applyArts(base, [{ art: critArt, level }], active, out, 1, {
@@ -326,14 +326,14 @@ describe('the edges a mutation audit found unguarded', () => {
     )!
     const twin = { ...other, effect: 'crit' as const }
     const weapon = WEAPONS.find((w) => w.id === critArt.weapon)!
-    const base = deriveStats(new Map(), { ...emptyKit(), weapon })
+    const base = deriveStats({ ...emptyKit(), weapon })
     const active = createSense().active
     active[critArt.condition] = true
     active[twin.condition] = true
     const one = applyArts(base, [{ art: critArt, level: 1 }], active,
-      deriveStats(new Map(), { ...emptyKit(), weapon }))
+      deriveStats({ ...emptyKit(), weapon }))
     const both = applyArts(base, [{ art: critArt, level: 1 }, { art: twin, level: 5 }], active,
-      deriveStats(new Map(), { ...emptyKit(), weapon }))
+      deriveStats({ ...emptyKit(), weapon }))
     expect(both.critEvery).toBeLessThan(one.critEvery)
     expect(both.critEvery).toBeGreaterThan(1)
   })

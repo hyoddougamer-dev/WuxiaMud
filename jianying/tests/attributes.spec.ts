@@ -33,7 +33,7 @@ describe('what each attribute is wired to', () => {
   // is not a guard.
   const sheet = (id: AttributeId, n: number) => ({ ...emptyAttributes(), [id]: n })
   const at = (id: AttributeId, n: number) =>
-    deriveStats(new Map(), { ...emptyKit(), spent: sheet(id, n) })
+    deriveStats({ ...emptyKit(), spent: sheet(id, n) })
 
   it('makes Swiftness actually swift', () => {
     // It is called Swiftness and for a long time it did not move you at all —

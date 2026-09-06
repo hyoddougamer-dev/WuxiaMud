@@ -15,7 +15,7 @@
  *                   this table would be measuring weapons, not places.
  *   the pilot       the same kiting circle, so no row is flattered by better
  *                   play than another.
- *   the techniques  none. In-run level-ups are suppressed, so this is the
+ *   the skill bar   empty. In-run level-ups are suppressed, so this is the
  *                   pessimistic floor rather than a run that snowballed.
  *
  * Two things vary with depth, because they are what a player genuinely brings:
@@ -90,7 +90,7 @@ console.log(
     ? '\nEach region walked by the character who would just have unlocked it.'
     : '\nEvery region walked by a level-1 character with no gear.',
 )
-console.log('Same jian, same pilot, no techniques, in every row.\n')
+console.log('Same jian, same pilot, empty skill bar, in every row.\n')
 console.log(
   `${'region'.padEnd(20)} ${'pts'.padStart(4)} ${'worn'.padStart(5)} ${'secs'.padStart(5)} ` +
     `${'kills'.padStart(6)} ${'peak'.padStart(5)} ${'kills/s'.padStart(8)}`,
@@ -116,7 +116,7 @@ const SEEDS = [4242, 90210, 31337]
     const bolts = new Bolts()
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
-    const stats = deriveStats(new Map(), {
+    const stats = deriveStats({
       spent,
       weapon,
       // At the rank the PREVIOUS region would have handed out. A pilot who
@@ -160,7 +160,7 @@ const SEEDS = [4242, 90210, 31337]
     const sense = createSense()
     // 珍 across every slot — a middling real kit. See tools/artsBalance.mts.
     const carried = attune(equippedIds({}, weapon.id), 2, [2, 2, 2, 2])
-    const live = deriveStats(new Map(), { spent, weapon, worn: [] })
+    const live = deriveStats({ spent, weapon, worn: [] })
 
     const rule = region.rule
     const drift = rule.drift ?? 0

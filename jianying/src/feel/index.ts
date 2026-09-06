@@ -93,5 +93,15 @@ export const feel = {
     sfx.death()
     notify(NotificationType.Error)
   },
+  /**
+   * A skill fired. Sound only, no haptic.
+   *
+   * Two of the three slots go off by themselves several times a minute, so a
+   * buzz here would be a phone vibrating almost continuously — which is how a
+   * player comes to turn haptics off and lose the ones that matter. The rule
+   * in this file has been "ration the buzz to damage, parry, level, gate and
+   * death" since it was written, and a cast is none of those.
+   */
+  cast: (): void => sfx.cast(),
   tap: (): void => sfx.tap(),
 }

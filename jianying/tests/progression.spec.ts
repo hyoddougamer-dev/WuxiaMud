@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Rng } from '../src/core/rng'
 import { TICK_S } from '../src/core/loop'
-import {
-  TECHNIQUES,
-  type Loadout,
-  offerTechniques,
-  xpForLevel,
-} from '../src/data/techniques'
+import { xpForLevel } from '../src/data/insight'
 import { deriveStats } from '../src/sim/loadout'
 import { Motes } from '../src/sim/pickups'
 import { DEFAULT_WEAPON } from '../src/data/weapons'
@@ -28,97 +23,33 @@ describe('experience curve', () => {
   })
 })
 
-describe('technique offers', () => {
-  const roll = (rng: Rng) => () => rng.next()
-
-  it('offers three distinct techniques', () => {
-    const rng = new Rng(7)
-    const offer = offerTechniques(new Map(), roll(rng))
-    expect(offer).toHaveLength(3)
-    expect(new Set(offer.map((t) => t.id)).size).toBe(3)
-  })
-
-  it('never offers a maxed technique', () => {
-    const loadout: Loadout = new Map(TECHNIQUES.map((t) => [t.id, t.maxLevel]))
-    // Everything is maxed except one.
-    loadout.set('keen', 0)
-    const rng = new Rng(11)
-    for (let i = 0; i < 40; i++) {
-      const offer = offerTechniques(loadout, roll(rng))
-      expect(offer.every((t) => t.id === 'keen')).toBe(true)
-    }
-  })
-
-  it('copes when fewer than three remain', () => {
-    const loadout: Loadout = new Map(TECHNIQUES.map((t) => [t.id, t.maxLevel]))
-    loadout.set('keen', 0)
-    const offer = offerTechniques(loadout, roll(new Rng(3)))
-    expect(offer).toHaveLength(1)
-  })
-
-  it('favours arts the player does not own yet', () => {
-    // A run made only of stat bumps looks identical at minute one and minute
-    // five. Seeing a new art is most of the reward for levelling.
-    const rng = new Rng(99)
-    let withArt = 0
-    const rounds = 300
-    for (let i = 0; i < rounds; i++) {
-      const offer = offerTechniques(new Map(), roll(rng))
-      if (offer.some((t) => t.kind === 'art')) withArt++
-    }
-    expect(withArt / rounds).toBeGreaterThan(0.7)
-  })
-
-  it('is deterministic for a given seed', () => {
-    const a = offerTechniques(new Map(), roll(new Rng(42))).map((t) => t.id)
-    const b = offerTechniques(new Map(), roll(new Rng(42))).map((t) => t.id)
-    expect(b).toEqual(a)
-  })
-})
-
-describe('derived stats', () => {
-  it('starts from the baselines with nothing taken', () => {
-    const s = deriveStats(new Map())
-    expect(s.orbitBlades).toBe(0)
-    expect(s.boltInterval).toBe(0)
-    expect(s.novaInterval).toBe(0)
+describe('the baseline the skill bar folds into', () => {
+  it('starts from the weapon, with nothing taken', () => {
+    const s = deriveStats()
     expect(s.slashHalfAngle).toBeCloseTo(DEFAULT_WEAPON.halfAngle, 6)
+    expect(s.slashDamage).toBeCloseTo(DEFAULT_WEAPON.damage, 9)
+    expect(s.slashInterval).toBeCloseTo(DEFAULT_WEAPON.interval, 9)
   })
 
-  it('stacks modifiers', () => {
-    // Three levels of Keen Edge is thirty-six points into the Power pool, and
-    // the pool multiplies the weapon rather than adding to it — so the gain is
-    // 36% of the base rather than a flat twelve. See data/techniques.ts for
-    // why the card's wording moved to a percentage along with the maths.
-    const base = deriveStats(new Map())
-    const buffed = deriveStats(new Map([['keen', 3]]))
-    expect(buffed.slashDamage).toBeCloseTo(base.slashDamage * 1.36, 9)
+  it('leaves every second attack OFF until a skill grants it', () => {
+    // This is not tidiness, it is the contract `applySkills` is written
+    // against: it grants an effect only where it finds a zero, so a non-zero
+    // floor here would mean Guardian Blades silently kept the floor's damage
+    // instead of its own. See the grant branches in sim/skills.ts.
+    const s = deriveStats()
+    expect(s.orbitBlades).toBe(0)
+    expect(s.orbitDamage).toBe(0)
+    expect(s.boltInterval).toBe(0)
+    expect(s.boltDamage).toBe(0)
+    expect(s.novaInterval).toBe(0)
+    expect(s.novaDamage).toBe(0)
   })
 
-  it('makes each level of Swift Hand worth the same proportion', () => {
-    const one = deriveStats(new Map([['swift', 1]])).slashInterval
-    const two = deriveStats(new Map([['swift', 2]])).slashInterval
-    const three = deriveStats(new Map([['swift', 3]])).slashInterval
-    expect(two / one).toBeCloseTo(three / two, 6)
-  })
-
-  it('never lets the arc close a full circle', () => {
-    // At a half-angle of PI the arc test can no longer miss, and "which way am
-    // I facing" would silently stop mattering.
-    const maxed = deriveStats(new Map([['wide', 99]]))
-    expect(maxed.slashHalfAngle).toBeLessThan(Math.PI)
-  })
-
-  it('turns an art on only once it is taken', () => {
-    expect(deriveStats(new Map([['orbit', 1]])).orbitBlades).toBeGreaterThan(0)
-    expect(deriveStats(new Map([['bolt', 1]])).boltInterval).toBeGreaterThan(0)
-    expect(deriveStats(new Map([['nova', 1]])).novaInterval).toBeGreaterThan(0)
-  })
-
-  it('makes arts fire faster with each level', () => {
-    const one = deriveStats(new Map([['bolt', 1]])).boltInterval
-    const four = deriveStats(new Map([['bolt', 4]])).boltInterval
-    expect(four).toBeLessThan(one)
+  it('still gives a granted shockwave a size to be', () => {
+    // The one exception, and it has to be one: a nova of radius zero hits
+    // nothing at all, so the radius is a property of the character rather
+    // than of the skill that sets it off.
+    expect(deriveStats().novaRadius).toBeGreaterThan(0)
   })
 })
 

@@ -56,8 +56,8 @@ function play(spent: Attributes, weaponId: string, regionId: string): Post {
   for (const seed of SEEDS) {
     const player = createPlayer(0, 0)
     const swarm = new Swarm(new Rng(seed), region)
-    const stats = deriveStats(new Map(), { spent, weapon, worn: [] })
-    const live = deriveStats(new Map(), { spent, weapon, worn: [] })
+    const stats = deriveStats({ spent, weapon, worn: [] })
+    const live = deriveStats({ spent, weapon, worn: [] })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
     run.riftTarget = region.riftBase

@@ -1541,7 +1541,7 @@
       .hud-arts {
         display: flex;
         justify-content: center;
-        gap: 7px;
+        gap: 10px;
         margin-top: 6px;
         pointer-events: none;
       }
@@ -1561,117 +1561,200 @@
       }
       .hud-shi i {
         flex: 1;
-        height: 7px;
+        height: 10px;
         border-radius: 2px;
-        background: rgba(13, 13, 13, 0.13);
-        transition: background 120ms ease, transform 120ms ease;
+        background: rgba(13, 13, 13, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(13, 13, 13, 0.14);
+        transition: background 120ms ease;
       }
-      .hud-shi i.on { background: var(--gold); }
-      /* The discharge. One flash the whole width of the rail, so spending
-         reads as an event rather than as the pips quietly emptying. */
-      .hud-shi.spending i {
-        background: var(--cinnabar);
-        transform: scaleY(2.2);
+      /* Gold and solid once banked, because that is the moment a decision
+         exists. An empty point is drawn as an OUTLINE rather than as a fainter
+         fill: four faint bars and one slightly less faint bar is not a count a
+         thumb can read at speed. */
+      .hud-shi i.on {
+        background: var(--gold);
+        box-shadow: inset 0 0 0 1px rgba(138, 109, 22, 0.6);
       }
       @media (prefers-reduced-motion: reduce) {
         .hud-shi i { transition: none; }
-        .hud-shi.spending i { transform: none; }
       }
-      /* Sized so the whole scroll of FIVE fits a 393px phone with its gaps —
-         5x54 + 4x7 = 298. The strip used to hold only the arts you carried, so
-         it never had to; it now holds the empty slots too. */
-      .art {
-        width: 54px;
-        height: 54px;
+      /* THE SKILL BAR. Three tiles, and three is the whole point: the strip
+         it replaces held up to five arts that fired on their own, so nothing
+         on it was ever a decision. Sized to sit comfortably on a 393px phone
+         with room either side — 3x62 + 2x10 = 206. */
+      .skill {
+        position: relative;
+        width: 62px;
+        height: 62px;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 3px;
+        gap: 2px;
         border: 1px solid rgba(13, 13, 13, 0.14);
-        border-radius: 6px;
-        background: rgba(13, 13, 13, 0.04);
+        border-radius: 7px;
+        background: rgba(13, 13, 13, 0.05);
         transition:
           border-color 90ms ease-out,
           background 90ms ease-out;
       }
-      /* The icon carries the EFFECT — see src/render/packIcons.ts. Four seals
-         of similar stroke count were four identical grey squares at this size,
-         glanced at with a thumb busy. */
-      .art-icon {
-        width: 28px;
-        height: 28px;
-        display: block;
-        opacity: 0.36;
-        transition: opacity 90ms ease-out;
+      /* The manual slot is marked, because it is the only one the player can
+         do anything about. A double rule rather than a colour: colour on this
+         screen already means "now" (cinnabar) and "worth something" (gold),
+         and a third meaning would dilute both. */
+      .skill-manual {
+        border-width: 2px;
+        border-color: rgba(13, 13, 13, 0.26);
       }
-      /* A PICTOGRAM of the condition, not its seal — see PACK_CONDITION_ICON
-         in render/packIcons.ts. A seal alone asked a player who reads no
-         Chinese to learn that 静 means "stop moving" by dying a few times;
-         the strip is the one place a mechanic must never rest on a character
-         alone. The seal itself keeps its place in the hub, where there is
-         time to read a name. */
-      .art-cond-icon {
-        width: 15px;
-        height: 15px;
-        display: block;
-        opacity: 0.32;
-        transition: opacity 90ms ease-out;
-      }
-      /* Grade, as pips rather than a number — the same rule as an item's rank.
-         Off (all dim) until the grade actually moves, so an art nobody has
-         raised yet reads as exactly that. */
-      .art-pips {
-        display: flex;
-        gap: 2px;
-        margin-top: 1px;
-      }
-      .art-pip {
-        width: 5px;
-        height: 3px;
-        border-radius: 1.5px;
-        background: rgba(138, 109, 22, 0.18);
-      }
-      .art-pip-on {
-        background: var(--gold);
-      }
-      /* An art the blade in hand has not woken. An empty socket, not a dim
-         copy of a real tile: dashed rather than solid, no effect icon, no
-         pips. A player carrying a common blade must be able to see at a glance
-         that four more slots exist and that something fills them — otherwise
-         the strip reads as "this is all there is". */
-      .art-asleep {
+      /* An empty slot. Dashed and blank, so three slots always read as three
+         slots — a player with one skill must be able to see that two more
+         places exist, not conclude that one is all there is. */
+      .skill-empty {
         border-style: dashed;
-        border-color: rgba(13, 13, 13, 0.2);
         background: none;
       }
-      .art-asleep .art-cond-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.17;
+      /* THE COOLDOWN, as a shape rather than a number. A shade that fills the
+         tile from the top and drains downward: a thumb reads "nearly back"
+         from the height of a block without counting anything. Anchored at the
+         top so scaleY(1) covers the tile and scaleY(0) is ready. */
+      .skill-cool {
+        position: absolute;
+        inset: 0;
+        background: rgba(13, 13, 13, 0.42);
+        transform-origin: top;
+        transform: scaleY(0);
+        pointer-events: none;
       }
-      /* Lit. Cinnabar, because in this game cinnabar means "now". */
-      .art-on {
+      .skill-seal {
+        font-family: var(--display, serif);
+        font-size: 25px;
+        line-height: 1;
+        color: rgba(13, 13, 13, 0.45);
+        transition: color 90ms ease-out;
+      }
+      /* The cost, in dots, at the size of a cost and not of a label. Reading
+         "how many points does this take" against a pool of four is the one sum
+         a player does mid-fight, so both are drawn as countable things. */
+      .skill-cost {
+        display: flex;
+        gap: 2px;
+        font-size: 7px;
+        letter-spacing: 1px;
+        line-height: 1;
+        text-decoration: none;
+        color: rgba(138, 109, 22, 0.55);
+      }
+      /* The posture that pays extra, as a PICTOGRAM rather than a seal — see
+         PACK_CONDITION_ICON in render/packIcons.ts. A seal alone asked a player
+         who reads no Chinese to learn that 静 means "stop moving" by dying a
+         few times. */
+      .skill-when {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 13px;
+        height: 13px;
+        display: block;
+        opacity: 0.22;
+        transition: opacity 90ms ease-out, color 90ms ease-out;
+      }
+      /* READY means FIREABLE: off cooldown AND affordable. A tile that lights
+         when the pool cannot pay teaches the player that pressing is
+         pointless, which is worse than a dark tile. */
+      .skill.is-ready {
+        border-color: var(--gold);
+        background: rgba(138, 109, 22, 0.1);
+      }
+      .skill.is-ready .skill-seal { color: var(--ink); }
+      .skill.is-ready .skill-cost { color: var(--gold); }
+      /* LIVE. Cinnabar, because in this game cinnabar means "now" — and this
+         is the only state that says the effect is actually on the numbers. */
+      .skill.is-live {
         border-color: var(--cinnabar);
-        background: rgba(193, 39, 45, 0.09);
+        background: rgba(193, 39, 45, 0.12);
       }
-      .art-on .art-icon,
-      .art-on .art-cond-icon {
+      .skill.is-live .skill-seal { color: var(--cinnabar); }
+      /* The boost is being paid right now. The mark brightens; nothing else
+         moves, so it can be read at the same time as ready and live without
+         the tile becoming three overlapping claims. */
+      .skill.is-boosted .skill-when {
+        opacity: 1;
+        color: var(--gold);
+      }
+
+      /* CAST — the manual slot's button. Directly above the dodge so one thumb
+         reaches both without hunting, and smaller so touch alone tells them
+         apart: the panic button is the big one at the bottom, always. */
+      .hud-cast {
+        position: absolute;
+        right: calc(env(safe-area-inset-right, 0px) + 30px);
+        /* 246 + 76 (the dodge) + 14 of air. */
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 336px);
+        width: 60px;
+        height: 60px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(232, 220, 192, 0.14);
+        display: grid;
+        place-items: center;
+        pointer-events: auto;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+        cursor: pointer;
+        transition: transform 90ms ease, background 140ms ease;
+      }
+      .hud-cast:active { transform: scale(0.92); }
+      .hud-cast.is-ready { background: rgba(138, 109, 22, 0.28); }
+      .hud-cast.is-live { background: rgba(193, 39, 45, 0.26); }
+      .hud-cast-dial {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+      .hud-cast-track {
+        fill: none;
+        stroke: rgba(13, 13, 13, 0.16);
+        stroke-width: 3;
+      }
+      /* The dial DRAINS as the cooldown runs out — the offset is set to the
+         remaining fraction, so a full ring means "just fired" and an empty one
+         means "ready". Same direction as the tile's wipe, which is the point:
+         the button and the strip must never disagree. */
+      .hud-cast-fill {
+        fill: none;
+        stroke: var(--paper);
+        stroke-width: 3;
+        stroke-linecap: round;
+        opacity: 0.55;
+      }
+      .hud-cast.is-ready .hud-cast-fill {
+        stroke: var(--gold);
         opacity: 1;
       }
-      .art-on .art-cond-icon {
-        color: var(--cinnabar);
+      .hud-cast-seal {
+        font-family: var(--display, serif);
+        font-size: 22px;
+        line-height: 1;
+        color: rgba(13, 13, 13, 0.5);
+        transition: color 140ms ease;
       }
-      /* Armed: the posture is right, the bank is empty. Dashed rather than
-         solid, so it reads as "waiting on you" and can never be mistaken for
-         the art actually firing. */
-      .art-armed {
-        border-style: dashed;
-        border-color: var(--gold);
+      .hud-cast.is-ready .hud-cast-seal { color: var(--ink); }
+      .hud-cast-cost {
+        position: absolute;
+        bottom: 7px;
+        font-size: 6px;
+        letter-spacing: 1px;
+        line-height: 1;
+        text-decoration: none;
+        color: rgba(138, 109, 22, 0.55);
       }
-      .art-armed .art-icon,
-      .art-armed .art-cond-icon {
-        opacity: 0.72;
+      .hud-cast.is-ready .hud-cast-cost { color: var(--gold); }
+      @media (prefers-reduced-motion: reduce) {
+        .hud-cast, .hud-cast:active { transition: none; transform: none; }
       }
 
       /* --- the rift's bar ------------------------------------------------
@@ -1875,6 +1958,140 @@
       /* The two halves of the loop, told apart by a rail rather than by a
          label: gold builds, cinnabar spends, and those are the same two
          colours the 势 pips use in play. */
+      /* --- the 法 list ---------------------------------------------------
+         Four lines per row, in the order the questions arrive: what is it,
+         what does it do, what does it cost me, and when is it worth more. */
+      .sk-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .sk-row {
+        display: grid;
+        grid-template-columns: 20px 34px minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(13, 13, 13, 0.14);
+        border-radius: 7px;
+      }
+      /* Slotted: it goes out with you. Cinnabar edge and a warm ground, the
+         same two signals the HUD tile uses for "this one is yours". */
+      .sk-on {
+        border-color: rgba(193, 39, 45, 0.4);
+        background: rgba(193, 39, 45, 0.06);
+      }
+      /* Known and not taken. Dashed and dimmed — a real thing that is not in
+         your hand, which is different from a thing you cannot have. */
+      .sk-off {
+        border-style: dashed;
+        opacity: 0.62;
+      }
+      .sk-place {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.5;
+        color: rgba(13, 13, 13, 0.32);
+        text-align: center;
+      }
+      .sk-icon {
+        width: 34px;
+        height: 34px;
+        display: block;
+        opacity: 0.7;
+      }
+      .sk-body { min-width: 0; }
+      .sk-name {
+        display: block;
+        font-size: 15.5px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      /* The one slot the player fires by hand, named on the row that lists it.
+         Which of the three is the button is the only in-fight decision the
+         system has, so it cannot be something you learn by pressing. */
+      .sk-manual {
+        font-style: normal;
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        vertical-align: 2px;
+        margin-left: 5px;
+        color: var(--gold);
+        border: 1px solid rgba(138, 109, 22, 0.45);
+        border-radius: 3px;
+        padding: 1px 4px;
+      }
+      .sk-blurb {
+        display: block;
+        margin-top: 1px;
+        font-size: 12.5px;
+        line-height: 1.35;
+        color: rgba(13, 13, 13, 0.55);
+      }
+      /* What it does, what it costs, how long. One line, three weights, so it
+         is scanned rather than read. */
+      .sk-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 9px;
+        margin-top: 5px;
+        font-size: 11.5px;
+        font-variant-numeric: tabular-nums;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .sk-does {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--cinnabar);
+      }
+      /* The cost in the same dots the HUD tile draws, against the same pool of
+         four. One currency drawn one way everywhere it appears. */
+      .sk-cost {
+        letter-spacing: 1.5px;
+        color: var(--gold);
+      }
+      /* The boost on its own full-width line, with the figure it produces
+         rather than only the posture that produces it. A boost that names a
+         posture is a rule; a boost that shows the resulting number is a
+         decision. */
+      .sk-boost {
+        display: block;
+        margin-top: 5px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(13, 13, 13, 0.08);
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .sk-boost b { color: rgba(13, 13, 13, 0.78); }
+      .sk-seal {
+        font-family: var(--display, serif);
+        font-size: 14px;
+        color: var(--cinnabar);
+        margin-right: 3px;
+      }
+      /* Where the bar stops and the rest of the roster begins. Everything
+         above goes out with you; everything below is known and not taken. */
+      .sk-cut {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 14px 0 2px;
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        color: rgba(13, 13, 13, 0.45);
+      }
+      .sk-cut::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: rgba(13, 13, 13, 0.14);
+      }
+
       .cond-charge { border-left: 3px solid var(--gold); padding-left: 9px; }
       .cond-spend { border-left: 3px solid var(--cinnabar); padding-left: 9px; }
       .cond-loop {
@@ -2734,69 +2951,6 @@
         text-transform: uppercase;
         letter-spacing: 0.1em;
         color: rgba(13, 13, 13, 0.45);
-      }
-
-      /* --- the skill bar -------------------------------------------------
-         Three tiles, and they are the first thing in this game a player can
-         point at and say "that one is mine". A tile carries three readings and
-         no more: the seal (which one), a cost in pips (what it takes), and a
-         vertical wipe (when it comes back). Anything else on a 108px tile is
-         something nobody reads mid-fight. */
-      .hud-arts {
-        display: flex;
-        gap: 6px;
-      }
-      .skill {
-        position: relative;
-        flex: 1;
-        height: 54px;
-        display: grid;
-        place-items: center;
-        overflow: hidden;
-        border: 1.5px solid rgba(13, 13, 13, 0.26);
-        border-radius: 3px;
-        background: rgba(255, 252, 244, 0.5);
-      }
-      /* The one you fire yourself, marked before you ever press it. */
-      .skill-manual {
-        border-color: rgba(193, 39, 45, 0.55);
-        border-width: 2px;
-      }
-      .skill-empty {
-        border-style: dashed;
-        background: none;
-      }
-      .skill-seal {
-        position: relative;
-        z-index: 1;
-        font-size: 16px;
-        color: rgba(13, 13, 13, 0.45);
-        transition: color 140ms ease-out;
-      }
-      /* Fireable, not merely off cooldown — see setBar. */
-      .is-ready .skill-seal {
-        color: var(--ink);
-      }
-      .is-live {
-        background: rgba(212, 175, 55, 0.16);
-        border-color: var(--gold);
-      }
-      .skill-cost {
-        position: absolute;
-        top: 3px;
-        right: 4px;
-        font-size: 6px;
-        letter-spacing: 1px;
-        text-decoration: none;
-        color: var(--gold);
-      }
-      /* Wipes downward as the cooldown runs out. A shape, not a number. */
-      .skill-cool {
-        position: absolute;
-        inset: 0;
-        background: rgba(13, 13, 13, 0.16);
-        transform-origin: top center;
-        transform: scaleY(0);
       }
 
       /* LAST IN THE SHEET ON PURPOSE. Every one of these layers sets `inset: 0`

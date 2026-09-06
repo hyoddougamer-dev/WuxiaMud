@@ -190,7 +190,7 @@ y += 100
     }
   }
 
-  track(y + 10, '悟', 'Insight', 'Inside one expedition. Buys techniques. Lost at death.', 8, 5, palette.gold)
+  track(y + 10, '悟', 'Insight', 'Inside one expedition. Deepens 内力. Lost at death.', 8, 5, palette.gold)
   track(
     y + 84,
     '境',

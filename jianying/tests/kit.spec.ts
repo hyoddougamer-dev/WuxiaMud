@@ -14,10 +14,8 @@ import { acquire, emptyInventory, equip, mintUid, unequip, type OwnedItem } from
 import { deriveStats } from '../src/sim/loadout'
 import { rollAmount } from '../src/data/affixes'
 import { SCHOOL_BY_ID } from '../src/meta/schools'
-import type { Loadout } from '../src/data/techniques'
 import type { Rarity } from '../src/data/rarity'
 
-const EMPTY: Loadout = new Map()
 
 /** `luck` moves the rolled amounts, so two copies of one base differ. */
 const roll = (baseId: string, luck = 0.9, rarity: Rarity = 2, depth = 3): OwnedItem => ({
@@ -91,16 +89,16 @@ describe('what the comparison sheet promises', () => {
     const c = withPack(worn, better)
     equip(c.inventory, worn.uid)
 
-    const predicted = deriveStats(EMPTY, kitOf(c, { slot: 'robe', entry: better }))
+    const predicted = deriveStats(kitOf(c, { slot: 'robe', entry: better }))
     equip(c.inventory, better.uid)
-    const actual = deriveStats(EMPTY, kitOf(c))
+    const actual = deriveStats(kitOf(c))
 
     expect(predicted).toEqual(actual)
     // And the prediction was not simply the sheet the player already had —
     // otherwise the equality above would hold for a broken kitOf that ignored
     // the swap entirely.
     expect(predicted.maxHp).toBeGreaterThan(
-      deriveStats(EMPTY, kitOf(c, { slot: 'robe', entry: worn })).maxHp,
+      deriveStats(kitOf(c, { slot: 'robe', entry: worn })).maxHp,
     )
   })
 
@@ -109,24 +107,24 @@ describe('what the comparison sheet promises', () => {
     const c = withPack(worn)
     equip(c.inventory, worn.uid)
 
-    const predicted = deriveStats(EMPTY, kitOf(c, { slot: 'robe', entry: null }))
+    const predicted = deriveStats(kitOf(c, { slot: 'robe', entry: null }))
     unequip(c.inventory, 'robe')
-    expect(predicted).toEqual(deriveStats(EMPTY, kitOf(c)))
+    expect(predicted).toEqual(deriveStats(kitOf(c)))
     // Bare is worse than robed, or the sheet is measuring nothing.
     expect(predicted.maxHp).toBeLessThan(
-      deriveStats(EMPTY, kitOf(withPackWorn(worn))).maxHp,
+      deriveStats(kitOf(withPackWorn(worn))).maxHp,
     )
   })
 
   it('predicts a weapon swap, which changes the class and not only a number', () => {
     const daggers = roll('w-feidao')
     const c = withPack(daggers)
-    const predicted = deriveStats(EMPTY, kitOf(c, { slot: 'weapon', entry: daggers }))
+    const predicted = deriveStats(kitOf(c, { slot: 'weapon', entry: daggers }))
     equip(c.inventory, daggers.uid)
-    expect(predicted).toEqual(deriveStats(EMPTY, kitOf(c)))
+    expect(predicted).toEqual(deriveStats(kitOf(c)))
     // The zhanmadao and the daggers do not share a reach; a sheet that showed
     // the same row for both would be hiding the whole decision.
-    expect(predicted.slashRange).not.toBe(deriveStats(EMPTY, kitOf(withPack())).slashRange)
+    expect(predicted.slashRange).not.toBe(deriveStats(kitOf(withPack())).slashRange)
   })
 })
 

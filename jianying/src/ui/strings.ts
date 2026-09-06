@@ -8,7 +8,7 @@
  *
  * A naming decision worth recording, because it was the source of real
  * confusion: the game has two things that used to both be called "level". One
- * is spent within a single expedition and buys a technique; the other is
+ * is earned and spent within a single expedition, deepening 内力; the other is
  * permanent and buys an attribute point. They are now INSIGHT and LEVEL/REALM
  * respectively, and the words never cross. Two different meanings behind one
  * word on one screen is exactly the kind of thing that makes a game feel
@@ -28,8 +28,6 @@ export const strings = {
   sealHint: 'press the seal',
   /** The dodge button's accessible name. */
   dodgeLabel: 'Dodge',
-  momentumLoop: 'Running and turning build momentum. Standing still or being ringed in spends all of it at once, in a single burst.',
-  desperateRule: 'Below a third of your health, every art fires one grade higher.',
   /** Title on the fatal-error screen. */
   fatalTitle: 'Jiànyǐng failed to start',
 
@@ -57,19 +55,8 @@ export const strings = {
    * lines there, and the slot name above it already says what is missing.
    */
   slotEmpty: 'Empty',
-  /** Heading for the five things a player can DO to wake an art. */
-  conditions: 'What wakes them',
-  /**
-   * The 法 tab's one line of instruction.
-   *
-   * States the rule outright, because the whole point of routing the arts
-   * through the gear is that the player can PREDICT them. Ranking five arts
-   * while the blade in hand wakes two is a real decision, and it is only a
-   * decision if the pane says which two.
-   */
-  artsNote:
-    'Tap to rank an art. The blade in your hand decides how many wake, ' +
-    'from the top of this list down; everything you wear decides their grade.',
+  /** Heading over 势 and the postures that pay a skill more. */
+  conditions: 'Where the power comes from',
   pointsToSpend: 'points to spend',
   onePointToSpend: 'point to spend',
   spend: '+',
@@ -190,23 +177,37 @@ export const strings = {
   lostToDeath: 'Lost with you',
   wasNotBanked: 'not banked',
 
-  // --- 器蕴, the arts as read off the gear --------------------------------
-  /** Banner on a level-up. 内力 is flat power, never an art. See applyMight. */
+  // --- 法, the skills ----------------------------------------------------
+  /** Banner on a level-up. 内力 is flat power, never a skill. See MIGHT. */
   mightGained: 'Inner force deepens',
-  /** Headings on the 法 tab, which now reads the gear rather than a ladder. */
-  artsAwake: 'awake',
-  artsGrade: 'grade',
-  artsAsleep: 'a better blade wakes this one next',
+  skillSlots: 'slots',
   /**
-   * On the line across the 法 list where the blade stops reaching.
+   * The 法 tab's one line of instruction.
    *
-   * Everything above it fires and everything below it does not, which was true
-   * before and could only be found by counting rows. A line you can see, named
-   * for the weapon that draws it, turns "get a better blade" from a rule you
-   * read once into a boundary you watch move.
+   * Says what a skill IS in one sentence, because that is the sentence the
+   * game never said. Cost, cooldown and the posture that pays: every number on
+   * the rows below is one of those three, so the line teaches the shape of the
+   * list rather than describing the list.
    */
-  artsReach: 'reaches this far',
-  artsFromGear: 'The blade in your hand decides how many wake. Everything you wear decides their grade.',
+  skillsNote:
+    'A skill costs 势, which you build by moving, and then rests before it ' +
+    'can fire again. The posture under each one pays it more while you hold it.',
+  /** On the line where the bar stops and the rest of the roster begins. */
+  skillsKnown: 'also known',
+  /** The third slot: the one the player fires by hand. */
+  skillManual: 'your button',
+  /** A skill with no duration — it happens and it is over. */
+  skillInstant: 'at once',
+  /**
+   * 势, in one line, above the postures.
+   *
+   * The one rule the whole bar rests on and the one a player cannot deduce
+   * from the tiles: the resource comes from MOVING. Standing still is what
+   * pays a skill off; it is also what stops paying for the next one.
+   */
+  shiLoop:
+    'Moving fills 势 — four points under your health. Firing spends it. ' +
+    'Standing still earns none, which is the whole tension.',
 
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',

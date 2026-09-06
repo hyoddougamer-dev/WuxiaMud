@@ -40,7 +40,7 @@ import { Hazards } from './sim/hazards'
 import { Drops } from './sim/drops'
 import { HURT_IMMUNITY, ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
 import { deriveStats } from './sim/loadout'
-import { xpForLevel } from './data/techniques'
+import { xpForLevel } from './data/insight'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import {
   DODGE_IMMUNITY,
@@ -50,8 +50,11 @@ import {
   updateDodge,
 } from './sim/dodge'
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
-import { MIGHT, applyArts, attune, equippedIds, surgeOf } from './sim/arts'
-import { ART_BY_ID, type Art } from './data/arts'
+
+import { MIGHT } from './sim/arts'
+import { defaultBar } from './data/skills'
+import { createShi, updateShi } from './sim/shi'
+import { applySkills, createBar, updateBar } from './sim/skills'
 import {
   type Character,
   createCharacter,
@@ -177,15 +180,6 @@ async function boot(): Promise<void> {
   /** Which of the five conditions hold right now. See sim/conditions.ts. */
   const sense = createSense()
   /**
-   * `deriveStats` still takes a technique loadout — see sim/loadout.ts. The
-   * three cards it was built for are gone (感悟 advances the equipped arts
-   * directly now; see the update loop below), so this stays permanently
-   * empty rather than threading a second, now-pointless growth channel back
-   * out of a signature every balance tool in the project also calls.
-   */
-  const EMPTY_LOADOUT: Map<string, number> = new Map()
-
-  /**
    * Everything the character permanently brings: bought attributes, the
    * equipped weapon, and the worn armour. Rebuilt whenever the hub changes
    * something, and read once at the start of an expedition.
@@ -223,69 +217,61 @@ async function boot(): Promise<void> {
   }
 
   let kit = currentKit()
-  let stats = deriveStats(EMPTY_LOADOUT, kit)
+  let stats = deriveStats(kit)
   /**
-   * The arts carried, and the stats once those whose condition holds are in.
+   * The live numbers: the permanent sheet with every skill that is firing
+   * folded in.
    *
-   * `live` is a scratch object reused every frame — see sim/arts.ts, which
-   * explains why the arts are a second layer rather than part of deriveStats.
-   * Everything downstream of the sense reads `live`; `stats` stays the
-   * permanent baseline the hub quotes and the level-up screen compares against.
-   *
-   * The whole scroll of the weapon in hand is carried, at grade 1. Equipping
-   * four and setting their order is the next step; until it exists, carrying
-   * five is what keeps the strip and the simulation telling one story — the
-   * tiles the player can see are exactly the arts that can fire.
+   * `live` is a scratch object reused every frame — see sim/skills.ts, which
+   * explains why the skills are a second layer rather than part of deriveStats.
+   * Everything downstream reads `live`; `stats` stays the permanent baseline
+   * the hub quotes and a comparison sheet measures against.
    */
+  const live: Stats = deriveStats(kit)
   /**
-   * The rung of every slot, weapon included — what the arts are attuned from.
+   * The same numbers with NOTHING live, published for the harness.
    *
-   * An empty slot counts as 凡, not as absent, so a swordsman in rags has a
-   * defined grade rather than a special case. See `artGrade` in sim/arts.ts.
+   * Its own scratch object, so computing it cannot disturb what the simulation
+   * is reading. See the dataset.base line.
    */
-  const wornRungs = (): number[] => SLOTS.map((slot) => inSlot(slot)?.rarity ?? 0)
-
+  const resting: Stats = deriveStats(kit)
   /**
-   * The arts this kit grants: which, how many awake, at what grade.
+   * A bar with nothing in it, for the baseline the harness compares against.
    *
-   * Rebuilt from the gear rather than climbed during the run. Everything about
-   * why is in the 器蕴 section of sim/arts.ts; the short of it is that the two
-   * ladders this replaced — 感悟 during a run and 秘笈 between them — both
-   * climbed the same number and neither was attached to anything the player
-   * could look at.
+   * Its own frozen object, so computing the baseline cannot disturb what the
+   * simulation is reading. See the dataset.base line.
    */
-  let carried = attune(equippedIds(character.arts, kit.weapon.id), wornRungs()[0]!, wornRungs())
-  /** The rest of the weapon's ranking, which the gear has not woken. */
-  let asleep: Art[] = []
-  const live: Stats = deriveStats(EMPTY_LOADOUT, kit)
+  const EMPTY_BAR = createBar()
+  /** 势 — filled by moving, spent by firing. See sim/shi.ts. */
+  const shi = createShi()
   /**
-   * The same numbers with NO condition holding, published for the harness.
+   * The three slotted skills. Two fire themselves, the third waits for the
+   * button; see sim/skills.ts.
    *
-   * Its own scratch object and its own frozen empty sense, so computing it
-   * cannot disturb what the simulation is reading. See the dataset.base line.
+   * Built from the weapon, because the weapon is the class. Until the skills
+   * screen lands, this is the default bar rather than a stored choice — which
+   * is why it is rebuilt in `refreshKit` alongside the stats: swapping to
+   * flying daggers has to swap the skills with them, or the bar would be
+   * offering a greatsword's techniques to somebody holding knives.
    */
-  const resting: Stats = deriveStats(EMPTY_LOADOUT, kit)
-  const NO_CONDITIONS = createSense().active
+  let bar = createBar(defaultBar(kit.weapon.id))
   /**
-   * Recomputes the permanent stats AND the arts, together.
+   * Recomputes the permanent stats AND the skill bar, together.
    *
-   * They are recomputed in seven places — a level-up, a new expedition, a
+   * They are recomputed in several places — a level-up, a new expedition, a
    * swordsman swap, a weapon change, a piece put on mid-run — and the gear
-   * decides both. Leaving them as two adjacent lines would eventually mean an
-   * eighth site that refreshed one and not the other, and the symptom of that
-   * is arts from a weapon you are no longer holding.
+   * decides both. Leaving them as two adjacent lines would eventually mean a
+   * site that refreshed one and not the other, and the symptom of that is a
+   * bar full of skills for a weapon you are no longer holding.
    */
   const refreshKit = (): void => {
-    stats = deriveStats(EMPTY_LOADOUT, kit)
-    const rungs = wornRungs()
-    const ordered = equippedIds(character.arts, kit.weapon.id)
-    carried = attune(ordered, rungs[0]!, rungs)
-    // The tail of the ranking the gear did not reach. Shown on the strip as
-    // empty slots — see Hud.setScroll for why they are not simply left out.
-    asleep = ordered
-      .slice(carried.length)
-      .map((id) => ART_BY_ID.get(id))
-      .filter((art): art is Art => art !== undefined)
+    stats = deriveStats(kit)
+    const wanted = defaultBar(kit.weapon.id)
+    // Only when the SET actually changes, so a level-up does not silently wipe
+    // every cooldown the player has spent the last ten seconds waiting out.
+    if (bar.slots.map((slot) => slot.skill?.id ?? '-').join(',') !== wanted.join(',')) {
+      bar = createBar(wanted)
+    }
   }
   let run = createRun(kit.weapon.interval)
   run.hp = stats.maxHp
@@ -315,6 +301,13 @@ async function boot(): Promise<void> {
   ui.onDodge(() => {
     if (!playing || run.over || gateUp || run.pendingLevelUps > 0) return
     startDodge(dodge, player, joystick.state.x, joystick.state.y)
+  })
+  // The manual slot. Same guard as the dodge: ignored while the world is
+  // frozen for a gate, since the player is reading rather than fighting and a
+  // cast spent there would go off at nothing.
+  ui.onCast(() => {
+    if (!playing || run.over || gateUp || run.pendingLevelUps > 0) return
+    wantCast = true
   })
   const banners = createBanners(uiRoot)
   const codex = createCodex(uiRoot)
@@ -629,13 +622,31 @@ async function boot(): Promise<void> {
    */
   const onGround = new Map<string, Found>()
   /**
-   * Arts already explained this expedition. Reset with everything else.
+   * Skills already explained this expedition. Reset with everything else.
    *
-   * Per RUN rather than per save on purpose: the arts you carry change with the
-   * blade in your hand, so an art you last saw six expeditions ago on a
+   * Per RUN rather than per save on purpose: the skills you carry change with
+   * the blade in your hand, so one you last saw six expeditions ago on a
    * different weapon deserves its line again. It costs one banner.
    */
-  let taughtArts = new Set<string>()
+  let taughtSkills = new Set<string>()
+  /**
+   * How fast the swordsman was actually moving last frame, 0..1.
+   *
+   * 势 is filled from this, and it is LAST frame's on purpose: the pool has to
+   * be advanced before the bar spends from it, and movement for this frame has
+   * not happened yet at that point. One frame at 60Hz.
+   */
+  let paceLastFrame = 0
+  /**
+   * True on the frame the cast button was pressed, cleared the moment the bar
+   * has seen it.
+   *
+   * A flag rather than a queue: a press with the skill cooling or the pool
+   * short does nothing at all. A queued cast on a phone fires at a moment the
+   * player has stopped meaning, which reads as the game ignoring them and then
+   * acting on its own. See updateBar.
+   */
+  let wantCast = false
   /**
    * Which slot the piece at `uid` fits, for the mark drawn on the ground.
    *
@@ -757,7 +768,15 @@ async function boot(): Promise<void> {
     foundThisRun = []
     drops.clear()
     onGround.clear()
-    taughtArts = new Set()
+    taughtSkills = new Set()
+    paceLastFrame = 0
+    wantCast = false
+    shi.value = 0
+    for (const slot of bar.slots) {
+      slot.cooling = 0
+      slot.live = 0
+      slot.cast = 0
+    }
     ownedThisRun = new Set(character.inventory.owned.map((entry) => entry.baseId))
     securedFindCount = 0
     bankedThisEnd = false
@@ -939,7 +958,7 @@ async function boot(): Promise<void> {
     // shrinking at the exact moment the player was told they got stronger.
     while (run.pendingLevelUps > 0) {
       run.pendingLevelUps--
-      // The ceiling rises in `live` on the next frame (applyArts folds 内力 in);
+      // The ceiling rises in `live` on the next frame (applySkills folds 内力 in);
       // what stands under it has to rise with it here, or the bar would appear
       // to shrink at the exact moment the player was told they got stronger.
       run.hp += MIGHT.maxHp
@@ -981,15 +1000,40 @@ async function boot(): Promise<void> {
 
     const insightBefore = run.level
 
-    // The arts, applied before anything reads a stat this frame.
+    // THE SKILLS, resolved before anything reads a stat this frame.
+    //
+    // Three steps in a fixed order and the order is the design. The pool is
+    // advanced from LAST frame's movement, then the bar fires whatever it can
+    // afford, then the live sheet is rebuilt from whatever is now running. Any
+    // other order lets a skill be paid for out of 势 the player has not earned
+    // yet, or fold into a sheet that was already read.
     //
     // `sense.active` still holds what was true at the END of the previous
     // frame, and that is on purpose: sensing first would mean sensing from a
-    // position the player has not moved to yet, and the speed art would depend
-    // on a move that depends on the speed art. One frame of lag at 60Hz is
+    // position the player has not moved to yet, and a speed skill would depend
+    // on a move that depends on the speed skill. One frame of lag at 60Hz is
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
-    // of the circle. See sim/arts.ts.
-    applyArts(stats, carried, sense.active, live, run.level, surgeOf(sense))
+    // of the circle.
+    updateShi(shi, { pace: paceLastFrame, turned: sense.active.turn }, dt)
+    const casts = updateBar(bar, shi, sense.active, wantCast, dt)
+    wantCast = false
+    applySkills(stats, bar, live, run.level)
+    for (const index of casts.fired) {
+      const skill = bar.slots[index]?.skill
+      if (!skill) continue
+      feel.cast()
+      // TAUGHT AT THE MOMENT IT FIRES, once per skill per expedition.
+      //
+      // A tile lighting in the HUD is a signal aimed at a player who is looking
+      // at the HUD, and nobody is — they are watching the field with something
+      // chasing them. So the first cast says what it is, in the banner the
+      // player already reads for damage and finds. After that the tile is
+      // enough, and a message that keeps firing stops teaching and becomes
+      // noise.
+      if (taughtSkills.has(skill.id)) continue
+      taughtSkills.add(skill.id)
+      banners.show(`${skill.seal} ${skill.name}`, 'gold', skill.blurb)
+    }
 
     const { x: ix, y: iy } = joystick.state
     // The region bends the player, not the enemies, and that asymmetry is the
@@ -1046,25 +1090,10 @@ async function boot(): Promise<void> {
       },
       dt,
     )
-
-    // THE ARTS, TAUGHT AT THE MOMENT THEY FIRE.
-    //
-    // The report was "não se percebe o que os skills fazem", and it survived
-    // the whole 器蕴 rework because the rework answered a different question.
-    // The rule is now readable in the hub; what was never readable is the
-    // EVENT. A tile lighting in the HUD bar is a signal aimed at a player who
-    // is looking at the HUD bar, and nobody is — they are watching the field
-    // with something chasing them.
-    //
-    // So the first time each art fires in an expedition, it says what it is and
-    // what it does, in the banner the player already reads for damage and
-    // finds. Once per art per run: after that the lit tile is enough, and a
-    // message that keeps firing stops being teaching and becomes noise.
-    for (const { art } of carried) {
-      if (!sense.active[art.condition] || taughtArts.has(art.id)) continue
-      taughtArts.add(art.id)
-      banners.show(`${art.seal} ${art.name}`, 'gold', art.blurb)
-    }
+    // Read once, here, so 势 and the 疾 condition can never disagree about how
+    // fast the swordsman is going.
+    const topSpeed = live.moveSpeed * (rule.playerSpeed ?? 1)
+    paceLastFrame = topSpeed > 0 ? playerSpeed(player) / topSpeed : 0
 
     swarm.update(player.x, player.y, run.elapsed, dt, hazards)
     // Pieces on the ground. The pool asks before handing one over, so a full
@@ -1551,14 +1580,11 @@ async function boot(): Promise<void> {
     // --- ui ------------------------------------------------------------
     ui.update(run.hp, live.maxHp, run.elapsed, run.kills, run.xp, xpForLevel(run.level), run.level)
     ui.setRift(run.riftValue, run.riftTarget)
-    // Only the arts the gear actually woke, each at the grade the gear set.
-    //
-    // Showing the whole scroll while the simulation ran two of it would put
-    // tiles on screen that can never fire — the exact class of lie this project
-    // keeps having to dig out. `carried` IS what applyArts reads each frame, so
-    // the strip and the simulation cannot disagree about what is in hand.
-    ui.setScroll(carried, asleep)
-    ui.setConditions(sense)
+    // `bar` IS what updateBar reads each frame, so the strip and the simulation
+    // cannot disagree about what is in hand — the exact class of lie this
+    // project keeps having to dig out.
+    ui.setBar(bar, shi.value)
+    ui.setPostures(sense.active)
     ui.setDodge(dodgeCharge(dodge))
     if (playing && run.over && !gameOverShown) {
       gameOverShown = true
@@ -1650,12 +1676,14 @@ async function boot(): Promise<void> {
       // screenshot, and only one of them is a rendering bug.
       document.body.dataset.drops = String(drops.count)
       document.body.dataset.found = String(foundThisRun.length)
-      // The arts the gear is granting right now, as "awake/grade". This is the
-      // one claim of 器蕴 that unit tests cannot reach: they prove `attune`
-      // returns the right list, not that walking over a better blade rebuilds
-      // the kit and the strip mid-fight. See the pickup handler.
-      document.body.dataset.attune =
-        `${carried.length}/${carried[0]?.level ?? 0}`
+      // The bar as the simulation holds it: how many slots are FILLED, how
+      // many are LIVE this instant, and the whole 势 pool. This is the claim
+      // unit tests cannot reach — they prove `updateBar` fires a slot, not that
+      // a thumb on a joystick fills a pool that a button then spends.
+      document.body.dataset.bar =
+        `${bar.slots.filter((slot) => slot.skill).length}/` +
+        `${bar.slots.filter((slot) => slot.live > 0).length}/` +
+        `${shi.value.toFixed(2)}`
       document.body.dataset.worn = SLOTS.map((slot) => inSlot(slot)?.rarity ?? -1).join(',')
       // Which full-screen panels are up. Published because the bug they had
       // was invisible to every other check: banking left the gate standing on
@@ -1670,7 +1698,7 @@ async function boot(): Promise<void> {
       // unit tests cannot — they exercise the detector, not the wiring from a
       // thumb on a joystick through to a class on a tile.
       document.body.dataset.conditions = activeSeals(sense.active).join(',')
-      // What the arts are actually doing to the numbers, right now.
+      // What the SKILLS are actually doing to the numbers, right now.
       //
       // The conditions lighting a tile was the last step's feature and it has
       // its own line above. This one exists because the failure this step can
@@ -1680,15 +1708,16 @@ async function boot(): Promise<void> {
       // are published. Rounded, because the harness compares strings.
       //
       // The baseline is published WITH 内力 folded in — a second copy of `live`
-      // computed with no condition holding — precisely so that a difference
-      // between the two can only ever be the arts. Publishing `stats` raw was
-      // enough while a level-up did nothing to the numbers; now that a level
-      // adds flat damage, a raw baseline would differ from `live` on every run
-      // past level one and the check would pass without a single art firing.
-      // Every channel an art can move, not the seven the sweep uses. Five of
-      // the fourteen effects (crit, echo, push, guard, heal) touch none of the
-      // sweep numbers, so a build whose one awake art was any of those read as
-      // "no stat moved" — the verifier reporting a working feature as broken,
+      // computed with an EMPTY bar — precisely so that a difference between the
+      // two can only ever be a live skill. Publishing `stats` raw was enough
+      // while a level-up did nothing to the numbers; now that a level adds flat
+      // damage, a raw baseline would differ from `live` on every run past level
+      // one and the check would pass without a single skill firing.
+      //
+      // Every channel a skill can move, not the seven the sweep uses. Several
+      // of the fourteen effects (crit, echo, guard, heal) touch none of the
+      // sweep numbers, so a build whose skills were any of those read as "no
+      // stat moved" — the verifier reporting a working feature as broken,
       // which is worse than no verifier.
       const vector = (s: Stats): string =>
         `${s.slashDamage.toFixed(1)},${s.slashInterval.toFixed(3)},` +
@@ -1697,7 +1726,7 @@ async function boot(): Promise<void> {
         `${s.critEvery},${s.echoDamage.toFixed(2)},${s.pushForce.toFixed(0)},` +
         `${s.damageScale.toFixed(2)},${s.healPerKill.toFixed(2)},${s.pickupRadius.toFixed(0)}`
       document.body.dataset.live = vector(live)
-      applyArts(stats, carried, NO_CONDITIONS, resting, run.level)
+      applySkills(stats, EMPTY_BAR, resting, run.level)
       document.body.dataset.base = vector(resting)
       // Published so a performance report can be turned into a measurement.
       // "It stutters on my phone" is unactionable; "render costs 9ms with 240

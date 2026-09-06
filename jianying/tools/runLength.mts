@@ -153,8 +153,8 @@ export function play(
     const bolts = new Bolts()
     const hazards = new Hazards()
     const rng = new Rng(seed ^ 0x5bf03635)
-    const stats = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
-    const live = deriveStats(new Map(), { spent: SPENT, weapon, worn: [] })
+    const stats = deriveStats({ spent: SPENT, weapon, worn: [] })
+    const live = deriveStats({ spent: SPENT, weapon, worn: [] })
     const run = createRun(stats.slashInterval)
     run.hp = stats.maxHp
     run.riftTarget = riftTarget

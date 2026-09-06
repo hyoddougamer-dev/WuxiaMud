@@ -22,8 +22,8 @@
 import { SKILL_BY_ID, SLOTTED_SKILLS, skillPower, type Skill } from '../data/skills'
 import type { Condition } from '../data/arts'
 import { spendShi, type Shi } from './shi'
-import type { Stats } from './loadout'
-import { copyStats, MAX_HALF_ANGLE, STEP, GRANT, CRIT_EVERY, ECHO_DELAY } from './arts'
+import { NOVA_RADIUS, type Stats } from './loadout'
+import { addMight, copyStats, MAX_HALF_ANGLE, STEP, GRANT, CRIT_EVERY, ECHO_DELAY } from './arts'
 
 /** One slot on the bar. */
 export interface Slot {
@@ -51,6 +51,16 @@ export function createBar(ids: readonly (string | null)[] = []): SkillBar {
 
 /** The slot the player fires by hand. The last one; see the file's note. */
 export const MANUAL_SLOT = SLOTTED_SKILLS - 1
+
+/**
+ * The most damage a guard skill may turn away.
+ *
+ * Well below total on purpose: a reduction that could reach immunity is a
+ * skill that ends the game rather than one that helps you survive it. Shared
+ * by the arithmetic and by the reading, so the tile cannot promise more than
+ * the simulation applies.
+ */
+export const GUARD_CAP = 0.7
 
 export interface CastReport {
   /** Slots that fired this frame, so the caller can sound and draw them. */
@@ -103,8 +113,15 @@ export function updateBar(
  * constants are literally its constants — imported rather than copied, so the
  * two can never drift while both exist.
  */
-export function applySkills(base: Stats, bar: SkillBar, out: Stats): Stats {
+export function applySkills(base: Stats, bar: SkillBar, out: Stats, runLevel = 1): Stats {
   copyStats(base, out)
+  // 内力 folded in HERE rather than into `base`, and that is not tidiness. The
+  // run's levels are a running total; adding them to the permanent block would
+  // compound every time that block was recomputed — and the block IS recomputed
+  // mid-run, every time a piece is put on. Folding them into the per-frame copy
+  // makes double-counting impossible by construction rather than by everybody
+  // remembering. See MIGHT in sim/arts.ts.
+  addMight(out, runLevel)
   for (const slot of bar.slots) {
     const skill = slot.skill
     if (!skill || slot.live <= 0) continue
@@ -130,9 +147,18 @@ export function applySkills(base: Stats, bar: SkillBar, out: Stats): Stats {
         out.pickupRadius *= 1 + p
         break
       case 'guard':
-        // Clamped well below 1: a guard that could reach total immunity is a
-        // skill that ends the game rather than helps you survive it.
-        out.guard = Math.min(0.7, out.guard + p)
+        // `damageScale`, NOT `guard`, and the difference is the whole bug this
+        // line shipped with. `stats.guard` is a POOL of hit points that absorbs
+        // damage and regrows (see sim/combat.ts); `damageScale` is the
+        // multiplier on what gets through. Written as `out.guard = min(0.7,
+        // guard + p)` this took a shield of twenty-one points down to 0.7 —
+        // a skill named Mountain that made you very slightly easier to kill,
+        // reported by no screen and caught only by a test that compared the
+        // number on the tile against the number that landed.
+        //
+        // Clamped well below total: a reduction that could reach immunity is a
+        // skill that ends the game rather than one that helps you survive it.
+        out.damageScale *= 1 - Math.min(GUARD_CAP, p)
         break
       case 'pierce':
         // Narrow AND long, which is the trade the throw is built on.
@@ -150,7 +176,7 @@ export function applySkills(base: Stats, bar: SkillBar, out: Stats): Stats {
         break
       case 'orbit':
         out.orbitBlades += Math.round(p)
-        out.orbitDamage = out.orbitDamage === 0 ? GRANT.orbitDamage : out.orbitDamage
+        if (out.orbitDamage === 0) out.orbitDamage = GRANT.orbitDamage
         break
       case 'bolt':
         out.boltInterval = out.boltInterval === 0
@@ -163,6 +189,9 @@ export function applySkills(base: Stats, bar: SkillBar, out: Stats): Stats {
         // Fires once on the cast rather than on a cycle: the duration is 0, so
         // `live` lasts a single frame and this window is the burst itself.
         out.novaInterval = out.novaInterval === 0 ? 0.05 : out.novaInterval
+        // deriveStats always supplies a radius, but a caller that assembled a
+        // Stats by hand may not, and a shockwave of radius zero hits nothing.
+        if (out.novaRadius <= 0) out.novaRadius = NOVA_RADIUS
         break
       case 'heal':
         out.healPerKill += p
@@ -170,4 +199,60 @@ export function applySkills(base: Stats, bar: SkillBar, out: Stats): Stats {
     }
   }
   return out
+}
+
+/**
+ * What a skill does, in the unit a player can act on.
+ *
+ * ONE FUNCTION FOR ONE READING, and this is the third time this project has
+ * had to learn the lesson. A skill's `power` is stored in whatever unit its
+ * effect happens to use — 0.55 is 55% more damage, 3 is three blades, 1.2 is a
+ * rate — and a screen that printed `power` raw put "2.0" and "+35%" and "1.2"
+ * side by side under one heading. Three units wearing one hat is exactly how
+ * the arts screen came to be called incomprehensible.
+ *
+ * So the conversion lives HERE, beside the switch in `applySkills` that does
+ * the arithmetic, and every screen reads it. If the two ever disagree it will
+ * be because somebody edited one of two adjacent functions, which is a mistake
+ * you can see rather than one you have to hunt.
+ *
+ * @param boosted true to read the number as it lands while the posture holds.
+ */
+export function skillReading(skill: Skill, boosted = false): string {
+  const p = boosted ? skill.power * (1 + skill.boost.extra) : skill.power
+  const pct = (v: number): string => `${Math.round(v * 100)}%`
+  switch (skill.effect) {
+    case 'damage':
+      return `+${pct(p)} damage`
+    case 'rate':
+      return `+${pct(p)} faster`
+    case 'range':
+      return `+${pct(p)} reach`
+    case 'speed':
+      return `+${pct(p)} speed`
+    case 'arc':
+      return `+${pct(p)} wider`
+    case 'magnet':
+      return `+${pct(p)} pickup`
+    case 'echo':
+      return `+${pct(p)} second blow`
+    case 'heal':
+      return `+${p.toFixed(1)} hp per kill`
+    case 'guard':
+      // Capped where applySkills caps it, so the tile cannot promise a
+      // reduction the simulation refuses to apply.
+      return `−${pct(Math.min(GUARD_CAP, p))} damage taken`
+    case 'pierce':
+      // The trade, both halves, because half of it is a cost. A player told
+      // only "+70% reach" would rank this above the range skill and be wrong.
+      return `+${pct(STEP.pierceRange * p)} reach, narrower`
+    case 'crit':
+      return `crit every ${CRIT_EVERY[Math.min(Math.round(p), CRIT_EVERY.length - 1)]}`
+    case 'orbit':
+      return `${Math.round(p)} blades`
+    case 'bolt':
+      return `a bolt every ${(GRANT.boltInterval / p).toFixed(1)}s`
+    case 'nova':
+      return `${Math.round(GRANT.boltDamage * p)} burst damage`
+  }
 }

@@ -3,7 +3,7 @@
  *
  * This is the build layer, and it exists because the game had two progressions
  * and neither was one: attributes are four numbers going up, and the in-run
- * technique cards are a draw. Neither lets a player decide HOW they want to
+ * technique cards were a draw. Neither let a player decide HOW they wanted to
  * fight.
  *
  * Three rules shape the whole file.

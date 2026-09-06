@@ -203,7 +203,7 @@ export const MIGHT = {
   maxHp: 6,
 } as const
 
-function addMight(into: Stats, level: number): void {
+export function addMight(into: Stats, level: number): void {
   const n = Math.max(0, Math.floor(level) - 1)
   into.slashDamage += MIGHT.damage * n
   into.maxHp += MIGHT.maxHp * n
