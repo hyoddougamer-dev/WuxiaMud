@@ -170,6 +170,15 @@ export const strings = {
   /** Heading over the pack count. See BAG_CAPACITY in meta/inventory. */
   pack: 'Pack',
   /**
+   * The label over the rift bar in play.
+   *
+   * The bar had none. A player looking at a filling line at the bottom of the
+   * screen had to infer both what it measured and what happens when it fills,
+   * and the playtest reported the consequence rather than the cause: "achei que
+   * o rift demorou muito a encher".
+   */
+  riftLabel: 'RIFT',
+  /**
    * On an empty slot card that has candidates waiting. "Head · Empty" tells a
    * player nothing they can act on; "Head · 3 in pack" tells them to tap.
    */

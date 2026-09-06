@@ -21,6 +21,10 @@ export interface TutorialState {
   hp: number
   maxHp: number
   insight: number
+  /** How full the rift is, 0..1. The expedition's actual objective. */
+  rift: number
+  /** Pieces of equipment on the ground or picked up this run. */
+  found: number
 }
 
 export interface Tutorial {
@@ -39,10 +43,30 @@ interface Step {
   sub: string
 }
 
+/**
+ * THE GOAL COMES FIRST, and it did not used to come at all.
+ *
+ * Every lesson here was a VERB: drag to move, the blade swings itself, walk
+ * over the qi, this is dodge, dying ends the run. A playtest read the whole set
+ * and came away with "não existe bem onboarding e explicação do que é o jogo ou
+ * como funciona" — which is exactly right, because not one line said what the
+ * player was trying to DO. The bar at the bottom was never named, filling it
+ * was never given a purpose, and the choice at the gate — the thing the entire
+ * loop is built around — was never mentioned before it appeared.
+ *
+ * So the first line is the objective and the last is the choice, and the verbs
+ * live in between where they belong: instructions for a thing you already want.
+ */
 const STEPS: readonly Step[] = [
   {
-    id: 'move',
+    id: 'goal',
     when: (s) => s.elapsed > 0.6,
+    text: 'Fill the rift',
+    sub: 'Every kill feeds the bar at the top',
+  },
+  {
+    id: 'move',
+    when: (s) => s.elapsed > 2.5,
     text: 'Drag anywhere to move',
     sub: 'The blade swings on its own',
   },
@@ -65,6 +89,16 @@ const STEPS: readonly Step[] = [
     sub: 'Gone when this road ends',
   },
   {
+    // TAUGHT AT THE FIRST PIECE ON THE GROUND, because the line only means
+    // anything with the thing in front of you. It is also the single most
+    // important sentence in the game and was never said: techniques are
+    // temporary and GEAR IS NOT, which is the whole reason to go out again.
+    id: 'loot',
+    when: (s) => s.found >= 1,
+    text: 'That one you keep',
+    sub: 'Techniques end with the road. Equipment does not.',
+  },
+  {
     id: 'hurt',
     when: (s) => s.hp < s.maxHp,
     // Taught at the FIRST hit, and it replaces "you cannot cut your way out" —
@@ -79,6 +113,14 @@ const STEPS: readonly Step[] = [
     when: (s) => s.hp < s.maxHp * 0.4,
     text: 'Dying is how an expedition ends',
     sub: 'You keep the cultivation either way',
+  },
+  {
+    // The gate, announced BEFORE it arrives. It used to appear with no warning
+    // and ask for a decision the player had never been told they would face.
+    id: 'gate',
+    when: (s) => s.rift >= 0.55,
+    text: 'Halfway',
+    sub: 'Fill it and the road\u2019s keeper comes. Beat it and you choose: leave, or go deeper.',
   },
 ]
 

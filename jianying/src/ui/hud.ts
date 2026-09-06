@@ -83,6 +83,8 @@ export interface Hud {
    * drawing a bar that can never fill.
    */
   setRift(value: number, target: number): void
+  /** The road's name, shown beside the rift so the goal has a place. */
+  setWhere(name: string): void
   /**
    * The arts in hand, and the ones the gear has not woken yet.
    *
@@ -132,10 +134,23 @@ function formatTime(seconds: number): string {
 
 export function createHud(root: HTMLElement): Hud {
   root.innerHTML = `
-    <div class="hud-rift" hidden><div class="hud-rift-fill"></div></div>
+    <!-- THE RIFT, AT THE TOP, WITH ITS NAME AND ITS NUMBER.
+         It was a 3px line at the very bottom of the console: the objective of
+         the entire expedition, drawn as the quietest thing on the screen, with
+         no label saying what it was and no number saying how far. A playtest
+         reported it as "the rift took a long time to fill", which is what
+         "I cannot tell how far along I am" feels like from the inside. -->
+    <div class="hud-rift" hidden>
+      <div class="hud-rift-lead">
+        <span class="hud-rift-where"></span>
+        <b>${strings.riftLabel}</b>
+      </div>
+      <div class="hud-rift-track"><div class="hud-rift-fill"></div></div>
+      <div class="hud-rift-pct">0%</div>
+    </div>
     <div class="hud-bar">
       <div class="hud-console">
-        <span class="hud-hp">0</span>
+        <span class="hud-life"><span class="hud-hp">0</span><span class="hud-hp-max"></span></span>
         <span class="hud-time">0:00</span>
       </div>
       <div class="hud-health"><div class="hud-health-fill"></div></div>
@@ -227,8 +242,46 @@ export function createHud(root: HTMLElement): Hud {
     event.preventDefault()
     dodgeHandler?.()
   })
+  let lastMaxHp = -1
+  // LONG-PRESS THE TIMER TO SEE THE FRAME TIMES.
+  //
+  // The readout is off by default now — it is a diagnostic, and it was the
+  // loudest thing on a screen that a playtest called ugly. But it is also the
+  // only way a real device ever tells this project what its frames cost, which
+  // is exactly how the crowd's render bug was finally found. So it stays one
+  // gesture away, on the one element nobody taps by accident, and the choice
+  // is remembered.
+  const DIAG_KEY = 'jianying.diag'
+  try {
+    if (localStorage.getItem(DIAG_KEY) === '1') document.body.dataset.diag = '1'
+  } catch {
+    /* private mode; the readout simply stays off */
+  }
+  const timeForHold = root.querySelector<HTMLElement>('.hud-time')!
+  let holdTimer = 0
+  const startHold = (): void => {
+    holdTimer = window.setTimeout(() => {
+      const on = document.body.dataset.diag === '1'
+      if (on) delete document.body.dataset.diag
+      else document.body.dataset.diag = '1'
+      try {
+        localStorage.setItem(DIAG_KEY, on ? '0' : '1')
+      } catch {
+        /* the toggle still works for this session */
+      }
+    }, 700)
+  }
+  const cancelHold = (): void => window.clearTimeout(holdTimer)
+  timeForHold.addEventListener('pointerdown', startHold)
+  for (const e of ['pointerup', 'pointercancel', 'pointerleave']) {
+    timeForHold.addEventListener(e, cancelHold)
+  }
+
   const rift = root.querySelector<HTMLElement>('.hud-rift')!
   const riftFill = root.querySelector<HTMLElement>('.hud-rift-fill')!
+  const riftPct = root.querySelector<HTMLElement>('.hud-rift-pct')!
+  const whereEl = root.querySelector<HTMLElement>('.hud-rift-where')!
+  const hpMaxEl = root.querySelector<HTMLElement>('.hud-hp-max')!
   const fill = root.querySelector<HTMLElement>('.hud-health-fill')!
   const xpFill = root.querySelector<HTMLElement>('.hud-xp-fill')!
   const hpEl = root.querySelector<HTMLElement>('.hud-hp')!
@@ -301,6 +354,16 @@ export function createHud(root: HTMLElement): Hud {
         hpEl.textContent = String(roundedHp)
         lastHp = roundedHp
       }
+      // THE CEILING, BESIDE THE NUMBER. Health read "148" and nothing else, so
+      // a player who equipped a robe worth +57 health had no way to see it had
+      // landed — the comparison sheet promised 148 becomes 205 and the HUD
+      // never mentioned 205 again. Reported exactly that way: "não percebi se
+      // os stats estão funcionais".
+      const roundedMax = Math.round(maxHp)
+      if (roundedMax !== lastMaxHp) {
+        hpMaxEl.textContent = ` / ${roundedMax}`
+        lastMaxHp = roundedMax
+      }
       const t = formatTime(elapsed)
       if (t !== lastTime) {
         timeEl.textContent = t
@@ -323,6 +386,12 @@ export function createHud(root: HTMLElement): Hud {
       if (pct === lastRiftPct) return
       lastRiftPct = pct
       riftFill.style.transform = `scaleX(${pct})`
+      // Rounded down, so it never says 100% while the boss has not been called.
+      riftPct.textContent = `${Math.floor(pct * 100)}%`
+    },
+
+    setWhere(name) {
+      whereEl.textContent = name
     },
 
     setPlaying(playing) {

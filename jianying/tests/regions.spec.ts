@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PILOTS, play } from '../tools/runLength.mts'
 import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
-import { ENEMY_KINDS, KIND_BY_ID } from '../src/data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID, FIRST_RIFT_FRACTION, riftTargetFor } from '../src/data/enemies'
 import { ITEM_BY_ID } from '../src/data/items'
 import {
   MAX_DEPTH,
@@ -457,4 +457,37 @@ describe('the rift, at every region', () => {
     expect(ratio / REGIONS.length).toBeLessThan(1.8)
     expect(immortal).toBeLessThanOrEqual(1)
   }, 180000)
+})
+
+
+describe('the first expedition', () => {
+  /**
+   * THE ONE RUN NOBODY HAS A BUILD FOR.
+   *
+   * riftBase is calibrated so the gate opens near two hundred seconds, which is
+   * right for a player whose choices are arriving and wrong for the first two
+   * hundred seconds anyone plays. A playtest called the start boring and then
+   * declined to go deeper, which is the expensive version of the same finding.
+   */
+  it('asks for a quarter of the rift, so the whole loop is seen early', () => {
+    expect(FIRST_RIFT_FRACTION).toBeGreaterThan(0.1)
+    expect(FIRST_RIFT_FRACTION).toBeLessThan(0.5)
+    for (const region of REGIONS) {
+      const full = riftTargetFor(region.riftBase, 1)
+      const first = Math.round(full * FIRST_RIFT_FRACTION)
+      expect(first, `${region.name} first gate`).toBeLessThan(full)
+      // And still a fight, not a formality: the shallowest road's shortened
+      // gate must stay above what a handful of kills would fill.
+      expect(first, `${region.name} first gate is trivial`).toBeGreaterThan(100)
+    }
+  })
+
+  it('leaves every later expedition exactly as it was', () => {
+    // The shortening lives at the call site behind `character.taught`, never
+    // inside riftTargetFor — so the function every tool and test calibrates
+    // against keeps meaning one thing.
+    for (const region of REGIONS) {
+      expect(riftTargetFor(region.riftBase, 1)).toBe(region.riftBase)
+    }
+  })
 })

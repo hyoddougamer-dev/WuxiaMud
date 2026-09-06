@@ -74,18 +74,30 @@
         width: 100%;
         height: 100%;
       }
+      /* THE DIAGNOSTIC READOUT, OFF BY DEFAULT.
+         It is the loudest thing on the play screen and it says "u0.1 r0.2 ▲50"
+         to a player who wanted a game. It still earns its place — it is how a
+         DEVICE reports its own frame times in a photograph, which is the only
+         way this project ever learns what a phone is doing — so it is a
+         toggle, not a deletion: long-press the run timer. The text is written
+         either way, because the harness reads it with textContent and that
+         works on a hidden element.
+         It also sat exactly where the rift bar now is. */
       #hud {
         position: fixed;
-        top: env(safe-area-inset-top, 0);
+        top: calc(env(safe-area-inset-top, 0px) + 42px);
         left: env(safe-area-inset-left, 0);
         right: env(safe-area-inset-right, 0);
-        padding: 10px 14px;
+        padding: 6px 14px;
+        display: none;
         pointer-events: none;
         font-variant-numeric: tabular-nums;
-        font-size: 13px;
+        font-size: 11px;
         letter-spacing: 0.02em;
-        color: rgba(232, 220, 192, 0.72);
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        color: rgba(13, 13, 13, 0.4);
+      }
+      body[data-diag='1'] #hud {
+        display: block;
       }
       /* --- run HUD -----------------------------------------------------
          剑影's combat screen — "C 底", the console. Everything a player
@@ -186,6 +198,32 @@
         align-items: baseline;
         margin-bottom: 6px;
         font-variant-numeric: tabular-nums;
+      }
+      /* The two halves of one reading, kept together. Left loose in the flex
+         row, the ceiling drifted to the middle of the screen and read as an
+         unrelated number. */
+      .hud-life {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 1px;
+      }
+      /* Long-press target for the diagnostic toggle. */
+      .hud-time {
+        padding: 2px 4px;
+        margin: -2px -4px;
+        pointer-events: auto;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      /* The ceiling, beside the number. Health read "148" and nothing else, so
+         a robe worth +57 health landed invisibly — the comparison sheet said
+         148 becomes 205 and the HUD never mentioned 205 again. Quieter than the
+         current value on purpose: it is context, not the reading. */
+      .hud-hp-max {
+        font-size: 11px;
+        font-weight: 500;
+        color: rgba(13, 13, 13, 0.4);
+        letter-spacing: 0.01em;
       }
       .hud-hp {
         font-size: 15px;
@@ -1637,22 +1675,72 @@
          everything else this layout deletes from up there. Read peripherally,
          "how much is left", never looked at directly; see docs/CORRIDAS.md for
          why it fills by killing rather than by a clock. */
+      /* THE RIFT, AT THE TOP, NAMED AND NUMBERED.
+         It was a 3px line with no label and no figure: the objective of the
+         whole expedition, drawn as the quietest thing on screen. A playtest
+         reported the symptom rather than the cause — "achei que o rift demorou
+         muito a encher" — which is what "I cannot tell how far along I am"
+         feels like from inside.
+         It sits on a paper band rather than floating on the field, because a
+         bar over a moving crowd is a bar you read twice. */
       .hud-rift {
         position: absolute;
-        top: env(safe-area-inset-top, 0);
+        top: 0;
         left: 0;
         right: 0;
-        height: 3px;
-        background: rgba(13, 13, 13, 0.08);
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: calc(env(safe-area-inset-top, 0px) + 7px) 14px 7px;
+        background: linear-gradient(rgba(232, 220, 192, 0.94), rgba(232, 220, 192, 0.82));
+        border-bottom: 1px solid rgba(13, 13, 13, 0.1);
       }
       .hud-rift[hidden] {
         display: none;
       }
+      .hud-rift-lead {
+        line-height: 1.15;
+      }
+      /* The road, small and quiet — it answers "where am I" once and then gets
+         out of the way of the number that changes. */
+      .hud-rift-where {
+        display: block;
+        font-size: 9px;
+        letter-spacing: 0.02em;
+        color: rgba(13, 13, 13, 0.45);
+        max-width: 108px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hud-rift-lead b {
+        display: block;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        color: rgba(13, 13, 13, 0.75);
+      }
+      .hud-rift-track {
+        height: 9px;
+        background: rgba(13, 13, 13, 0.1);
+        border-radius: 5px;
+        overflow: hidden;
+      }
       .hud-rift-fill {
         height: 100%;
         background: var(--cinnabar);
+        opacity: 0.88;
         transform-origin: left center;
         transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .hud-rift-pct {
+        font-size: 13px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+        min-width: 34px;
+        text-align: right;
       }
 
       /* --- 法 the arts ----------------------------------------------------

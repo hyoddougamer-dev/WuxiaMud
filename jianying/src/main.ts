@@ -23,7 +23,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng, expeditionSeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
-import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor, tierEffectiveDepth, MAX_ENEMIES } from './data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor, tierEffectiveDepth, MAX_ENEMIES, FIRST_RIFT_FRACTION } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
 import { Crowd } from './render/crowd'
@@ -782,6 +782,12 @@ async function boot(): Promise<void> {
     // and the calibration in docs/CORRIDAS.md for where region.riftBase comes
     // from.
     run.riftTarget = riftTargetFor(region.riftBase, tier)
+    // THE FIRST EXPEDITION IS A SHORT ONE. See FIRST_RIFT_FRACTION: the gate is
+    // tuned for a player who has a build to watch arrive, and the first run is
+    // the one where nobody has one. Same flag the tutorial uses, so it happens
+    // exactly once per swordsman.
+    if (!character.taught) run.riftTarget = Math.round(run.riftTarget * FIRST_RIFT_FRACTION)
+    ui.setWhere(region.name)
     resetCamera(camera, 0, 0)
     gameOverShown = false
     gateUp = false
@@ -814,6 +820,9 @@ async function boot(): Promise<void> {
     run.gateCleared = false
     run.riftValue = 0
     run.riftTarget = riftTargetFor(region.riftBase, tier)
+    // The tier belongs beside the rift, not only in a banner that fades: it is
+    // the difference between "the same road again" and "a harder floor".
+    ui.setWhere(`${region.name} · ${strings.tier} ${tier}`)
     ui.hideGate()
     gateUp = false
     banners.show(`${strings.tier} ${tier}`, 'gold')
@@ -1134,6 +1143,10 @@ async function boot(): Promise<void> {
         elapsed: run.elapsed,
         kills: run.kills,
         motes: motes.pool.size,
+        rift: Number.isFinite(run.riftTarget) ? run.riftValue / run.riftTarget : 0,
+        // Everything found this run, whether still on the ground or already
+        // carried — the lesson is about what a piece IS, not about picking up.
+        found: foundThisRun.length + onGround.size,
         hp: run.hp,
         maxHp: live.maxHp,
         insight: run.level,

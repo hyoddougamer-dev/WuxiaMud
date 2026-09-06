@@ -472,6 +472,29 @@ export function riftTargetFor(riftBase: number, tier: number): number {
 }
 
 /**
+ * How much of the usual rift a FIRST expedition asks for.
+ *
+ * The Post Road's gate is calibrated to open at about two hundred seconds, and
+ * that is a defensible number for a player who has a build: a run shorter than
+ * that ends before the thing the genre is built around — watching your choices
+ * come online — can happen. See riftBase in data/regions.ts for the search that
+ * set it.
+ *
+ * It is the wrong number for the FIRST two hundred seconds anyone plays. A new
+ * player has no build to watch come online; they have a bar they were never
+ * told the name of and no idea that anything happens when it fills. Measured
+ * and reported: "foi muito chato porque não existe bem onboarding", and the
+ * same session declined to push deeper because the start had not earned it.
+ *
+ * At a quarter, the first gate arrives near a minute, which is long enough to
+ * teach the fight and short enough that the whole LOOP — kill, fill, the
+ * keeper, the choice, the hub, the gear — is seen inside the first few minutes
+ * rather than after four. Every expedition after the first is untouched: the
+ * flag is the same one the tutorial runs on, so a swordsman gets exactly one.
+ */
+export const FIRST_RIFT_FRACTION = 0.25
+
+/**
  * What a rift's danger is worth in loot, expressed as an equivalent region
  * depth — the unit `rollRank` and the drop table already read.
  *
