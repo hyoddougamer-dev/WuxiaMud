@@ -63,7 +63,7 @@ export interface CarriedArt {
  * 35% of a stat is a sane step; three effects need their own, and pretending
  * otherwise is how a survivors-like ends up unplayable at minute three.
  */
-const STEP = {
+export const STEP = {
   /**
    * Reach, per grade. Gentler than the others because a sweep's area grows with
    * the SQUARE of its reach — +35% range is nearly double the kills, and would
@@ -107,13 +107,13 @@ const STEP = {
 } as const
 
 /** Sweeps between doubled blows at grade n. Fewer is better, so it counts down. */
-const CRIT_EVERY = [0, 5, 4, 3, 3, 2] as const
+export const CRIT_EVERY = [0, 5, 4, 3, 3, 2] as const
 
 /** How long the echo waits before it lands. Long enough to read as a second blow. */
-const ECHO_DELAY = 0.22
+export const ECHO_DELAY = 0.22
 
 /** Guard against the arc test becoming unable to miss. Same cap deriveStats uses. */
-const MAX_HALF_ANGLE = 3.0
+export const MAX_HALF_ANGLE = 3.0
 
 /**
  * Orbiting blades an art grants when the character has none.
@@ -123,7 +123,7 @@ const MAX_HALF_ANGLE = 3.0
  * scale. When the player does own the technique, the art scales what they have
  * instead — a build that stacked both should feel stacked.
  */
-const GRANT = {
+export const GRANT = {
   orbitBlades: 2,
   orbitDamage: 6,
   /** Seconds between bolts. Slower than the technique's 1.5s: this is a bonus. */
@@ -137,7 +137,7 @@ export function carriedFor(weaponId: string, level = 1): CarriedArt[] {
 }
 
 /** Copies `from` into `into`. Fifteen numbers, so the hot loop allocates none. */
-function copyStats(from: Stats, into: Stats): Stats {
+export function copyStats(from: Stats, into: Stats): Stats {
   into.strike = from.strike
   into.throwCount = from.throwCount
   into.slashDamage = from.slashDamage

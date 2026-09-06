@@ -1549,17 +1549,21 @@
          because an empty resource should not compete with the fight; gold and
          solid once banked, because that is the moment the player has a
          decision to make. */
+      /* 势, THE RESOURCE. Four points that movement fills and skills spend.
+         It was three faint 3px dashes reporting a bank nobody could spend and
+         nobody had been told about; it is the thing you check before deciding
+         to fire, so it is drawn at a size that survives a glance. */
       .hud-shi {
         display: flex;
-        justify-content: center;
-        gap: 5px;
-        margin-top: 12px;
+        gap: 4px;
+        margin: 0 0 8px;
         pointer-events: none;
       }
       .hud-shi i {
-        width: 26px;
-        height: 3px;
-        background: rgba(13, 13, 13, 0.16);
+        flex: 1;
+        height: 7px;
+        border-radius: 2px;
+        background: rgba(13, 13, 13, 0.13);
         transition: background 120ms ease, transform 120ms ease;
       }
       .hud-shi i.on { background: var(--gold); }
@@ -2730,6 +2734,69 @@
         text-transform: uppercase;
         letter-spacing: 0.1em;
         color: rgba(13, 13, 13, 0.45);
+      }
+
+      /* --- the skill bar -------------------------------------------------
+         Three tiles, and they are the first thing in this game a player can
+         point at and say "that one is mine". A tile carries three readings and
+         no more: the seal (which one), a cost in pips (what it takes), and a
+         vertical wipe (when it comes back). Anything else on a 108px tile is
+         something nobody reads mid-fight. */
+      .hud-arts {
+        display: flex;
+        gap: 6px;
+      }
+      .skill {
+        position: relative;
+        flex: 1;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1.5px solid rgba(13, 13, 13, 0.26);
+        border-radius: 3px;
+        background: rgba(255, 252, 244, 0.5);
+      }
+      /* The one you fire yourself, marked before you ever press it. */
+      .skill-manual {
+        border-color: rgba(193, 39, 45, 0.55);
+        border-width: 2px;
+      }
+      .skill-empty {
+        border-style: dashed;
+        background: none;
+      }
+      .skill-seal {
+        position: relative;
+        z-index: 1;
+        font-size: 16px;
+        color: rgba(13, 13, 13, 0.45);
+        transition: color 140ms ease-out;
+      }
+      /* Fireable, not merely off cooldown — see setBar. */
+      .is-ready .skill-seal {
+        color: var(--ink);
+      }
+      .is-live {
+        background: rgba(212, 175, 55, 0.16);
+        border-color: var(--gold);
+      }
+      .skill-cost {
+        position: absolute;
+        top: 3px;
+        right: 4px;
+        font-size: 6px;
+        letter-spacing: 1px;
+        text-decoration: none;
+        color: var(--gold);
+      }
+      /* Wipes downward as the cooldown runs out. A shape, not a number. */
+      .skill-cool {
+        position: absolute;
+        inset: 0;
+        background: rgba(13, 13, 13, 0.16);
+        transform-origin: top center;
+        transform: scaleY(0);
       }
 
       /* LAST IN THE SHEET ON PURPOSE. Every one of these layers sets `inset: 0`

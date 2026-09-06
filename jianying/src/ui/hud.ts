@@ -14,6 +14,7 @@
  */
 import { ART_BY_ID, MAX_ART_LEVEL, conditionKind, type Art } from '../data/arts'
 import type { CarriedArt } from '../sim/arts'
+import { MANUAL_SLOT, type SkillBar } from '../sim/skills'
 import { activeSeals, type ConditionSense } from '../sim/conditions'
 import { conditionIconSvg, effectIconSvg, itemIconSvg } from '../render/packIcons'
 import { palette } from '../render/palette'
@@ -97,6 +98,16 @@ export interface Hud {
    */
   setScroll(carried: readonly CarriedArt[], asleep: readonly Art[]): void
   /**
+   * The three skills and the pool that fires them.
+   *
+   * ONE CALL FOR BOTH, because they are one reading: a tile is only "ready" if
+   * its cooldown is done AND the pool can pay for it, and a player deciding
+   * whether to press has to see those together or they will press a lit tile
+   * that does nothing. Splitting them into two methods is how a HUD comes to
+   * claim readiness it cannot deliver.
+   */
+  setBar(bar: SkillBar, shi: number): void
+  /**
    * Lights the tiles whose condition holds, and shows the 势 behind them.
    * Called every frame.
    */
@@ -158,7 +169,7 @@ export function createHud(root: HTMLElement): Hud {
            can see how much you have before deciding to spend it. Without this
            the charge-and-spend loop is a rule nobody can play to. -->
       <div class="hud-shi" aria-hidden="true">
-        <i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i>
       </div>
       <div class="hud-arts"></div>
       <div class="hud-xp"><div class="hud-xp-fill"></div></div>
@@ -310,6 +321,8 @@ export function createHud(root: HTMLElement): Hud {
 
   /** The art tiles, in scroll order, so lighting one is a class toggle. */
   let artTiles: HTMLElement[] = []
+  let barTiles: HTMLElement[] = []
+  let lastBarKey = ''
   let lastScroll = ''
   let lastLit = ''
   let lastShi = -1
@@ -408,6 +421,52 @@ export function createHud(root: HTMLElement): Hud {
     onDodge(handler) {
       dodgeHandler = handler
     },
+    setBar(bar, shi) {
+      // Rebuilt only when the SET of skills changes; the per-frame work below
+      // is four class toggles and three transform writes.
+      const key = bar.slots.map((s) => s.skill?.id ?? '-').join(',')
+      if (key !== lastBarKey) {
+        lastBarKey = key
+        artsEl.innerHTML = ''
+        barTiles = bar.slots.map((slot, i) => {
+          const tile = document.createElement('div')
+          tile.className = 'skill' + (i === MANUAL_SLOT ? ' skill-manual' : '')
+          if (!slot.skill) {
+            tile.classList.add('skill-empty')
+            artsEl.appendChild(tile)
+            return tile
+          }
+          tile.dataset.skill = slot.skill.id
+          // The seal reads at tile size where an effect glyph does not, and it
+          // is the same character the skills screen and the codex use — one
+          // name for one thing, everywhere.
+          tile.innerHTML =
+            `<i class="skill-cool"></i>` +
+            `<span class="skill-seal">${slot.skill.seal}</span>` +
+            `<u class="skill-cost">${'&#9679;'.repeat(slot.skill.cost)}</u>`
+          artsEl.appendChild(tile)
+          return tile
+        })
+      }
+      const banked = Math.floor(shi)
+      for (let i = 0; i < barTiles.length; i++) {
+        const slot = bar.slots[i]!
+        const tile = barTiles[i]!
+        if (!slot.skill) continue
+        const cool = tile.querySelector<HTMLElement>('.skill-cool')
+        // A vertical wipe rather than a number: a cooldown is a shape you read
+        // without counting, and counting is what a thumb has no time for.
+        const left = slot.cooling / slot.skill.cooldown
+        if (cool) cool.style.transform = `scaleY(${Math.max(0, Math.min(1, left))})`
+        // READY MEANS FIREABLE, not merely off cooldown. A tile that lights
+        // when the pool cannot pay for it teaches the player that pressing is
+        // pointless, which is worse than a dark tile.
+        tile.classList.toggle('is-ready', slot.cooling <= 0 && banked >= slot.skill.cost)
+        tile.classList.toggle('is-live', slot.live > 0)
+      }
+      for (let i = 0; i < shiPips.length; i++) shiPips[i]!.classList.toggle('on', i < banked)
+    },
+
     setScroll(carried, asleep) {
       // The whole scroll used to show here regardless of grade; now each tile
       // is one AWAKE art with the grade the gear has set it to, followed by an
