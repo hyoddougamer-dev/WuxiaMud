@@ -23,9 +23,10 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { GameLoop } from './core/loop'
 import { Rng, expeditionSeed } from './core/rng'
 import { clamp01, easing, lerp } from './core/tween'
-import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor, tierEffectiveDepth } from './data/enemies'
+import { ENEMY_KINDS, KIND_BY_ID, riftTargetFor, tierEffectiveDepth, MAX_ENEMIES } from './data/enemies'
 import { buildBlade, buildSwordsmanTopDown, sashPoly, sashSpine } from './render/figure'
 import { buildEnemyArt } from './render/enemyArt'
+import { Crowd } from './render/crowd'
 import { allRankMarks } from './render/rankMarks'
 import { createCamera, fitCamera, resetCamera, updateCamera } from './render/camera'
 import { createFloaters } from './render/floaters'
@@ -436,6 +437,13 @@ async function boot(): Promise<void> {
   // One Graphics for the whole swarm, cleared and redrawn each frame.
   // Hundreds of individual display objects would cost more in transform and
   // draw-call overhead than redrawing the geometry does.
+  // The crowd's silhouettes, rasterised once per kind. `enemyGfx` keeps only
+  // what is drawn for ONE enemy at a time — a charger's windup lane — which is
+  // rare and is geometry that genuinely changes.
+  const crowd = new Crowd(stage.app.renderer, enemyArt, MAX_ENEMIES)
+  crowd.view.zIndex = -2
+  stage.world.addChild(crowd.view)
+
   const enemyGfx = new Graphics()
   enemyGfx.zIndex = -2
   stage.world.addChild(enemyGfx)
@@ -1152,6 +1160,7 @@ async function boot(): Promise<void> {
 
     // --- enemies -------------------------------------------------------
     enemyGfx.clear()
+    crowd.begin()
     for (let i = 0; i < swarm.pool.size; i++) {
       const e = swarm.pool.at(i)
       const ex = lerp(e.prevX, e.x, alpha)
@@ -1170,26 +1179,13 @@ async function boot(): Promise<void> {
 
       // Only the solid pass. The bleed underlay is a wide, 16%-alpha wash that
       // sells ink soaking into paper at the size the PLAYER is drawn — on an
-      // enemy nine world units across it is invisible, and it was doubling the
-      // polygon count of the single most repeated thing on screen. Halving that
-      // halves both the arrays built here and the triangulation Pixi does with
-      // them, which is the larger cost of the two.
-      //
-      // The array cannot be pooled, and that is worth recording because it
-      // looks like free performance: Pixi keeps the array BY REFERENCE inside
-      // the Polygon it builds, so writing the next stroke into a shared buffer
-      // silently rewrites every polygon already submitted this frame. Measured
-      // at 0.58ms per frame for 300 enemies, it is not the expensive half.
-      for (const s of art.body) {
-        const poly = s.poly
-        const n = poly.length
-        const moved = new Array<number>(n)
-        for (let k = 0; k < n; k += 2) {
-          moved[k] = poly[k]! + ex + sway
-          moved[k + 1] = poly[k + 1]! + ey
-        }
-        enemyGfx.poly(moved).fill({ color: tint, alpha: s.alpha })
-      }
+      // enemy nine world units across it is invisible, so it is baked out of
+      // the silhouette entirely.
+      // ONE SPRITE, TINTED. This was a polygon rebuild per body per frame and
+      // it cost 27ms at a full field — the whole 60fps budget, and the reason a
+      // real phone reported 21-30 fps late in a run. See render/crowd.ts for
+      // the measurement and why nothing ever caught it.
+      crowd.place(e.kind.id, ex + sway, ey, tint)
 
       // A charger winding up draws a cinnabar line along the lane it is about
       // to cross. The dash is only fair because it is announced.
@@ -1219,6 +1215,9 @@ async function boot(): Promise<void> {
         enemyGfx.rect(ex - w / 2, by, w * pct, 5).fill({ color: palette.cinnabar, alpha: 0.9 })
       }
     }
+    // Hides whatever last frame used and this one did not. Without it a wave
+    // that thins leaves its dead standing.
+    crowd.end()
 
     // --- enemy fire ----------------------------------------------------
     hazardGfx.clear()
