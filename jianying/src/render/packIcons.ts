@@ -42,8 +42,15 @@ export const PACK_CREDIT = 'Icons by game-icons.net, CC BY 3.0'
  */
 export const PACK_ICON: Record<EffectKind, string> = {
   // --- levers the simulation already has ---
-  /** A plain heavy blade. Weight, with nothing else in the frame. */
-  damage: 'broadsword',
+  /**
+   * A blade at the moment it lands, with the force lines behind it.
+   *
+   * It was `broadsword` — a plain heavy blade — and that was a COLLISION rather
+   * than a choice: the greatsword item draws `broadsword` too, so a damage
+   * skill and a piece of equipment were the same picture in a game where every
+   * other mark means one thing. This one is the BLOW, not the weapon.
+   */
+  damage: 'deadly-strike',
   /** Three claw marks. Repetition, and no weapon attached to confuse it. */
   rate: 'triple-scratches',
   /**
@@ -63,20 +70,44 @@ export const PACK_ICON: Record<EffectKind, string> = {
   magnet: 'vortex',
   /** A ring with bodies carried on it. */
   orbit: 'star-satellites',
-  /** Arrows leaving, in a spread. */
-  bolt: 'striking-arrows',
+  /**
+   * A single shaft of qi leaving. Same collision as `damage`: flying daggers
+   * draw `striking-arrows`, so the loosed-qi skill and the weapon that throws
+   * knives were one picture. One shaft, and drawn as energy rather than as a
+   * fletched arrow, which is also closer to what 剑气 is.
+   */
+  bolt: 'energy-arrow',
   /** Concentric rings. Found in the arc search, and the best nova in the set. */
   nova: 'concentric-crescents',
   /** A plain solid heart: capacity, not mending. `heal` takes the flask. */
   maxHp: 'hearts',
 
   // --- new simulation work ---
-  /** A barbed spearhead. Sharp and single, where `bolt` is three and leaving. */
-  pierce: 'barbed-spear',
+  /**
+   * A solid wedge, narrowing to a point.
+   *
+   * The trade this effect makes IS the drawing: the arc closes and the reach
+   * grows, so a shape that is narrow and driving says it without a word. It was
+   * `barbed-spear`, which at 16px was one more diagonal pointed thing beside
+   * `bolt`'s arrow — and both are on the flying daggers' list. Nothing else in
+   * the set is a solid wedge, which is what makes this one unmistakable small.
+   */
+  pierce: 'thrust',
   /** A burst radiating from one point. Impact, going nowhere. */
   crit: 'laser-burst',
-  /** A mark repeating and trailing off. Named for exactly this. */
-  echo: 'echo-ripples',
+  /**
+   * A figure with its own shadow standing behind it.
+   *
+   * It was `echo-ripples` — three curved strokes trailing off — and at the 16px
+   * a tile actually draws, three curved strokes are three curved strokes: it
+   * was indistinguishable from `rate`'s claw marks, and the two sit in the SAME
+   * list on the flying daggers (連 Chain and 回 Return). Distinct geometry is
+   * not distinct reading, which is why the icon sheet exists beside the test.
+   *
+   * A shadow of yourself is also the better picture: the second blow is the
+   * first one arriving again.
+   */
+  echo: 'two-shadows',
   /** Someone putting their shoulder into a wall. Unambiguous at any size. */
   push: 'push',
   /** A plain shield. The only filled symmetrical body in the set of sixteen. */
@@ -111,8 +142,6 @@ export const PACK_CONDITION_ICON: Record<string, string> = {
   turn: 'return-arrow',
   /** A ring of marks around a centre. It draws the mechanic literally. */
   surrounded: 'encirclement',
-  /** A split heart. The only heart on a live tile, so nothing collides. */
-  peril: 'broken-heart',
 }
 
 /** Icons for the equipment slots, where "draw the thing" is the right answer. */

@@ -23,7 +23,12 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import iconSet from '@iconify-json/game-icons/icons.json' with { type: 'json' }
-import { PACK_CONDITION_ICON, PACK_ICON, PACK_SLOT_ICON } from '../src/render/packIcons'
+import {
+  PACK_CONDITION_ICON,
+  PACK_ICON,
+  PACK_SLOT_ICON,
+  PACK_WEAPON_ICON,
+} from '../src/render/packIcons'
 
 interface IconEntry {
   body: string
@@ -40,11 +45,18 @@ const SET = iconSet as unknown as {
 
 const OUT = join(fileURLToPath(new URL('..', import.meta.url)), 'src', 'render', 'packIconData.ts')
 
+// EVERY map, and PACK_WEAPON_ICON was missing from this list. Its two names
+// happened to be carried anyway because two EFFECTS asked for the same glyphs —
+// so the weapon icons rendered by coincidence, and the moment those effects
+// were given marks of their own (which is what fixed a real collision) the
+// weapon icons would have gone blank. `packIconSvg` fails silently on an
+// unknown name, so nothing would have said a word.
 const wanted = [
   ...new Set([
     ...Object.values(PACK_ICON),
     ...Object.values(PACK_SLOT_ICON),
     ...Object.values(PACK_CONDITION_ICON),
+    ...Object.values(PACK_WEAPON_ICON),
   ]),
 ].sort()
 

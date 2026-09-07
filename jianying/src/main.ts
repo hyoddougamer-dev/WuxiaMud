@@ -52,9 +52,10 @@ import {
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 
 import { MIGHT } from './sim/arts'
-import { defaultBar } from './data/skills'
+import { defaultBar, type SkillEffect } from './data/skills'
 import { createShi, updateShi } from './sim/shi'
-import { applySkills, createBar, updateBar } from './sim/skills'
+import { applySkills, bladeIsHot, createBar, liveEffects, updateBar } from './sim/skills'
+import { castLook, createCasts } from './render/casts'
 import {
   type Character,
   createCharacter,
@@ -167,6 +168,31 @@ async function boot(): Promise<void> {
   const swarm = new Swarm(new Rng(runSeed), regionAt(character.depth))
   const motes = new Motes()
   const bolts = new Bolts()
+  /** The rings a firing skill throws. See render/casts.ts. */
+  const casts = createCasts()
+  /** Scratch array for what is live this frame — reused, so the loop allocates none. */
+  const liveNow: SkillEffect[] = []
+  /**
+   * Slots that fired since the last time the HUD was drawn.
+   *
+   * A BUFFER, not the report itself, and it has to be: the simulation runs on a
+   * fixed timestep and the HUD is drawn on the render frame, so a cast can
+   * happen in a step that no draw follows. Handing `report.fired` straight to
+   * the HUD loses exactly those, which is the intermittent-flash bug you then
+   * spend an afternoon failing to reproduce.
+   */
+  const firedThisFrame: number[] = []
+  /**
+   * Casts this expedition, for the harness.
+   *
+   * The ring, the floated seal and the hot blade are the whole point of this
+   * pass and a screenshot can only ever catch them by luck — half a second of
+   * ring against a ten-minute run. A counter that has to move is what turns
+   * "the effects are visible" from an opinion into a check.
+   */
+  let castCount = 0
+  /** Whether a live skill is sharpening the sweep, this frame. See bladeIsHot. */
+  let bladeHot = false
   const dodge = createDodge()
   const hazards = new Hazards()
   /** Equipment lying where its owner fell. See sim/drops.ts. */
@@ -488,6 +514,13 @@ async function boot(): Promise<void> {
   orbitGfx.zIndex = 3
   stage.world.addChild(orbitGfx)
 
+  // The rings a cast throws, and the band that says a skill is still running.
+  // Above the sweep and below the orbiting blades: a ring drawn over the blades
+  // would read as another blade, and under the sweep it would be buried.
+  const castGfx = new Graphics()
+  castGfx.zIndex = 2
+  stage.world.addChild(castGfx)
+
   stage.world.addChild(floaters.view)
 
   const swordsman = new Container()
@@ -763,12 +796,15 @@ async function boot(): Promise<void> {
     bolts.clear()
     hazards.clear()
     floaters.clear()
+    casts.clear()
     banners.clear()
     ui.hideGate()
     foundThisRun = []
     drops.clear()
     onGround.clear()
     taughtSkills = new Set()
+    firedThisFrame.length = 0
+    castCount = 0
     paceLastFrame = 0
     wantCast = false
     shi.value = 0
@@ -942,6 +978,7 @@ async function boot(): Promise<void> {
     joystick.tick(dt)
     banners.update(dt)
     floaters.update(dt)
+    casts.update(dt)
 
     if (!playing || run.over) return
 
@@ -1015,13 +1052,26 @@ async function boot(): Promise<void> {
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
     // of the circle.
     updateShi(shi, { pace: paceLastFrame, turned: sense.active.turn }, dt)
-    const casts = updateBar(bar, shi, sense.active, wantCast, dt)
+    const report = updateBar(bar, shi, sense.active, wantCast, dt)
     wantCast = false
     applySkills(stats, bar, live, run.level)
-    for (const index of casts.fired) {
+    for (const index of report.fired) {
       const skill = bar.slots[index]?.skill
       if (!skill) continue
       feel.cast()
+      // THE MARK, ON THE FIGURE, WHERE THE EYE ALREADY IS.
+      //
+      // A lit tile in the HUD is a signal aimed at somebody looking at the HUD,
+      // and nobody is: they are watching the thing chasing them. So a cast
+      // throws a ring from where the swordsman stands — cinnabar outward for a
+      // blow, jade inward for something that keeps you alive — and floats its
+      // seal. See render/casts.ts for why the direction carries as much as the
+      // colour.
+      const look = castLook(skill.effect)
+      casts.cast(player.x, player.y, look.colour, look.inward)
+      floaters.cast(player.x, player.y, skill.seal, look.colour)
+      firedThisFrame.push(index)
+      castCount++
       // TAUGHT AT THE MOMENT IT FIRES, once per skill per expedition.
       //
       // A tile lighting in the HUD is a signal aimed at a player who is looking
@@ -1281,6 +1331,16 @@ async function boot(): Promise<void> {
     // What it gets here instead is the release: a short flick at the hand,
     // pointing where the volley just went.
     slashGfx.clear()
+    // THE BLADE ITSELF SAYS WHETHER A SKILL IS UP.
+    //
+    // Everything else in this system is drawn beside the fight — a tile, a
+    // pip, a ring that lasts half a second. This is drawn ON the one thing the
+    // player is already looking at, for as long as the skill lasts, and it is
+    // the difference between "I have a buff" and "my sword is hot". Cinnabar
+    // is the colour this game already reserves for now.
+    liveEffects(bar, liveNow)
+    bladeHot = bladeIsHot(liveNow)
+    const strokeColour = bladeHot ? palette.cinnabar : palette.ink
     if (run.slashVisual > 0 && live.strike === 'throw') {
       const life = run.slashVisual / SLASH_VISUAL
       const angle = Math.atan2(run.slashAimY, run.slashAimX)
@@ -1301,7 +1361,7 @@ async function boot(): Promise<void> {
           wx + cos * far, wy + sin * far - 14,
           wx + cos * near - px * w, wy + sin * near - py * w - 14,
         ])
-        .fill({ color: palette.ink, alpha: 0.42 * life })
+        .fill({ color: strokeColour, alpha: (bladeHot ? 0.58 : 0.42) * life })
     } else if (run.slashVisual > 0) {
       const life = run.slashVisual / SLASH_VISUAL
       const angle = Math.atan2(run.slashAimY, run.slashAimX)
@@ -1329,8 +1389,39 @@ async function boot(): Promise<void> {
       }
       const band = outer.slice()
       for (let i = inner.length - 2; i >= 0; i -= 2) band.push(inner[i]!, inner[i + 1]!)
-      slashGfx.poly(band).fill({ color: palette.ink, alpha: 0.5 * life })
+      slashGfx.poly(band).fill({ color: strokeColour, alpha: (bladeHot ? 0.66 : 0.5) * life })
     }
+
+    // --- what is running, and what just fired ---------------------------
+    castGfx.clear()
+    // A BAND UNDER THE FEET PER LIVE SKILL.
+    //
+    // The ring a cast throws is an event and it is gone in half a second; this
+    // is the STATE, and it lasts exactly as long as the effect does. Drawn as
+    // arcs of one ellipse rather than as concentric rings, so two skills up is
+    // two arcs of the same circle and reads as a count rather than as a size.
+    // Under the figure, in the ground plane, where it cannot be mistaken for
+    // anything in the air.
+    if (liveNow.length > 0) {
+      const gap = 0.34
+      const span = ((Math.PI * 2) / liveNow.length) - gap
+      for (let i = 0; i < liveNow.length; i++) {
+        const from = (i / liveNow.length) * Math.PI * 2 + gap * 0.5
+        const look = castLook(liveNow[i]!)
+        // Pixi has no elliptical arc primitive, so the arc is walked. Twelve
+        // segments is smooth at this radius and costs nothing beside the crowd.
+        const steps = 12
+        for (let k = 0; k <= steps; k++) {
+          const a = from + span * (k / steps)
+          const px = wx + Math.cos(a) * 26
+          const py = wy + Math.sin(a) * 11
+          if (k === 0) castGfx.moveTo(px, py)
+          else castGfx.lineTo(px, py)
+        }
+        castGfx.stroke({ color: look.colour, width: 2.4, alpha: 0.85 })
+      }
+    }
+    casts.draw(castGfx)
 
     // --- qi motes ------------------------------------------------------
     moteGfx.clear()
@@ -1583,7 +1674,8 @@ async function boot(): Promise<void> {
     // `bar` IS what updateBar reads each frame, so the strip and the simulation
     // cannot disagree about what is in hand — the exact class of lie this
     // project keeps having to dig out.
-    ui.setBar(bar, shi.value)
+    ui.setBar(bar, shi.value, firedThisFrame)
+    firedThisFrame.length = 0
     ui.setPostures(sense.active)
     ui.setDodge(dodgeCharge(dodge))
     if (playing && run.over && !gameOverShown) {
@@ -1680,6 +1772,9 @@ async function boot(): Promise<void> {
       // many are LIVE this instant, and the whole 势 pool. This is the claim
       // unit tests cannot reach — they prove `updateBar` fires a slot, not that
       // a thumb on a joystick fills a pool that a button then spends.
+      // Casts fired, bands under the feet, and whether the blade is hot — the
+      // three things this pass added to the FIELD rather than to the HUD.
+      document.body.dataset.vfx = `${castCount}/${liveNow.length}/${bladeHot ? 1 : 0}`
       document.body.dataset.bar =
         `${bar.slots.filter((slot) => slot.skill).length}/` +
         `${bar.slots.filter((slot) => slot.live > 0).length}/` +

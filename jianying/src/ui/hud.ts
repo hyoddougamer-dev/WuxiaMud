@@ -94,7 +94,7 @@ export interface Hud {
    * that does nothing. Splitting them into two methods is how a HUD comes to
    * claim readiness it cannot deliver.
    */
-  setBar(bar: SkillBar, shi: number): void
+  setBar(bar: SkillBar, shi: number, fired?: readonly number[]): void
   /**
    * Which postures hold right now, so each tile can show whether its boost is
    * being paid.
@@ -457,7 +457,7 @@ export function createHud(root: HTMLElement): Hud {
     onCast(handler) {
       castHandler = handler
     },
-    setBar(bar, shi) {
+    setBar(bar, shi, fired) {
       // Rebuilt only when the SET of skills changes; the per-frame work below
       // is a handful of class toggles and three transform writes.
       const key = bar.slots.map((s) => s.skill?.id ?? '-').join(',')
@@ -523,6 +523,32 @@ export function createHud(root: HTMLElement): Hud {
         }
       }
       for (let i = 0; i < shiPips.length; i++) shiPips[i]!.classList.toggle('on', i < banked)
+      // THE TILE FLINCHES WHEN ITS SKILL GOES OFF.
+      //
+      // The field already shows the cast — a ring thrown from the figure, the
+      // seal floating up. This is the other half of the same sentence: the tile
+      // that did it moves, so the strip and the field are connected the first
+      // time a player happens to glance down instead of being two systems that
+      // never refer to each other.
+      //
+      // The class is removed and re-added around a forced reflow, because a CSS
+      // animation does not restart on an element that already carries it — and
+      // two auto slots firing four seconds apart is exactly the case where that
+      // silently stops working after the first cast.
+      if (fired) {
+        for (const index of fired) {
+          const tile = barTiles[index]
+          if (!tile) continue
+          tile.classList.remove('just-fired')
+          void tile.offsetWidth
+          tile.classList.add('just-fired')
+          if (index === MANUAL_SLOT) {
+            castEl.classList.remove('just-fired')
+            void castEl.offsetWidth
+            castEl.classList.add('just-fired')
+          }
+        }
+      }
     },
 
     setPostures(active) {

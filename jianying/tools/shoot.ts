@@ -850,18 +850,33 @@ async function main(): Promise<void> {
     // numbers, and BOOSTED while the posture that pays it holds. All three are
     // separate claims and all three have to be seen at least once, because
     // each is a different piece of wiring: the pool, the cast, and the sense.
-    const barState = async (): Promise<{ ready: number; live: number; boost: number }> => ({
-      ready: await page.locator('.skill.is-ready').count(),
-      live: await page.locator('.skill.is-live').count(),
-      boost: await page.locator('.skill.is-boosted').count(),
-    })
-    let best = { ready: 0, live: 0, boost: 0 }
+    const barState = async (): Promise<{
+      ready: number
+      live: number
+      boost: number
+      casts: number
+      bands: number
+      hot: number
+    }> => {
+      const [ready, live, boost, vfx] = await Promise.all([
+        page.locator('.skill.is-ready').count(),
+        page.locator('.skill.is-live').count(),
+        page.locator('.skill.is-boosted').count(),
+        page.evaluate(() => document.body.dataset.vfx ?? '0/0/0'),
+      ])
+      const [casts, bands, hot] = vfx.split('/').map(Number)
+      return { ready, live, boost, casts: casts ?? 0, bands: bands ?? 0, hot: hot ?? 0 }
+    }
+    let best = { ready: 0, live: 0, boost: 0, casts: 0, bands: 0, hot: 0 }
     const keepBar = async (): Promise<void> => {
       const now = await barState()
       best = {
         ready: Math.max(best.ready, now.ready),
         live: Math.max(best.live, now.live),
         boost: Math.max(best.boost, now.boost),
+        casts: Math.max(best.casts, now.casts),
+        bands: Math.max(best.bands, now.bands),
+        hot: Math.max(best.hot, now.hot),
       }
     }
     // Sampled fast and repeatedly: a skill's duration is a few seconds and the
@@ -941,10 +956,29 @@ async function main(): Promise<void> {
         `skills: a skill fired but no stat moved — live="${acting.live}" base="${acting.base}"`,
       )
       process.exitCode = 1
+    } else if (best.casts === 0 || best.bands === 0) {
+      // THE EFFECTS HAVE TO REACH THE FIELD, not only the numbers and the HUD.
+      // A ring lasts half a second in a ten-minute run, so a screenshot catches
+      // it by luck; these counters are what make it a check. See dataset.vfx.
+      console.error(
+        `skills: nothing was drawn on the field — ${best.casts} cast rings, ` +
+          `${best.bands} bands under the figure`,
+      )
+      process.exitCode = 1
+    } else if (best.hot === 0) {
+      // The default bar carries a blade skill on both classes, so the sweep
+      // going cinnabar is not optional — it is the most visible thing in the
+      // whole system and the easiest to break by editing HOT_BLADE.
+      console.error('skills: the blade never went hot — the sweep is not reading the bar')
+      process.exitCode = 1
     } else {
       console.log(
         `skills: ${held.join(' ')} provoked, ${best.ready} ready / ${best.live} live / ` +
           `${best.boost} boosted, stats moved (${acting.base} → ${acting.live})`,
+      )
+      console.log(
+        `field:  ${best.casts} cast rings thrown, up to ${best.bands} bands under the ` +
+          `figure, blade went hot`,
       )
     }
 

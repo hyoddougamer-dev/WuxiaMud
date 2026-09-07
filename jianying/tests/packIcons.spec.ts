@@ -24,6 +24,7 @@ import {
 } from '../src/render/packIcons'
 import { PACK_ICON_DATA } from '../src/render/packIconData'
 import { ARTS, CONDITIONS } from '../src/data/arts'
+import { SKILLS, SLOTTED_SKILLS, skillsFor } from '../src/data/skills'
 import { WEAPONS } from '../src/data/weapons'
 import { ITEMS } from '../src/data/items'
 
@@ -145,5 +146,81 @@ describe('pack icons', () => {
     // refactor would quietly put the project out of licence.
     expect(PACK_CREDIT).toMatch(/game-icons\.net/)
     expect(PACK_CREDIT).toMatch(/CC BY 3\.0/)
+  })
+})
+
+describe('every mark means one thing', () => {
+  /**
+   * NO TWO ENTRIES MAY DRAW THE SAME PICTURE, across all four maps.
+   *
+   * Compared by GEOMETRY rather than by name, because that is the failure that
+   * actually happened: `damage` and the greatsword both named `broadsword`, and
+   * `bolt` and the flying daggers both named `striking-arrows`. Two of them
+   * were even defensible in isolation — a damage skill IS a heavy blade — and
+   * the sum was a game where the same drawing meant "this skill hits harder" in
+   * one place and "this is the weapon you are holding" in another.
+   *
+   * Names would have caught those two. Geometry also catches the version of it
+   * where somebody picks two different names for one drawing, which is the way
+   * this comes back.
+   */
+  it('never draws one glyph for two different things', () => {
+    const entries: Array<[string, string]> = [
+      ...Object.entries(PACK_ICON).map(([k, v]) => [`effect.${k}`, v] as [string, string]),
+      ...Object.entries(PACK_CONDITION_ICON).map(([k, v]) => [`condition.${k}`, v] as [string, string]),
+      ...Object.entries(PACK_SLOT_ICON).map(([k, v]) => [`slot.${k}`, v] as [string, string]),
+      ...Object.entries(PACK_WEAPON_ICON).map(([k, v]) => [`weapon.${k}`, v] as [string, string]),
+    ]
+    const byShape = new Map<string, string[]>()
+    for (const [who, name] of entries) {
+      const svg = packIconSvg(name, 0)
+      expect(svg, `${who} names "${name}", which draws nothing`).not.toBe('')
+      const shape = svg.slice(svg.indexOf('>') + 1)
+      byShape.set(shape, [...(byShape.get(shape) ?? []), `${who} (${name})`])
+    }
+    const clashes = [...byShape.values()].filter((list) => list.length > 1)
+    expect(clashes.map((c) => c.join(' == ')), 'two things drawn the same').toEqual([])
+  })
+
+  /**
+   * A PLAYER LOOKING AT ONE SCREEN SEES DISTINCT MARKS.
+   *
+   * The map-wide check above is the strong claim; this is the one a player
+   * would actually notice failing. The 法 tab lists every skill a weapon can
+   * slot, each with its effect's icon, all at once.
+   */
+  it('gives one weapon\'s whole skill list a distinct mark each', () => {
+    for (const weapon of WEAPONS) {
+      const roster = skillsFor(weapon.id)
+      expect(roster.length).toBeGreaterThan(SLOTTED_SKILLS)
+      const marks = roster.map((s) => PACK_ICON[s.effect])
+      expect(new Set(marks).size, `${weapon.id}: ${marks.join(', ')}`).toBe(marks.length)
+      const seals = roster.map((s) => s.seal)
+      expect(new Set(seals).size, `${weapon.id}: ${seals.join(' ')}`).toBe(seals.length)
+    }
+  })
+
+  it('draws a mark for every effect a skill can have', () => {
+    // The effect vocabulary is wider than the roster uses. What must never
+    // happen is a skill whose effect has no picture — it would render as a
+    // blank square beside eight drawn ones and read as broken.
+    for (const skill of SKILLS) {
+      expect(effectIconSvg(skill.effect, 0), `${skill.name} (${skill.effect})`).not.toBe('')
+    }
+  })
+
+  it('draws a mark for every posture a boost can name', () => {
+    for (const skill of SKILLS) {
+      expect(conditionIconSvg(skill.boost.when, 0), `${skill.name}`).not.toBe('')
+    }
+  })
+
+  it('leaves no stale posture in the condition table', () => {
+    // `peril` outlived the condition it named. A dead entry here is not inert:
+    // the extractor carries its icon into the bundle, and the next person to
+    // read the map counts five postures where the game has four.
+    for (const id of Object.keys(PACK_CONDITION_ICON)) {
+      expect(CONDITIONS.some((c) => c.id === id), `${id} is not a condition`).toBe(true)
+    }
   })
 })

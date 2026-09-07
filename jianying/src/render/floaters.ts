@@ -23,11 +23,23 @@
  */
 import { BitmapFont, BitmapText, Container } from 'pixi.js'
 import { palette } from './palette'
+import { SKILLS } from '../data/skills'
 
 /** Simultaneous numbers. Past this it stops being readable anyway. */
 const CAPACITY = 40
 
 const FONT = 'jianying-num'
+
+/** The mark a parried shaft floats. Named so the atlas and the call agree. */
+export const PARRY_SEAL = '挡'
+
+/**
+ * Every distinct character across every skill seal.
+ *
+ * Split into characters rather than listed as seals because one of them (一斩)
+ * is two, and an atlas is built per glyph.
+ */
+export const FLOAT_CHARS = [...new Set([PARRY_SEAL, ...SKILLS.flatMap((s) => [...s.seal])])]
 
 /** Seconds a number stays on screen. Short: it is a glance, not a readout. */
 const LIFE = 0.62
@@ -45,8 +57,17 @@ export interface Floaters {
   found(x: number, y: number): void
   /** Shafts cut out of the air by a sweep. Always finds a slot. */
   parry(x: number, y: number, count: number): void
-  /** Health mended by an art. Always finds a slot — see `mend` below. */
+  /** Health mended by a skill. Always finds a slot — see `mend` below. */
   mend(x: number, y: number, amount: number): void
+  /**
+   * A skill firing, named by its seal, over the figure that fired it.
+   *
+   * The seal and not the name: 沉 fits over a swordsman at a size that reads
+   * while you are being chased, and "Sink" at that size does not. The name is
+   * still said once per expedition, in the banner — see main.ts — so the seal
+   * is a reminder rather than the only place it was ever spelled out.
+   */
+  cast(x: number, y: number, seal: string, colour: number): void
   update(dt: number): void
   clear(): void
   readonly view: Container
@@ -77,9 +98,17 @@ function installFont(): void {
       fontWeight: 'bold',
       fill: 0xffffff,
     },
-    // Digits and the minus sign, nothing else. Tinting handles colour, so the
-    // atlas stays one small texture regardless of how many colours appear.
-    chars: [['0', '9'], '-', '!'],
+    // Digits, the two marks the damage numbers use, and EVERY SEAL THE GAME
+    // CAN FLOAT — derived from the tables rather than typed out, because typing
+    // them out is how the last one went wrong.
+    //
+    // 挡 was missing. `parry` has been floating it since the day parries were
+    // added, and a BitmapText silently drops a glyph it has no quad for, so the
+    // one piece of feedback for the one mechanic that is invisible by nature —
+    // a shaft that DOESN'T hit you — rendered as an empty space. Nothing threw,
+    // nothing logged, and no screenshot showed a missing character because
+    // there was no character.
+    chars: [['0', '9'], '-', '!', ...FLOAT_CHARS],
     resolution: 2,
   })
 }
@@ -213,7 +242,27 @@ export function createFloaters(): Floaters {
       // more damage figure.
       const slot = take(true)
       if (!slot) return
-      start(slot, count > 1 ? `挡 ${count}` : '挡', x, y - 52, palette.gold, 0.5, HURT_LIFE)
+      start(
+        slot,
+        count > 1 ? `${PARRY_SEAL} ${count}` : PARRY_SEAL,
+        x,
+        y - 52,
+        palette.gold,
+        0.5,
+        HURT_LIFE,
+      )
+    },
+
+    cast(x, y, seal, colour) {
+      // Evicts, like `hurt` and unlike `hit`. Two of the three slots fire
+      // themselves, so a cast lands in the middle of a wall of damage numbers
+      // more often than not — and being crowded out by them is exactly the
+      // failure this method exists to fix.
+      const slot = take(true)
+      if (!slot) return
+      // Higher than a damage number and larger, because it names something the
+      // player DID rather than something that happened to a body.
+      start(slot, seal, x, y - 62, colour, 0.62, LIFE)
     },
 
     update(dt) {

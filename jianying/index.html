@@ -1621,7 +1621,10 @@
       .skill-cool {
         position: absolute;
         inset: 0;
-        background: rgba(13, 13, 13, 0.42);
+        /* Light enough that the seal still reads THROUGH it. At 0.42 a tile on
+           cooldown went muddy, and since two of the three slots are on cooldown
+           most of the time, most of the strip was mud. */
+        background: rgba(13, 13, 13, 0.26);
         transform-origin: top;
         transform: scaleY(0);
         pointer-events: none;
@@ -1653,10 +1656,13 @@
         position: absolute;
         top: 3px;
         right: 3px;
-        width: 13px;
-        height: 13px;
+        width: 15px;
+        height: 15px;
         display: block;
-        opacity: 0.22;
+        /* Visible at rest, not merely present. At 0.22 it read as a smudge on a
+           phone, which is the same as not drawing the one mark that says how to
+           make this skill hit harder. */
+        opacity: 0.34;
         transition: opacity 90ms ease-out, color 90ms ease-out;
       }
       /* READY means FIREABLE: off cooldown AND affordable. A tile that lights
@@ -1681,6 +1687,25 @@
       .skill.is-boosted .skill-when {
         opacity: 1;
         color: var(--gold);
+      }
+      /* And the tile itself takes a gold inner edge. The posture paying double
+         is the single thing this whole loop turns on, and a 15px mark in a
+         corner is not enough to carry it on a phone held at arm's length. */
+      .skill.is-boosted { box-shadow: inset 0 0 0 2px rgba(184, 145, 47, 0.55); }
+      .hud-cast.is-boosted { box-shadow: inset 0 0 0 3px rgba(184, 145, 47, 0.6); }
+      /* THE MOMENT IT FIRES. One pulse, 260ms, and then the tile goes back to
+         reporting state. It is the other half of the ring thrown on the field:
+         a player who happens to glance down at the strip sees the same event
+         they just saw on the swordsman, which is what connects the two. */
+      @keyframes skill-fire {
+        0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(193, 39, 45, 0.55); }
+        35%  { transform: scale(1.14); box-shadow: 0 0 0 5px rgba(193, 39, 45, 0.28); }
+        100% { transform: scale(1); box-shadow: 0 0 0 9px rgba(193, 39, 45, 0); }
+      }
+      .skill.just-fired { animation: skill-fire 260ms ease-out; }
+      .hud-cast.just-fired { animation: skill-fire 260ms ease-out; }
+      @media (prefers-reduced-motion: reduce) {
+        .skill.just-fired, .hud-cast.just-fired { animation: none; }
       }
 
       /* CAST — the manual slot's button. Directly above the dodge so one thumb

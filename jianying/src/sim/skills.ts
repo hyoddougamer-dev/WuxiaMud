@@ -19,7 +19,7 @@
  * the floor of a build, the third is the one you spend a full pool on at the
  * moment you choose.
  */
-import { SKILL_BY_ID, SLOTTED_SKILLS, skillPower, type Skill } from '../data/skills'
+import { SKILL_BY_ID, SLOTTED_SKILLS, skillPower, type Skill, type SkillEffect } from '../data/skills'
 import type { Condition } from '../data/arts'
 import { spendShi, type Shi } from './shi'
 import { NOVA_RADIUS, type Stats } from './loadout'
@@ -255,4 +255,41 @@ export function skillReading(skill: Skill, boosted = false): string {
     case 'nova':
       return `${Math.round(GRANT.boltDamage * p)} burst damage`
   }
+}
+
+/**
+ * Effects that are running on the numbers RIGHT NOW.
+ *
+ * Read by the renderer, which uses it for two things a player can see without
+ * being told: how many bands sit under the figure, and whether the blade's
+ * sweep is drawn in ink or in cinnabar. Both are answers to "is anything up?",
+ * asked by someone with no attention to spare for the HUD.
+ *
+ * Returns the effects rather than the slots because that is the question the
+ * drawing asks — a band per live skill, and a hot blade if any of them sharpens
+ * it. Two skills raising damage are still one hot blade.
+ */
+export function liveEffects(bar: SkillBar, out: SkillEffect[] = []): SkillEffect[] {
+  out.length = 0
+  for (const slot of bar.slots) {
+    if (slot.skill && slot.live > 0) out.push(slot.skill.effect)
+  }
+  return out
+}
+
+/**
+ * Effects that make the blade itself worse to be near.
+ *
+ * The sweep is drawn in ink normally and in cinnabar while one of these runs —
+ * which is the single most visible thing in this whole system, because the
+ * blade is what the player is already watching. Deliberately NOT every offence:
+ * a bolt or a shockwave is its own drawing on screen and colouring the sweep
+ * for it would claim something about the sweep that is not true.
+ */
+const HOT_BLADE = new Set<SkillEffect>(['damage', 'rate', 'range', 'arc', 'crit', 'pierce', 'echo'])
+
+/** Whether anything live is sharpening the sweep. See HOT_BLADE. */
+export function bladeIsHot(effects: readonly SkillEffect[]): boolean {
+  for (const effect of effects) if (HOT_BLADE.has(effect)) return true
+  return false
 }
