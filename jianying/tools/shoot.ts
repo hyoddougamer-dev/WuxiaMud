@@ -569,18 +569,39 @@ async function main(): Promise<void> {
       const rows = await page.locator('.sk-row').count()
       const slotted = await page.locator('.sk-on').count()
       const known = await page.locator('.sk-off').count()
-      // Every slotted row must carry all three figures. Counting rows proves
-      // the list rendered; counting these proves it says what a skill COSTS,
-      // which is the whole difference between this screen and the last one.
+      // Every slotted row must carry all four figures. Counting rows proves the
+      // list rendered; counting these proves it says what a skill COSTS, which
+      // is the whole difference between this screen and the arts one.
       const costs = await page.locator('.sk-on .sk-cost').count()
       const powers = await page.locator('.sk-on .sk-does').count()
       const rests = await page.locator('.sk-on .sk-time').count()
-      // The boost line, with the figure it produces rather than only the
-      // posture that produces it — the difference between a rule and a
-      // decision, and the thing the arts screen never had.
       const boosts = await page.locator('.sk-on .sk-boost b').count()
       const manual = await page.locator('.sk-manual').count()
+
+      // THE CHOICE HAS TO REACH THE SAVE, and reading the screen back cannot
+      // prove that: a list that renders, responds to a tap and writes nothing
+      // is the exact bug this shape of screen always has — the player arranges
+      // a build, walks out, and carries the default anyway.
+      const stored = async (): Promise<string[]> =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('jianying.save.v2')
+          if (!raw) return []
+          const skills = JSON.parse(raw).swordsmen?.[0]?.skills ?? {}
+          const first = Object.values(skills)[0]
+          return Array.isArray(first) ? (first as string[]) : []
+        })
+      // Take the third off, then put a different one on. Both halves, because
+      // an "add" that works against a "remove" that does not still leaves the
+      // player unable to change their mind.
+      await page.locator('.sk-on').last().click()
+      await page.waitForTimeout(250)
+      const afterDrop = await stored()
+      const emptied = await page.locator('.sk-empty').count()
+      await page.locator('.sk-off').first().click()
+      await page.waitForTimeout(250)
+      const afterTake = await stored()
       await page.screenshot({ path: join(OUT, 'hub-arts.png') })
+
       const wired =
         slotted === 3 &&
         known >= 1 &&
@@ -589,18 +610,28 @@ async function main(): Promise<void> {
         powers === slotted &&
         rests === slotted &&
         boosts === slotted &&
-        manual === 1
+        manual === 1 &&
+        // Dropping one writes two, and leaves a drawn empty slot behind.
+        afterDrop.length === 2 &&
+        emptied === 1 &&
+        // Taking one back writes three, and it is APPENDED — the last slot is
+        // the manual one, so where a skill lands is the second half of the
+        // choice and not an implementation detail.
+        afterTake.length === 3 &&
+        afterTake[2] !== undefined &&
+        !afterDrop.includes(afterTake[2])
       if (!wired) {
         console.error(
           `skills: the 法 tab is not wired — ${rows} rows, ${slotted} slotted, ${known} known, ` +
             `${costs} costs, ${powers} powers, ${rests} rests, ${boosts} boosts, ` +
-            `${manual} manual tag(s)`,
+            `${manual} manual tag(s); save ${slotted} -> ${afterDrop.length} -> ` +
+            `${afterTake.length}, ${emptied} empty slot(s) drawn`,
         )
         process.exitCode = 1
       } else {
         console.log(
-          `skills: 法 tab ${slotted} slotted + ${known} known, each with cost, ` +
-            `power, rest and boost`,
+          `skills: 法 tab ${slotted} slotted + ${known} known with cost, power, rest and ` +
+            `boost; tap wrote ${afterDrop.join(',')} then ${afterTake.join(',')}`,
         )
       }
       await tabs.first().click()

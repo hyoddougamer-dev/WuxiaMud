@@ -9,10 +9,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createCharacter } from '../src/meta/character'
-import { kitOf } from '../src/meta/kit'
+import { barFor, kitOf } from '../src/meta/kit'
 import { acquire, emptyInventory, equip, mintUid, unequip, type OwnedItem } from '../src/meta/inventory'
 import { deriveStats } from '../src/sim/loadout'
 import { rollAmount } from '../src/data/affixes'
+import { SLOTTED_SKILLS, defaultBar } from '../src/data/skills'
+import { parseCharacter, serialiseCharacter } from '../src/meta/save'
 import { SCHOOL_BY_ID } from '../src/meta/schools'
 import type { Rarity } from '../src/data/rarity'
 
@@ -133,3 +135,87 @@ function withPackWorn(entry: OwnedItem) {
   equip(c.inventory, entry.uid)
   return c
 }
+
+describe('the bar a swordsman actually walks out with', () => {
+  /**
+   * ONE FUNCTION, BOTH CALLERS, for the same reason `kitOf` is one function:
+   * the hub's 法 screen draws this list and the expedition runs on it. A screen
+   * that promises a bar the run does not use is worse than no screen at all.
+   */
+  it('falls back to the default for a weapon never edited', () => {
+    const c = createCharacter()
+    expect(c.skills).toEqual({})
+    expect(barFor(c, 'great')).toEqual(defaultBar('great'))
+    expect(barFor(c, 'feidao')).toEqual(defaultBar('feidao'))
+  })
+
+  it('keeps a bar the player deliberately emptied', () => {
+    // "Never chosen" and "chose fewer" are different states and the fallback
+    // applies only to the first. Collapsing them would make a slot impossible
+    // to leave empty: the game would helpfully refill it every time the hub
+    // re-rendered, which reads as the screen ignoring you.
+    const c = createCharacter()
+    c.skills = { great: ['sink'] }
+    expect(barFor(c, 'great')).toEqual(['sink'])
+    const emptied = createCharacter()
+    emptied.skills = { great: [] }
+    expect(barFor(emptied, 'great')).toEqual([])
+  })
+
+  it('never hands back more slots than the bar has', () => {
+    const c = createCharacter()
+    c.skills = { great: ['sink', 'rend', 'mountain', 'grind', 'onecut'] }
+    expect(barFor(c, 'great')).toHaveLength(SLOTTED_SKILLS)
+  })
+
+  it('keeps each weapon its own bar', () => {
+    // Picking up flying daggers is picking up a different way to fight, and the
+    // three chosen for the greatsword mean nothing while holding knives.
+    const c = createCharacter()
+    c.skills = { great: ['sink'] }
+    expect(barFor(c, 'great')).toEqual(['sink'])
+    expect(barFor(c, 'feidao')).toEqual(defaultBar('feidao'))
+  })
+})
+
+describe('the bar survives being written to disk', () => {
+  it('round-trips exactly, order included', () => {
+    // The order is half the choice — the last slot is the one with a button on
+    // it — so a save that kept the SET and lost the ORDER would quietly move
+    // which skill the player fires by hand.
+    const c = createCharacter()
+    c.skills = { great: ['guardian', 'sink', 'mountain'] }
+    const back = parseCharacter(serialiseCharacter(c))!
+    expect(back.skills.great).toEqual(['guardian', 'sink', 'mountain'])
+  })
+
+  it('drops a skill the weapon cannot slot', () => {
+    // A save is a text file on a device. A greatsword technique on a knife
+    // thrower's bar would sit there doing nothing anybody could explain.
+    const c = createCharacter()
+    const raw = JSON.stringify({ ...c, skills: { feidao: ['steady', 'sink', 'shadow'] } })
+    expect(parseCharacter(raw)!.skills.feidao).toEqual(['steady', 'shadow'])
+  })
+
+  it('drops duplicates, unknown ids and unknown weapons', () => {
+    const c = createCharacter()
+    const raw = JSON.stringify({
+      ...c,
+      skills: { great: ['sink', 'sink', 'nosuchskill', 'rend'], nosuchweapon: ['sink'] },
+    })
+    const back = parseCharacter(raw)!
+    expect(back.skills.great).toEqual(['sink', 'rend'])
+    expect(back.skills.nosuchweapon).toBeUndefined()
+  })
+
+  it('opens a save from the arts era on the default bar', () => {
+    // `arts` is deliberately not read. The ids do not even mean the same
+    // things, and folding an art ranking into a skill bar would hand some saves
+    // a build nothing on screen could explain.
+    const c = createCharacter()
+    const raw = JSON.stringify({ ...c, arts: { great: ['mountain', 'onecut'] }, skills: undefined })
+    const back = parseCharacter(raw)!
+    expect(back.skills).toEqual({})
+    expect(barFor(back, 'great')).toEqual(defaultBar('great'))
+  })
+})

@@ -181,6 +181,21 @@ export const strings = {
   /** Banner on a level-up. 内力 is flat power, never a skill. See MIGHT. */
   mightGained: 'Inner force deepens',
   skillSlots: 'slots',
+  /** On a slotted row: tapping takes it off the bar. */
+  skillDrop: 'take off',
+  /** On a known row with room on the bar. */
+  skillTake: 'slot it',
+  /** On a known row when all three slots are full. */
+  skillFull: 'bar full',
+  skillEmpty: 'Empty slot',
+  /**
+   * The third empty slot, named for what it is rather than left blank.
+   *
+   * A player who empties the bar has to be able to see that the last place is
+   * the one with a button attached — otherwise the only way to learn which of
+   * the three is manual is to go out and press it.
+   */
+  skillEmptyManual: 'Empty — this one gets the button',
   /**
    * The 法 tab's one line of instruction.
    *

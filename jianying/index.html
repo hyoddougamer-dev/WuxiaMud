@@ -1997,10 +1997,21 @@
         grid-template-columns: 20px 34px minmax(0, 1fr);
         align-items: start;
         gap: 10px;
+        width: 100%;
         padding: 10px 12px;
         border: 1px solid rgba(13, 13, 13, 0.14);
         border-radius: 7px;
+        /* It is a <button> now, so the browser's own chrome has to go before
+           the rest of this can be seen at all. */
+        background: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
       }
+      .sk-row:active { transform: scale(0.995); }
+      .sk-row:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
       /* Slotted: it goes out with you. Cinnabar edge and a warm ground, the
          same two signals the HUD tile uses for "this one is yours". */
       .sk-on {
@@ -2013,6 +2024,35 @@
         border-style: dashed;
         opacity: 0.62;
       }
+      /* Known, and there is no room. Still readable — a player comparing what
+         they could take against what they have needs to read both — but plainly
+         not tappable right now. */
+      .sk-blocked { opacity: 0.4; cursor: default; }
+      /* A slot the player has emptied. Drawn, not left out: a list that simply
+         gets shorter reads as "this is all there is". */
+      .sk-empty {
+        border-style: dashed;
+        border-color: rgba(13, 13, 13, 0.2);
+        align-items: center;
+        min-height: 52px;
+        color: rgba(13, 13, 13, 0.45);
+      }
+      .sk-empty .sk-name { font-size: 13.5px; font-weight: 400; }
+      /* What a tap does, said on the row rather than left to be discovered.
+         Right-aligned across all three columns so it sits under the numbers
+         without stealing width from the name. */
+      .sk-take {
+        grid-column: 1 / -1;
+        justify-self: end;
+        margin-top: 6px;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.4);
+      }
+      .sk-on .sk-take { color: var(--cinnabar); }
+      .sk-off:not(.sk-blocked) .sk-take { color: var(--gold); }
       .sk-place {
         font-size: 15px;
         font-weight: 600;

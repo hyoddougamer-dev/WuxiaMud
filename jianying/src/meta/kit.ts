@@ -13,6 +13,7 @@ import { schoolById } from './schools'
 import { baseOf, equippedIn, type OwnedItem } from './inventory'
 import { SLOTS, type Slot } from '../data/items'
 import { weaponById } from '../data/weapons'
+import { SLOTTED_SKILLS, defaultBar } from '../data/skills'
 import type { Character } from './character'
 import type { Kit } from '../sim/loadout'
 
@@ -43,4 +44,23 @@ export function kitOf(c: Character, swap?: Swap): Kit {
       .map(at)
       .filter((e): e is OwnedItem => e !== null),
   }
+}
+
+/**
+ * The three skills `c` takes out with `weaponId` in hand.
+ *
+ * ONE FUNCTION, BOTH CALLERS, for exactly the reason `kitOf` above is one
+ * function: the hub draws this list and the expedition runs on it, and a screen
+ * that promises a bar the run does not use is worse than no screen at all.
+ *
+ * A weapon the player has never edited falls back to `defaultBar`, so a fresh
+ * swordsman — and a save written before any of this existed — still walks out
+ * with a build rather than an empty strip. A player who has deliberately
+ * emptied a slot keeps it empty: the fallback applies to "never chosen", not to
+ * "chose fewer", and telling those apart is the whole reason this reads the
+ * record rather than counting entries.
+ */
+export function barFor(c: Character, weaponId: string): string[] {
+  const chosen = c.skills[weaponId]
+  return chosen ? chosen.slice(0, SLOTTED_SKILLS) : defaultBar(weaponId)
 }

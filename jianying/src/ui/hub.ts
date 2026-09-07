@@ -52,7 +52,7 @@ import {
   type OwnedItem,
 } from '../meta/inventory'
 import { ITEM_BY_ID, SLOTS, SLOT_NAMES, type Item, type Slot } from '../data/items'
-import { kitOf } from '../meta/kit'
+import { barFor, kitOf } from '../meta/kit'
 import { POWER_BY_ID, affixLine } from '../data/affixes'
 import { rarityOf, rarityStyle } from '../data/rarity'
 import { weaponById, type WeaponClass } from '../data/weapons'
@@ -76,7 +76,6 @@ import { CONDITIONS, CONDITION_BY_ID } from '../data/arts'
 import {
   SKILL_BY_ID,
   SLOTTED_SKILLS,
-  defaultBar,
   skillsFor,
   type Skill,
 } from '../data/skills'
@@ -769,22 +768,27 @@ export function createHub(
    * the simulation reads, through the same `skillPower`, so the tile in a fight
    * and the row in the hub can never quote different figures.
    *
-   * THE SLOTS ARE NOT YET EDITABLE HERE, and the screen says so rather than
-   * pretending. Choosing which three go out is the next slice; showing a
-   * fictional choice would be worse than showing a real constraint.
+   * A TAP IS THE WHOLE INTERACTION. Tapping a slotted skill takes it off the
+   * bar; tapping a known one puts it on, at the end. That single rule gives the
+   * player both controls they need — WHICH three, and WHICH of the three is the
+   * one they fire by hand, since the last slot is the manual one and a skill
+   * appended lands there. Nothing to drag, nothing to long-press, and no
+   * reordering gesture to learn on a phone.
    */
-  const paneSkills = (weapon: WeaponClass): HTMLElement => {
+  const paneSkills = (c: Character, weapon: WeaponClass): HTMLElement => {
     const pane = document.createElement('div')
     pane.className = 'pane'
 
     const roster = skillsFor(weapon.id)
-    const slotted = defaultBar(weapon.id)
+    const slotted = barFor(c, weapon.id)
 
     const head = document.createElement('div')
     head.className = 'block-head arts-head'
     head.innerHTML =
       `<span>${weapon.seal} ${escapeHtml(weapon.name)}</span>` +
-      `<b class="arts-count">${SLOTTED_SKILLS} ${escapeHtml(strings.skillSlots)}</b>`
+      `<b class="arts-count">${slotted.length} / ${SLOTTED_SKILLS} ${escapeHtml(
+        strings.skillSlots,
+      )}</b>`
     pane.appendChild(head)
 
     const note = document.createElement('div')
@@ -803,9 +807,13 @@ export function createHub(
     const skillRow = (skill: Skill, place: number | null): HTMLElement => {
       const on = place !== null
       const manual = place === SLOTTED_SKILLS
+      const full = slotted.length >= SLOTTED_SKILLS
       const cond = CONDITION_BY_ID.get(skill.boost.when)!
-      const row = document.createElement('div')
-      row.className = 'sk-row' + (on ? ' sk-on' : ' sk-off')
+      // A BUTTON, because it does something. It was a div for exactly as long
+      // as the slots were not editable.
+      const row = document.createElement('button')
+      row.type = 'button'
+      row.className = 'sk-row' + (on ? ' sk-on' : ' sk-off') + (!on && full ? ' sk-blocked' : '')
       // FOUR LINES, IN THE ORDER THE QUESTIONS ARRIVE. What is it, what does it
       // do, what does it cost me, and when is it worth more. An earlier draft
       // put the posture in a narrow right-hand column and every reading wrapped
@@ -833,16 +841,48 @@ export function createHub(
             <b>${escapeHtml(skillReading(skill, true))}</b>
           </span>
         </span>
+        <span class="sk-take">${escapeHtml(
+          on ? strings.skillDrop : full ? strings.skillFull : strings.skillTake,
+        )}</span>
       `
+      row.addEventListener('click', () => {
+        if (!character) return
+        const next = slotted.filter((id) => id !== skill.id)
+        // APPENDED, not inserted, and that IS the reordering control: the last
+        // slot is the one you fire by hand, so taking a skill off and putting
+        // it back is how you move it there. Two taps, and no gesture to learn
+        // on a phone.
+        if (!on) {
+          if (full) return
+          next.push(skill.id)
+        }
+        character.skills = { ...character.skills, [weapon.id]: next }
+        onSave()
+        render()
+      })
       return row
     }
 
     const list = document.createElement('div')
     list.className = 'sk-list'
-    slotted.forEach((id, i) => {
+    slotted.forEach((id: string, i: number) => {
       const skill = SKILL_BY_ID.get(id)
       if (skill) list.appendChild(skillRow(skill, i + 1))
     })
+    // EMPTY SLOTS ARE DRAWN, not left out. A player who has taken two skills
+    // off has to be able to see that a third place exists and is theirs to
+    // fill — a list that simply gets shorter reads as "this is all there is",
+    // which is the same failure the arts strip had.
+    for (let i = slotted.length; i < SLOTTED_SKILLS; i++) {
+      const empty = document.createElement('div')
+      empty.className = 'sk-row sk-empty'
+      empty.innerHTML =
+        `<span class="sk-place">${i + 1}</span>` +
+        `<span class="sk-body"><span class="sk-name">${escapeHtml(
+          i + 1 === SLOTTED_SKILLS ? strings.skillEmptyManual : strings.skillEmpty,
+        )}</span></span>`
+      list.appendChild(empty)
+    }
     // WHERE THE BAR STOPS, drawn as a line rather than counted. Everything
     // above it goes out with you; everything below is known and not taken.
     const cut = document.createElement('div')
@@ -988,7 +1028,7 @@ export function createHub(
         : tab === 'gear'
           ? paneGear(c)
           : tab === 'arts'
-            ? paneSkills(weapon)
+            ? paneSkills(c, weapon)
             : paneWorld(c),
     )
     panel.appendChild(body)

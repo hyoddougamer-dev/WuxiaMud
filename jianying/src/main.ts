@@ -52,7 +52,7 @@ import {
 import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './sim/conditions'
 
 import { MIGHT } from './sim/arts'
-import { defaultBar, type SkillEffect } from './data/skills'
+import type { SkillEffect } from './data/skills'
 import { createShi, updateShi } from './sim/shi'
 import { applySkills, bladeIsHot, createBar, liveEffects, updateBar } from './sim/skills'
 import { castLook, createCasts } from './render/casts'
@@ -64,7 +64,7 @@ import {
   rewardFor,
   settleFound,
 } from './meta/character'
-import { kitOf } from './meta/kit'
+import { barFor, kitOf } from './meta/kit'
 import { bearingOf, buildOf, pigmentOf, sashOf } from './meta/look'
 import { clampDepth, regionAt } from './data/regions'
 import { applySchool, schoolById } from './meta/schools'
@@ -274,13 +274,15 @@ async function boot(): Promise<void> {
    * The three slotted skills. Two fire themselves, the third waits for the
    * button; see sim/skills.ts.
    *
-   * Built from the weapon, because the weapon is the class. Until the skills
-   * screen lands, this is the default bar rather than a stored choice — which
-   * is why it is rebuilt in `refreshKit` alongside the stats: swapping to
-   * flying daggers has to swap the skills with them, or the bar would be
-   * offering a greatsword's techniques to somebody holding knives.
+   * Read from the CHARACTER, keyed by the weapon in hand — see barFor, which
+   * the hub's 法 screen draws from too, so what the player arranged and what
+   * the expedition runs on come from one function rather than two that drift.
+   *
+   * It is rebuilt in `refreshKit` alongside the stats: swapping to flying
+   * daggers has to swap the skills with them, or the bar would be offering a
+   * greatsword's techniques to somebody holding knives.
    */
-  let bar = createBar(defaultBar(kit.weapon.id))
+  let bar = createBar(barFor(character, kit.weapon.id))
   /**
    * Recomputes the permanent stats AND the skill bar, together.
    *
@@ -292,7 +294,7 @@ async function boot(): Promise<void> {
    */
   const refreshKit = (): void => {
     stats = deriveStats(kit)
-    const wanted = defaultBar(kit.weapon.id)
+    const wanted = barFor(character, kit.weapon.id)
     // Only when the SET actually changes, so a level-up does not silently wipe
     // every cooldown the player has spent the last ten seconds waiting out.
     if (bar.slots.map((slot) => slot.skill?.id ?? '-').join(',') !== wanted.join(',')) {

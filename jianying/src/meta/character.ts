@@ -91,20 +91,19 @@ export interface Character {
   points: number
   spent: Attributes
   /**
-   * The arts carried into an expedition, per weapon, in the order they advance.
+   * The three skills slotted, per weapon, in the order they sit on the bar.
    *
-   * Keyed by weapon because an art belongs to a weapon: picking up a spear is
-   * picking up a different way to fight, and the four you chose for the sabre
-   * mean nothing while you are holding it. Up to EQUIPPED_ARTS ids each; a
-   * weapon with no entry falls back to the first four of its scroll, so a save
-   * written before this existed still walks out with a build.
+   * Keyed by weapon because a skill belongs to a class: picking up flying
+   * daggers is picking up a different way to fight, and the three you chose for
+   * the greatsword mean nothing while you are holding knives. A weapon with no
+   * entry falls back to `defaultBar`, so a save written before this existed
+   * still walks out with a build.
    *
-   * The ORDER is the decision, and it bites harder than it used to. How far
-   * down this list the arts actually wake is decided by the rung of the weapon
-   * in hand — see `attune` in sim/arts.ts — so first in the list is the art a
-   * common blade fires, and fifth is the one only a 神 blade ever reaches.
+   * THE ORDER IS PART OF THE DECISION. The last slot is the one the player
+   * fires by hand (see MANUAL_SLOT), so moving a skill into third place is
+   * choosing to spend a thumb on it rather than let it go off by itself.
    */
-  arts: Record<string, string[]>
+  skills: Record<string, string[]>
   /** Deepest expedition unlocked. Starts at 1. */
   depth: number
   /** Lifetime totals, purely for the hub to have something to show. */
@@ -148,7 +147,7 @@ export function createCharacter(
     // screen full of zeroes.
     points: 1,
     spent: emptyAttributes(),
-    arts: {},
+    skills: {},
     depth: 1,
     runs: 0,
     bestSeconds: 0,

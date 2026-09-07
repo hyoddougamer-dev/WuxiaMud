@@ -22,7 +22,7 @@ import {
 } from './character'
 import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
-import { ARTS, EQUIPPED_ARTS } from '../data/arts'
+import { SLOTTED_SKILLS, skillsFor } from '../data/skills'
 import { WEAPONS } from '../data/weapons'
 import {
   acquire,
@@ -215,15 +215,15 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
  * punish the player for a bug that is ours.
  */
 /**
- * The equipped arts, per weapon, from whatever the save happens to hold.
+ * The slotted skills, per weapon, from whatever the save happens to hold.
  *
- * Everything is filtered against the real art table rather than trusted: a save
- * is a text file on a device and an id that no longer exists would put an empty
- * slot into a run. An unknown weapon key is dropped for the same reason, and a
- * list longer than the limit is trimmed rather than rejected — losing a slot
- * beats losing the swordsman.
+ * Everything is filtered against the real skill table rather than trusted: a
+ * save is a text file on a device and an id that no longer exists would put an
+ * empty slot on the bar. An unknown weapon key is dropped for the same reason,
+ * and a list longer than the bar is trimmed rather than rejected — losing a
+ * slot beats losing the swordsman.
  */
-function parseArts(value: unknown): Record<string, string[]> {
+function parseSkills(value: unknown): Record<string, string[]> {
   const out: Record<string, string[]> = {}
   if (typeof value !== 'object' || value === null) return out
   for (const [weaponId, ids] of Object.entries(value as Record<string, unknown>)) {
@@ -232,12 +232,13 @@ function parseArts(value: unknown): Record<string, string[]> {
     const kept: string[] = []
     for (const id of ids) {
       if (typeof id !== 'string') continue
-      // Must belong to THIS weapon, so a save cannot smuggle a spear art into
-      // a sabre's scroll and have it silently never fire.
-      if (!ARTS.some((a) => a.id === id && a.weapon === weaponId)) continue
+      // Must be slottable by THIS weapon, so a save cannot smuggle a
+      // greatsword's technique onto a knife-thrower's bar and have it sit there
+      // doing nothing anybody could explain.
+      if (!skillsFor(weaponId).some((s) => s.id === id)) continue
       if (kept.includes(id)) continue
       kept.push(id)
-      if (kept.length === EQUIPPED_ARTS) break
+      if (kept.length === SLOTTED_SKILLS) break
     }
     if (kept.length > 0) out[weaponId] = kept
   }
@@ -278,14 +279,14 @@ export function parseCharacter(raw: string): Character | null {
     xp: int(record.xp, 0),
     points: int(record.points, 0),
     spent: parseAttributes(record.spent),
-    arts: parseArts(record.arts),
-    // `manuals` is deliberately NOT read, and a save that still carries one
-    // simply loses it. The 秘笈 ladder is gone: an art's grade now comes from
-    // the rungs of the gear worn (see `attune` in sim/arts.ts), so a manual
-    // rank would be a second, invisible ladder climbing the same number — which
-    // is the exact mishmash this pass exists to remove. Dropping the field is
-    // the honest migration; silently folding it into the new grade would hand
-    // some saves a head start nothing on screen could explain.
+    skills: parseSkills(record.skills),
+    // NEITHER `manuals` NOR `arts` is read, and a save carrying them loses
+    // them. Both named ladders this build no longer has — 秘笈 ranks, and then
+    // the 器蕴 scroll the gear woke — and both climbed a number that the skill
+    // bar now replaces outright. Dropping the fields is the honest migration:
+    // folding an art ranking into a skill bar would hand some saves a build
+    // nothing on screen could explain, and the ids do not even mean the same
+    // things. A save from either era simply opens on `defaultBar`.
     depth: int(record.depth, 1, 1, MAX_DEPTH),
     runs: int(record.runs, 0),
     bestSeconds: int(record.bestSeconds, 0),
