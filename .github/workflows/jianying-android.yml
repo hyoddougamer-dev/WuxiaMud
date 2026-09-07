@@ -200,16 +200,27 @@ jobs:
           APK de desenvolvimento do 剑影 Jiànyǐng, reconstruido a cada alteracao.
           Este link e sempre o mais recente.
 
+          **Link que nunca muda** — podes guardar este:
+          https://github.com/hyoddougamer-dev/WuxiaMud/releases/download/jianying-latest/jianying-latest.apk
+
           **Instalar:** toca no ficheiro `.apk` abaixo. Na primeira vez o Android
           pede para permitires instalacao desta origem, e o Play Protect avisa —
           e um build de debug nao assinado para loja, por isso o aviso e esperado.
           MD
           )
 
+          # A SECOND COPY UNDER A FIXED NAME, and this is not tidiness.
+          # The commit-stamped asset is useful — you can tell two builds apart
+          # in a downloads folder — but its URL changes on every push, so any
+          # link to it is dead the moment the next commit lands. That happened:
+          # a download link handed over in chat 404'd within the hour.
+          # `jianying-latest.apk` never moves.
+          cp "$APK" out/jianying-latest.apk
+
           # `gh release create` fails if the tag already exists, so delete the
           # previous release first. The tag itself is recreated by --target.
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" "$APK" \
+          gh release create "$TAG" "$APK" out/jianying-latest.apk \
             --title "剑影 Jiànyǐng · build mais recente" \
             --notes "$NOTES" \
             --prerelease \
@@ -222,6 +233,9 @@ jobs:
             echo ""
             echo "**Instala num toque:**"
             echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/jianying-latest"
+            echo ""
+            echo "**Link direto que nunca muda:**"
+            echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/jianying-latest/jianying-latest.apk"
             echo ""
             echo "Abre esse link no telemovel, toca no \`.apk\` e instala."
             echo "Nao precisas de login nem de extrair zip nenhum."

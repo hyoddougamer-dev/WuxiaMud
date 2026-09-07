@@ -692,28 +692,40 @@ async function main(): Promise<void> {
     } else {
       await wheelTab.first().click()
       await page.waitForTimeout(250)
-      const nodes = await page.locator('.wh-node').count()
-      const keys = await page.locator('.wh-key').count()
-      const lockedAtStart = await page.locator('.wh-locked').count()
+      // FIVE WEDGES ON THE COMPASS, and the arm's own nodes as cards below.
+      // The board used to draw all nineteen at once; it now draws one arm, so
+      // the count that matters is per-arm and the compass is what switches.
+      const wedges = await page.locator('.wc-arm').count()
       const spent = async (): Promise<Record<string, number>> =>
         page.evaluate(() => {
           const raw = localStorage.getItem('jianying.save.v2')
           return raw ? ((JSON.parse(raw).swordsmen?.[0]?.wheel ?? {}) as Record<string, number>) : {}
         })
-      // The sheet has to open BEFORE a point can be spent — two steps on
-      // purpose, since a 30px target on a radial board is not something to
-      // spend an irreversible point on by accident.
-      const takeVisibleFirst = async (): Promise<void> => {
-        await page.locator('.wh-node:not(.wh-locked)').first().click()
-        await page.waitForTimeout(200)
-        const take = page.locator('.wh-take')
-        if (await take.isEnabled().catch(() => false)) await take.click()
+      const sum = (w: Record<string, number>): number =>
+        Object.values(w).reduce((a, b) => a + b, 0)
+
+      const before = await spent()
+      // The hub opens first and its nodes are never gated, so one press here
+      // proves the whole path: card -> button -> save.
+      const takeable = page.locator('.wh-card:not(.is-locked) .wh-take:not([disabled])')
+      const hadTakeable = (await takeable.count()) > 0
+      if (hadTakeable) {
+        await takeable.first().click()
         await page.waitForTimeout(250)
       }
-      const before = await spent()
-      await takeVisibleFirst()
       const afterTake = await spent()
+      const coreCards = await page.locator('.wh-card').count()
+
+      // Switch to an arm and check it gates: ring 2 and 3 must be out of reach
+      // on a swordsman who has spent nothing in it.
+      await page.locator('.wc-arm[data-arm="still"]').click()
+      await page.waitForTimeout(250)
+      const armCards = await page.locator('.wh-card').count()
+      const lockedInArm = await page.locator('.wh-card.is-locked').count()
+      const keyInArm = await page.locator('.wh-card-key').count()
+      const gates = await page.locator('.wh-gate').count()
       await page.screenshot({ path: join(OUT, 'hub-wheel.png') })
+
       const respecButton = page.locator('.wh-respec')
       const canRespec = await respecButton.isVisible().catch(() => false)
       if (canRespec) {
@@ -721,27 +733,30 @@ async function main(): Promise<void> {
         await page.waitForTimeout(250)
       }
       const afterRespec = await spent()
-      const sum = (w: Record<string, number>): number =>
-        Object.values(w).reduce((a, b) => a + b, 0)
+
       const wired =
-        nodes >= 12 &&
-        keys === 4 &&
-        // Ring 2 and 3 start out of reach on every arm, which is what makes the
-        // gates a real shape rather than a label.
-        lockedAtStart >= 8 &&
+        wedges === 5 &&
+        coreCards >= 3 &&
+        armCards >= 4 &&
+        keyInArm === 1 &&
+        gates >= 2 &&
+        lockedInArm >= 2 &&
+        hadTakeable &&
         sum(afterTake) === sum(before) + 1 &&
         canRespec &&
         sum(afterRespec) === 0
       if (!wired) {
         console.error(
-          `wheel:  not wired — ${nodes} nodes, ${keys} keystones, ${lockedAtStart} locked, ` +
+          `wheel:  not wired — ${wedges} wedges, ${coreCards} hub cards, ${armCards} arm cards, ` +
+            `${keyInArm} keystone, ${gates} gates, ${lockedInArm} locked; ` +
             `save ${sum(before)} -> ${sum(afterTake)} -> ${sum(afterRespec)}, ` +
             `respec ${canRespec ? 'shown' : 'MISSING'}`,
         )
         process.exitCode = 1
       } else {
         console.log(
-          `wheel:  ${nodes} nodes (${keys} keystones, ${lockedAtStart} out of reach); ` +
+          `wheel:  ${wedges} wedges; hub ${coreCards} cards, 静 ${armCards} cards ` +
+            `(${lockedInArm} out of reach, ${gates} gates, 1 keystone); ` +
             `took a point, respec put it back`,
         )
       }

@@ -72,17 +72,11 @@ import { PLAYER_MAX_HP } from '../sim/combat'
 import { portraitSvg } from '../render/silhouette'
 import { gearFromIds } from '../render/wardrobe'
 import { packIconSvg, effectIconSvg, itemIconSvg, PACK_SLOT_ICON } from '../render/packIcons'
-import { CONDITIONS, CONDITION_BY_ID } from '../data/arts'
-import {
-  RING_GATE,
-  TALENT_BY_ID,
-  armTalents,
-  isKeystone,
-  type Arm,
-  type Talent,
-} from '../data/talents'
+import { CONDITIONS, CONDITION_BY_ID, type Condition } from '../data/arts'
+import { RING_GATE, armTalents, isKeystone, type Arm } from '../data/talents'
 import {
   openRing,
+  pointsInArm,
   pointsLeft,
   pointsSpent,
   ranksIn,
@@ -263,8 +257,8 @@ export function createHub(
   // the first tab — a screen that loses your place on every tap feels broken
   // long before anyone works out why.
   let tab: TabId = 'self'
-  /** The wheel node whose sheet is open, or null. Cleared when the tab changes. */
-  let openNode: string | null = null
+  /** Which arm of the Wheel is being spent in. The compass switches it. */
+  let wheelArm: Arm = 'core'
 
   /** The swordsman as they currently stand, gear and rank and all. */
   const portrait = (c: Character, box: number, region?: string): string => {
@@ -973,20 +967,31 @@ export function createHub(
   }
 
   /**
-   * 轮 — the Wheel.
+   * 轮 — the Wheel: a compass to choose an arm, and a real list to spend in.
    *
-   * A CIRCLE BECAUSE A PHONE HAS NO PANNING THUMB TO SPARE. Every ARPG this
-   * game is measured against draws its passives as a graph you scroll around
-   * with a mouse; port that to 390px and the player is dragging with the same
-   * thumb that has to press a node. A wheel has no off-screen — four arms and a
-   * hub, all of it in reach — and the shape carries the structure: further out
-   * is a bigger commitment, and the rim is where the keystones are.
+   * THE FIRST VERSION WAS THE WHOLE BOARD AT ONCE, and it was reported as
+   * "todos sem espaço, a UI feia para escolher, tudo demasiado compacto". That
+   * is exactly right, and the arithmetic says so: nineteen nodes inside a
+   * 340px square leaves each one about 34 pixels with a rank line inside it,
+   * neighbours a few pixels away, and — because a 34px target is not something
+   * to spend an irreversible point on by accident — a second tap on a separate
+   * sheet before anything happens. Dense, ugly, and two steps.
    *
-   * TAP A NODE, READ IT, THEN TAKE IT. Two steps rather than one, deliberately.
-   * A 30px target on a radial layout is not something to spend an irreversible
-   * point on by accident, and the sheet is where a node gets the room to say
-   * what it costs — which the keystones need, because every one of them costs
-   * something real.
+   * So the wheel splits in two, along the line the player's attention already
+   * takes:
+   *
+   *   THE COMPASS says where you are. Small, five wedges, each filled by what
+   *   you have spent in it — the at-a-glance overview a radial shape is
+   *   genuinely good at, and the only job it keeps. Tapping a wedge picks an
+   *   arm.
+   *
+   *   THE LIST is where you spend. One arm at a time, its nodes as cards with
+   *   the room to say what they do, in ring order, with the Take button ON the
+   *   card. Same shape as the 法 rows next door, which is the point: a player
+   *   who has learned one screen has learned this one.
+   *
+   * Nothing about the model changed — same nineteen nodes, same gates, same one
+   * keystone. This is the same board with the crowding taken out.
    */
   const paneWheel = (c: Character): HTMLElement => {
     const pane = document.createElement('div')
@@ -1007,144 +1012,146 @@ export function createHub(
     note.textContent = strings.wheelNote
     pane.appendChild(note)
 
-    // --- the board ---------------------------------------------------------
-    // Laid out in ONE viewBox of 300x300 and scaled by CSS, so every radius
-    // below is in the same made-up units and the whole thing survives any
-    // screen width without a single media query.
-    const R = { 0: 0, 1: 62, 2: 98, 3: 132 } as const
-    // Arms at the diagonals rather than the axes: it leaves the top and bottom
-    // of the square free for the hub's own label and keeps the four keystones
-    // equally far from the centre of the thumb's arc.
+    // --- the compass -------------------------------------------------------
+    const ARMS: Arm[] = ['core', 'still', 'running', 'turn', 'surrounded']
     const ANGLE: Record<string, number> = {
       still: -135,
       running: -45,
-      turn: 135,
       surrounded: 45,
+      turn: 135,
     }
-    const at = (arm: Arm, ring: number, index: number, count: number): [number, number] => {
-      if (arm === 'core') {
-        // The hub is a small ring of its own, so three nodes at the centre do
-        // not stack on top of each other.
-        const a = ((index / count) * 360 - 90) * (Math.PI / 180)
-        return [150 + Math.cos(a) * 26, 150 + Math.sin(a) * 26]
-      }
-      // Two nodes on a ring sit either side of the arm's line; one sits on it.
-      const spread = count > 1 ? 15 : 0
-      const a = (ANGLE[arm]! + (index - (count - 1) / 2) * spread * 2) * (Math.PI / 180)
-      const r = R[ring as 1 | 2 | 3]
-      return [150 + Math.cos(a) * r, 150 + Math.sin(a) * r]
+    const armSeal: Record<string, string> = {
+      core: '势',
+      still: '静',
+      running: '疾',
+      turn: '转',
+      surrounded: '围',
     }
+    /** Points an arm can hold, for the fill on its wedge. */
+    const armCap = (arm: Arm): number =>
+      armTalents(arm).reduce((n, t) => n + t.ranks, 0)
 
-    const svgParts: string[] = []
-    // The spokes first, so every node is drawn over its own line.
-    for (const arm of ['still', 'running', 'turn', 'surrounded'] as const) {
+    const compass = document.createElement('div')
+    compass.className = 'wc'
+    const parts: string[] = []
+    for (const arm of ARMS) {
+      if (arm === 'core') continue
       const a = ANGLE[arm]! * (Math.PI / 180)
+      const spent = pointsInArm(c.wheel, arm)
+      const full = spent / armCap(arm)
       const open = openRing(c.wheel, arm)
-      svgParts.push(
-        `<line x1="${150 + Math.cos(a) * 26}" y1="${150 + Math.sin(a) * 26}" ` +
-          `x2="${150 + Math.cos(a) * R[3]}" y2="${150 + Math.sin(a) * R[3]}" ` +
-          `class="wh-spoke wh-open-${open}" />`,
-      )
-    }
-
-    const nodes: Array<{ talent: Talent; x: number; y: number }> = []
-    for (const arm of ['core', 'still', 'running', 'turn', 'surrounded'] as const) {
-      const inArm = armTalents(arm)
-      for (const ring of [0, 1, 2, 3]) {
-        const onRing = inArm.filter((t) => t.ring === ring)
-        onRing.forEach((talent, i) => {
-          const [x, y] = at(arm, ring, i, onRing.length)
-          nodes.push({ talent, x, y })
-        })
-      }
-    }
-
-    for (const { talent, x, y } of nodes) {
-      const ranks = ranksIn(c.wheel, talent.id)
-      const locked = talent.ring > openRing(c.wheel, talent.arm)
-      const key = isKeystone(talent)
-      const classes = [
-        'wh-node',
-        key ? 'wh-key' : '',
-        ranks > 0 ? 'wh-taken' : '',
-        ranks >= talent.ranks ? 'wh-maxed' : '',
-        locked ? 'wh-locked' : '',
-        talent.id === openNode ? 'wh-open' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-      // Bigger than they were: 17px of radius is a 34px target, which is what a
-      // thumb needs, and it leaves room for the rank line inside the node.
-      const r = key ? 21 : 17
-      svgParts.push(
-        `<g class="${classes}" data-node="${talent.id}" tabindex="0" role="button" ` +
-          `aria-label="${escapeHtml(talent.name)}">` +
-          (key
-            ? `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" rx="4" ` +
-              `transform="rotate(45 ${x} ${y})" class="wh-body" />`
-            : `<circle cx="${x}" cy="${y}" r="${r}" class="wh-body" />`) +
-          `<text x="${x}" y="${y}" class="wh-seal">${talent.seal}</text>` +
-          // INSIDE the node, under the seal. It was below the circle and
-          // collided with whatever sat next to it on a board this dense — two
-          // rank labels and a neighbouring seal in the same twelve pixels.
-          (talent.ranks > 1
-            ? `<text x="${x}" y="${y + r - 4.5}" class="wh-rank">${ranks}/${talent.ranks}</text>`
-            : '') +
+      // 56, not 46: at the shorter radius a wedge's fill ring and the hub's
+      // own overlapped, and the overlap read as a stray gold mark between two
+      // wedges rather than as either of the two rings it actually was.
+      const x = 70 + Math.cos(a) * 56
+      const y = 70 + Math.sin(a) * 56
+      const on = arm === wheelArm
+      parts.push(
+        `<g class="wc-arm${on ? ' is-on' : ''} wc-open-${open}" data-arm="${arm}" ` +
+          `tabindex="0" role="button" aria-label="${escapeHtml(
+            CONDITION_BY_ID.get(arm as Condition)?.name ?? arm,
+          )}">` +
+          `<line x1="70" y1="70" x2="${x}" y2="${y}" class="wc-spoke" />` +
+          `<circle cx="${x}" cy="${y}" r="17" class="wc-dot" />` +
+          // The ring around a wedge fills as the arm does. One number, drawn
+          // as an amount rather than written as a fraction.
+          (spent > 0
+          ? `<circle cx="${x}" cy="${y}" r="21" class="wc-fill" ` +
+            `stroke-dasharray="${(full * 132).toFixed(1)} 132" ` +
+            `transform="rotate(-90 ${x} ${y})" />`
+          : '') +
+          `<text x="${x}" y="${y}" class="wc-seal">${armSeal[arm]}</text>` +
+          // Only once there IS something to count. Five zeroes under five
+          // wedges is five pieces of noise saying the same nothing.
+          (spent > 0 ? `<text x="${x}" y="${y + 30}" class="wc-count">${spent}</text>` : '') +
           `</g>`,
       )
     }
-
-    const board = document.createElement('div')
-    board.className = 'wh-board'
-    board.innerHTML =
-      `<svg viewBox="0 0 300 300" class="wh-svg" xmlns="http://www.w3.org/2000/svg">` +
-      `<circle cx="150" cy="150" r="${R[3]}" class="wh-rim" />` +
-      `<circle cx="150" cy="150" r="${R[1]}" class="wh-rim wh-rim-in" />` +
-      svgParts.join('') +
+    const coreSpent = pointsInArm(c.wheel, 'core')
+    parts.push(
+      `<g class="wc-arm wc-core${wheelArm === 'core' ? ' is-on' : ''}" data-arm="core" ` +
+        `tabindex="0" role="button" aria-label="${escapeHtml(strings.wheelCore)}">` +
+        `<circle cx="70" cy="70" r="19" class="wc-dot" />` +
+        (coreSpent > 0
+          ? `<circle cx="70" cy="70" r="23" class="wc-fill" ` +
+            `stroke-dasharray="${((coreSpent / armCap('core')) * 144.5).toFixed(1)} 144.5" ` +
+            `transform="rotate(-90 70 70)" />`
+          : '') +
+        `<text x="70" y="70" class="wc-seal">${armSeal.core}</text>` +
+        (coreSpent > 0 ? `<text x="70" y="102" class="wc-count">${coreSpent}</text>` : '') +
+        `</g>`,
+    )
+    compass.innerHTML =
+      `<svg viewBox="0 0 140 140" class="wc-svg" xmlns="http://www.w3.org/2000/svg">` +
+      parts.join('') +
       `</svg>`
-    pane.appendChild(board)
-
-    board.querySelectorAll<SVGGElement>('[data-node]').forEach((g) => {
-      const activate = (): void => {
-        openNode = openNode === g.dataset.node ? null : (g.dataset.node ?? null)
+    pane.appendChild(compass)
+    compass.querySelectorAll<SVGGElement>('[data-arm]').forEach((g) => {
+      const pick = (): void => {
+        wheelArm = (g.dataset.arm as Arm) ?? 'core'
         render()
       }
-      g.addEventListener('click', activate)
+      g.addEventListener('click', pick)
       g.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          activate()
+          pick()
         }
       })
     })
 
-    // --- the sheet for whatever is open ------------------------------------
-    const talent = openNode ? TALENT_BY_ID.get(openNode) : null
-    const sheet = document.createElement('div')
-    sheet.className = 'wh-sheet'
-    if (!talent) {
-      // NOT BLANK. With nothing open the sheet says what the board is for,
-      // which is the only moment a player is looking at it with no node in
-      // mind — and the one keystone rule is the thing they most need to know
-      // BEFORE they spend, not after.
-      sheet.classList.add('wh-sheet-idle')
-      sheet.innerHTML =
-        `<p>${escapeHtml(strings.wheelIdle)}</p>` +
-        `<p class="wh-rule">${escapeHtml(strings.wheelKeystoneRule)}</p>`
-    } else {
+    // --- the arm's own heading ---------------------------------------------
+    const cond = wheelArm === 'core' ? null : CONDITION_BY_ID.get(wheelArm as Condition)
+    const inArm = pointsInArm(c.wheel, wheelArm)
+    const armHead = document.createElement('div')
+    armHead.className = 'wh-arm-head'
+    armHead.innerHTML =
+      `<b>${armSeal[wheelArm]} ${escapeHtml(cond?.name ?? strings.wheelCore)}</b>` +
+      `<span>${escapeHtml(cond?.how ?? strings.wheelCoreHow)}</span>`
+    pane.appendChild(armHead)
+
+    // --- the nodes, as cards with room ------------------------------------
+    const list = document.createElement('div')
+    list.className = 'wh-list'
+    let lastRing = -1
+    for (const talent of armTalents(wheelArm)) {
       const ranks = ranksIn(c.wheel, talent.id)
       const refusal = refusalFor(c, talent.id)
-      const armName = talent.arm === 'core' ? strings.wheelCore : CONDITION_BY_ID.get(talent.arm)!.name
-      sheet.innerHTML = `
-        <div class="wh-sheet-head">
-          <span class="wh-sheet-seal">${talent.seal}</span>
-          <span class="wh-sheet-title">
+      const locked = talent.ring > openRing(c.wheel, talent.arm)
+      const key = isKeystone(talent)
+
+      // A LINE WHERE THE ARM STOPS REACHING, named with what it costs to pass.
+      // It was a dashed outline on each node and a player had to work out for
+      // themselves which gate they were short of.
+      if (talent.ring !== lastRing && talent.ring > 1 && wheelArm !== 'core') {
+        const need = RING_GATE * (talent.ring - 1)
+        const cut = document.createElement('div')
+        cut.className = 'wh-gate' + (inArm >= need ? ' is-open' : '')
+        cut.innerHTML =
+          `<span>${escapeHtml(
+            inArm >= need ? strings.wheelGateOpen : strings.wheelGateShut,
+          )} ${inArm}/${need}</span>`
+        list.appendChild(cut)
+      }
+      lastRing = talent.ring
+
+      const card = document.createElement('div')
+      card.className =
+        'wh-card' +
+        (key ? ' wh-card-key' : '') +
+        (ranks > 0 ? ' is-taken' : '') +
+        (locked ? ' is-locked' : '')
+      const pips = Array.from({ length: talent.ranks }, (_, i) =>
+        `<i class="${i < ranks ? 'on' : ''}"></i>`,
+      ).join('')
+      card.innerHTML = `
+        <div class="wh-card-head">
+          <span class="wh-card-seal">${talent.seal}</span>
+          <span class="wh-card-name">
             <b>${escapeHtml(talent.name)}</b>
-            <span>${escapeHtml(armName)}${
-              isKeystone(talent) ? ` · ${escapeHtml(strings.wheelKeystone)}` : ''
-            }</span>
+            ${key ? `<em>${escapeHtml(strings.wheelKeystone)}</em>` : ''}
           </span>
-          <span class="wh-sheet-rank">${ranks}/${talent.ranks}</span>
+          <span class="wh-pips">${pips}</span>
         </div>
         <p class="wh-does">${escapeHtml(talent.blurb)}</p>
         ${talent.cost ? `<p class="wh-cost">${escapeHtml(talent.cost)}</p>` : ''}
@@ -1155,7 +1162,9 @@ export function createHub(
       take.disabled = refusal !== null
       take.textContent =
         refusal === null
-          ? strings.wheelTake
+          ? ranks > 0
+            ? strings.wheelTakeMore
+            : strings.wheelTake
           : refusal === 'maxed'
             ? strings.wheelMaxed
             : refusal === 'no-points'
@@ -1169,9 +1178,17 @@ export function createHub(
         onSave()
         render()
       })
-      sheet.appendChild(take)
+      card.appendChild(take)
+      list.appendChild(card)
     }
-    pane.appendChild(sheet)
+    pane.appendChild(list)
+
+    // The one rule that shapes a build, said where a player is standing when
+    // they are about to reach the rim.
+    const rule = document.createElement('div')
+    rule.className = 'wh-rule'
+    rule.textContent = strings.wheelKeystoneRule
+    pane.appendChild(rule)
 
     // --- respec ------------------------------------------------------------
     // FREE AND ALWAYS, and said plainly on the button. There is no wiki for
@@ -1186,7 +1203,6 @@ export function createHub(
       reset.addEventListener('click', () => {
         if (!character) return
         respec(character)
-        openNode = null
         onSave()
         render()
       })
@@ -1369,7 +1385,6 @@ export function createHub(
         // sheet you opened three screens ago is a sheet answering a question
         // you have stopped asking.
         openCard = null
-        openNode = null
         focus = null
         render()
       })

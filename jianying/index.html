@@ -2560,137 +2560,158 @@
       }
 
       /* --- 轮 the Wheel --------------------------------------------------
-         One 300x300 viewBox scaled by CSS, so every radius in hub.ts is in the
-         same made-up units and the board survives any screen width without a
-         media query. */
-      .wh-board {
-        margin: 14px 0 4px;
-        display: flex;
-        justify-content: center;
-      }
-      .wh-svg {
-        width: min(100%, 340px);
-        height: auto;
-        display: block;
-        overflow: visible;
-      }
-      .wh-rim {
-        fill: none;
-        stroke: rgba(13, 13, 13, 0.1);
-        stroke-width: 1;
-      }
-      .wh-rim-in { stroke-dasharray: 3 5; }
-      /* A spoke lights as its arm opens, so how far you have committed to an
-         arm is legible from the LINES before any node is read. */
-      .wh-spoke { stroke: rgba(13, 13, 13, 0.13); stroke-width: 2; }
-      .wh-open-2 { stroke: rgba(138, 109, 22, 0.42); }
-      .wh-open-3 { stroke: rgba(193, 39, 45, 0.5); stroke-width: 2.5; }
-
-      .wh-node { cursor: pointer; }
-      .wh-node:focus { outline: none; }
-      .wh-node:focus-visible .wh-body { stroke: var(--cinnabar); stroke-width: 3; }
-      .wh-body {
+         Two pieces, split along the line the player's attention takes: a small
+         COMPASS that says where you are, and a LIST with room to spend in. The
+         first version drew all nineteen nodes at once inside 340px and was
+         reported as "todos sem espaço, a UI feia, tudo demasiado compacto" —
+         which the arithmetic agrees with: 34px per node, neighbours a few
+         pixels away, and a second tap on a separate sheet before anything
+         happened. */
+      .wc { display: flex; justify-content: center; margin: 14px 0 4px; }
+      .wc-svg { width: 232px; height: 232px; display: block; overflow: visible; }
+      .wc-arm { cursor: pointer; }
+      .wc-arm:focus { outline: none; }
+      .wc-arm:focus-visible .wc-dot { stroke: var(--cinnabar); stroke-width: 3; }
+      .wc-spoke { stroke: rgba(13, 13, 13, 0.14); stroke-width: 2; }
+      /* The spoke lights as the arm opens, so how far you have committed is
+         legible from the LINES before a single card is read. */
+      .wc-open-2 .wc-spoke { stroke: rgba(138, 109, 22, 0.5); }
+      .wc-open-3 .wc-spoke { stroke: rgba(193, 39, 45, 0.55); stroke-width: 2.5; }
+      .wc-dot {
         fill: var(--paper);
-        stroke: rgba(13, 13, 13, 0.28);
+        stroke: rgba(13, 13, 13, 0.24);
         stroke-width: 1.5;
         transition: fill 120ms ease, stroke 120ms ease;
       }
-      .wh-seal {
-        font-family: var(--display, Georgia, serif);
-        font-size: 15px;
-        text-anchor: middle;
-        /* Lifted off centre, because the rank line now sits under it inside the
-           same node — centred, the two would overlap. */
-        dominant-baseline: central;
-        transform: translateY(-2px);
-        fill: rgba(13, 13, 13, 0.55);
-        pointer-events: none;
-      }
-      /* A keystone is a diamond, not a bigger circle. Shape rather than size,
-         because size on a radial board already means "further out". */
-      .wh-key .wh-body { stroke-width: 2; stroke: rgba(13, 13, 13, 0.4); }
-      .wh-key .wh-seal { font-size: 12.5px; }
-      .wh-rank {
-        font-family: ui-monospace, Menlo, monospace;
-        font-size: 7.5px;
-        text-anchor: middle;
-        fill: rgba(13, 13, 13, 0.45);
-        pointer-events: none;
-      }
-      /* Taken: gold, the colour this game already spends on "you bought this".
-         Maxed goes solid, so a node with room left and one without are not the
-         same picture — the difference decides where the next point can go. */
-      .wh-taken .wh-body { fill: rgba(138, 109, 22, 0.2); stroke: var(--gold); }
-      .wh-taken .wh-seal { fill: var(--ink); }
-      .wh-maxed .wh-body { fill: var(--gold); }
-      .wh-maxed .wh-seal { fill: var(--paper); }
-      .wh-maxed .wh-rank { fill: var(--gold); }
-      /* A keystone you hold is cinnabar. It is the one node on the board that
-         changes a RULE, and it should not look like three ranks of anything. */
-      .wh-key.wh-taken .wh-body { fill: var(--cinnabar); stroke: var(--cinnabar); }
-      .wh-key.wh-taken .wh-seal { fill: var(--paper); }
-      /* Out of reach. Dashed and faint, and still readable: a player has to be
-         able to plan toward a node before the arm opens, which is most of what
-         planning a build IS. */
-      .wh-locked .wh-body {
+      /* The ring around a wedge fills as the arm does — one number, drawn as an
+         amount rather than written as a fraction. */
+      .wc-fill {
         fill: none;
-        stroke-dasharray: 3 3;
-        stroke: rgba(13, 13, 13, 0.22);
+        stroke: var(--gold);
+        stroke-width: 3;
+        stroke-linecap: round;
+        opacity: 0.85;
       }
-      .wh-locked .wh-seal { fill: rgba(13, 13, 13, 0.28); }
-      .wh-open .wh-body { stroke: var(--cinnabar); stroke-width: 2.5; }
+      .wc-seal {
+        font-family: var(--display, Georgia, serif);
+        font-size: 16px;
+        text-anchor: middle;
+        dominant-baseline: central;
+        fill: rgba(13, 13, 13, 0.6);
+        pointer-events: none;
+      }
+      .wc-count {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 10px;
+        text-anchor: middle;
+        fill: rgba(13, 13, 13, 0.4);
+        pointer-events: none;
+      }
+      .wc-arm.is-on .wc-dot { fill: var(--ink); stroke: var(--ink); }
+      .wc-arm.is-on .wc-seal { fill: var(--paper); }
+      .wc-arm.is-on .wc-count { fill: var(--ink); font-weight: 700; }
 
-      /* The sheet. Fixed enough in height that opening a node does not jump
-         the board out from under the thumb that just tapped it. */
-      .wh-sheet {
-        margin-top: 8px;
-        padding: 13px 14px;
+      /* Which arm you are in, and what it asks of you. */
+      .wh-arm-head {
+        margin-top: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(13, 13, 13, 0.12);
+      }
+      .wh-arm-head b {
+        display: block;
+        font-family: var(--display, Georgia, serif);
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .wh-arm-head span {
+        display: block;
+        margin-top: 2px;
+        font-size: 13.5px;
+        color: rgba(13, 13, 13, 0.55);
+      }
+
+      /* Where the arm stops reaching, named with what it costs to pass. It was
+         a dashed outline on each node, and a player had to work out for
+         themselves which gate they were short of. */
+      .wh-gate {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 16px 0 2px;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.4);
+      }
+      .wh-gate::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: rgba(13, 13, 13, 0.14);
+      }
+      .wh-gate.is-open { color: var(--gold); }
+
+      /* --- a node, with room to be read -------------------------------- */
+      .wh-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+      .wh-card {
+        padding: 13px 14px 12px;
         border: 1px solid rgba(13, 13, 13, 0.16);
         border-radius: 8px;
-        background: rgba(255, 252, 244, 0.5);
-        min-height: 132px;
+        background: rgba(255, 252, 244, 0.4);
       }
-      .wh-sheet p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
-      .wh-sheet-idle p { color: rgba(13, 13, 13, 0.6); }
-      .wh-sheet-idle .wh-rule {
-        margin: 10px 0 0;
-        padding-top: 10px;
-        border-top: 1px solid rgba(13, 13, 13, 0.1);
-        color: rgba(13, 13, 13, 0.75);
-      }
-      .wh-sheet-head {
+      .wh-card.is-taken { border-color: var(--gold); background: rgba(138, 109, 22, 0.08); }
+      /* Out of reach. Dimmed and still readable: planning toward a node before
+         the arm opens is most of what planning a build IS. */
+      .wh-card.is-locked { opacity: 0.5; border-style: dashed; }
+      /* A keystone changes a RULE. It should not look like three ranks of
+         anything, so it takes the one colour this game spends on "now". */
+      .wh-card-key { border-color: rgba(193, 39, 45, 0.45); border-width: 2px; }
+      .wh-card-key.is-taken { border-color: var(--cinnabar); background: rgba(193, 39, 45, 0.09); }
+      .wh-card-head {
         display: grid;
         grid-template-columns: 30px minmax(0, 1fr) auto;
         gap: 10px;
         align-items: center;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
       }
-      .wh-sheet-seal {
+      .wh-card-seal {
         font-family: var(--display, Georgia, serif);
-        font-size: 24px;
+        font-size: 23px;
         line-height: 1;
-        color: var(--cinnabar);
         text-align: center;
+        color: var(--cinnabar);
       }
-      .wh-sheet-title b { display: block; font-size: 16px; font-weight: 600; }
-      .wh-sheet-title span {
-        font-size: 11.5px;
-        letter-spacing: 0.05em;
+      .wh-card-name b { font-size: 16px; font-weight: 600; }
+      .wh-card-name em {
+        font-style: normal;
+        margin-left: 6px;
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(13, 13, 13, 0.5);
+        vertical-align: 2px;
+        color: var(--cinnabar);
+        border: 1px solid rgba(193, 39, 45, 0.4);
+        border-radius: 3px;
+        padding: 1px 4px;
       }
-      .wh-sheet-rank {
-        font-family: ui-monospace, Menlo, monospace;
-        font-size: 13px;
-        color: var(--gold);
+      /* Ranks as pips, the same shape a cost is drawn in everywhere else. */
+      .wh-pips { display: flex; gap: 3px; }
+      .wh-pips i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(13, 13, 13, 0.14);
       }
-      .wh-does { font-weight: 500; }
+      .wh-pips i.on { background: var(--gold); }
+      .wh-does { margin: 0; font-size: 14.5px; line-height: 1.45; font-weight: 500; }
       /* What it costs you. Cinnabar, because every keystone charges something
          and a player who reads only the promise has not read the node. */
-      .wh-cost { color: var(--cinnabar); font-size: 13.5px !important; }
+      .wh-cost { margin: 5px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--cinnabar); }
       .wh-take {
         width: 100%;
-        margin-top: 4px;
+        margin-top: 11px;
         padding: 11px;
         border: 0;
         border-radius: 6px;
@@ -2702,14 +2723,22 @@
         cursor: pointer;
       }
       .wh-take:disabled {
-        background: rgba(13, 13, 13, 0.1);
-        color: rgba(13, 13, 13, 0.45);
+        background: rgba(13, 13, 13, 0.08);
+        color: rgba(13, 13, 13, 0.42);
         cursor: default;
+      }
+      .wh-rule {
+        margin-top: 18px;
+        padding: 12px 14px;
+        border-left: 3px solid var(--cinnabar);
+        font-size: 13.5px;
+        line-height: 1.45;
+        color: rgba(13, 13, 13, 0.7);
       }
       .wh-respec {
         width: 100%;
-        margin-top: 10px;
-        padding: 10px;
+        margin-top: 12px;
+        padding: 11px;
         border: 1px dashed rgba(13, 13, 13, 0.3);
         border-radius: 6px;
         background: none;

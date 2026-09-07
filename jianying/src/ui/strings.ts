@@ -237,12 +237,19 @@ export const strings = {
   wheelNote:
     'Nothing here is +5 damage. Every node changes what your SKILLS cost, ' +
     'how long they run, how hard they land, or how fast 势 comes back.',
-  /** The hub of the wheel, named on a node's sheet where an arm would be. */
+  /** The hub of the wheel, named where an arm's name would go. */
   wheelCore: 'The hub',
+  /** What the hub is for, in the line an arm uses for its posture. */
+  wheelCoreHow: '势 itself — how much you hold, how fast it comes back.',
+  /** On a gate the arm has passed. */
+  wheelGateOpen: 'Open — points in this arm',
+  /** On a gate the arm has not reached. */
+  wheelGateShut: 'Locked — points in this arm',
+  /** On a node that already has a rank, so a second is a different sentence. */
+  wheelTakeMore: 'Take another',
   /** Shown on a keystone's sheet, beside its arm. */
   wheelKeystone: 'keystone',
   /** With no node open. The board is unfamiliar; say what it is. */
-  wheelIdle: 'Tap a node to read it. Four arms, one for each posture that pays your skills more.',
   /**
    * The one rule that shapes a build, said BEFORE a point is spent.
    *
