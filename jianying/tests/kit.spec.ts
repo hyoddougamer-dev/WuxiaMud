@@ -53,14 +53,38 @@ describe('the kit', () => {
     expect(kitOf(c).weapon.id).toBe('feidao')
   })
 
-  it('keeps the weapon out of `worn`, because it contributes a class not lines', () => {
+  it('puts the weapon in `worn` too, so its rolled lines are not dead text', () => {
+    // THIS TEST SAID THE OPPOSITE, and the opposite shipped. The weapon was
+    // kept out of `worn` on the reasoning that a blade contributes a CLASS —
+    // reach, arc, rhythm — rather than lines. But a weapon rolls lines like
+    // everything else and the item sheet has always printed them, so a 珍 sword
+    // reading "+11 Edge" gave nothing at all while the screen said otherwise.
+    // Caught by the harness the day skill affixes landed: a fixture wearing a
+    // greatsword whose lines NAMED two of its own skills produced no answer on
+    // the 法 screen, because the weapon never reached the fold.
     const blade = roll('w-feidao')
     const robe = roll('r-plain')
     const c = withPack(blade, robe)
     equip(c.inventory, blade.uid)
     equip(c.inventory, robe.uid)
     const kit = kitOf(c)
-    expect(kit.worn.map((e) => e.uid)).toEqual([robe.uid])
+    expect(kit.worn.map((e) => e.uid).sort()).toEqual([blade.uid, robe.uid].sort())
+    // And the class still comes from the blade, not from the lines.
+    expect(kit.weapon.id).toBe('feidao')
+  })
+
+  it('lets a weapon\'s lines reach the numbers, like every other piece', () => {
+    const plain = createCharacter()
+    const armed = createCharacter()
+    const blade = roll('w-feidao')
+    armed.inventory = withPack(blade).inventory
+    equip(armed.inventory, blade.uid)
+    // Same weapon class either way — the school's default IS the flying
+    // daggers here — so any difference can only be the rolled lines.
+    expect(kitOf(armed).weapon.id).toBe(kitOf(armed).weapon.id)
+    const before = deriveStats({ ...kitOf(plain), weapon: kitOf(armed).weapon })
+    const after = deriveStats(kitOf(armed))
+    expect(after.slashDamage + after.maxHp).toBeGreaterThan(before.slashDamage + before.maxHp)
   })
 
   it('answers one slot differently when asked, leaving the rest alone', () => {

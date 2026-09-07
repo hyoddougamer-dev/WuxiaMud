@@ -27,9 +27,19 @@ export interface Swap {
 /**
  * What `c` would fight with, optionally with one slot answered differently.
  *
- * The weapon is not in `worn`: its contribution is the WeaponClass, which is
- * how the blade decides the arts and the strike, not a set of rolled lines.
- * The school's blade stands in when no weapon is equipped, which is why a new
+ * THE WEAPON IS IN `worn` NOW, and it was not for a long time. The reasoning
+ * was that a blade's contribution is its WeaponClass — reach, arc, rhythm — and
+ * not a set of rolled lines. But a weapon rolls lines like everything else, and
+ * the item sheet has always printed them: so a 珍 sword reading "+11 Edge" gave
+ * nothing at all, and the screen said otherwise. Dead text on a card is the
+ * class of lie this project keeps having to dig out.
+ *
+ * Caught by the harness, on the day the skill affixes landed: a fixture wearing
+ * a greatsword whose lines NAMED two of its own class's skills produced no
+ * answer on the 法 screen, because the weapon never reached the fold.
+ *
+ * The class still comes from `weapon`; `worn` is only where the lines live. The
+ * school's blade stands in when no weapon is equipped, which is why a new
  * swordsman is never unarmed.
  */
 export function kitOf(c: Character, swap?: Swap): Kit {
@@ -40,9 +50,7 @@ export function kitOf(c: Character, swap?: Swap): Kit {
   return {
     spent: c.spent,
     weapon: weaponById(styleId ?? schoolById(c.origin).weaponId),
-    worn: SLOTS.filter((s) => s !== 'weapon')
-      .map(at)
-      .filter((e): e is OwnedItem => e !== null),
+    worn: SLOTS.map(at).filter((e): e is OwnedItem => e !== null),
   }
 }
 

@@ -24,6 +24,7 @@ import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
 import { SLOTTED_SKILLS, skillsFor } from '../data/skills'
 import { sanitiseWheel } from './wheel'
+import { sanitiseAffixes } from './inventory'
 import { WEAPONS } from '../data/weapons'
 import {
   acquire,
@@ -34,7 +35,7 @@ import {
   type Inventory,
   type OwnedItem,
 } from './inventory'
-import { AFFIX_BY_KIND, rollAmount, type AffixKind } from '../data/affixes'
+import { rollAmount, type AffixKind } from '../data/affixes'
 import { MAX_RARITY, type Rarity } from '../data/rarity'
 import { parseLook } from './look'
 import { SCHOOL_BY_ID, schoolById } from './schools'
@@ -175,12 +176,12 @@ function parseInventory(value: unknown, schoolId: string): Inventory {
             uid: e.uid,
             baseId: e.baseId,
             rarity: int(e.rarity, 0, 0, MAX_RARITY) as Rarity,
-            affixes: (e.affixes as unknown[]).flatMap((a) => {
-              if (typeof a !== 'object' || a === null) return []
-              const affix = a as Record<string, unknown>
-              if (typeof affix.kind !== 'string' || !AFFIX_BY_KIND.has(affix.kind as AffixKind)) return []
-              return [{ kind: affix.kind as AffixKind, amount: int(affix.amount, 1, 1) }]
-            }),
+            // ONE parser, shared with meta/inventory.ts. This was a second,
+            // slightly different one that rebuilt each line as `{ kind, amount
+            // }` — dropping the field that names a skill, so a "+22% Sink"
+            // written to disk came back as "+22%" of nothing and the 法 screen
+            // had nothing to answer.
+            affixes: sanitiseAffixes(e.affixes),
             power: typeof e.power === 'string' ? e.power : null,
             depth: int(e.depth, 1, 1),
           })

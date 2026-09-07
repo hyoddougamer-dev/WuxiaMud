@@ -463,6 +463,39 @@ describe('gear that names a skill', () => {
     expect(rest).toBeLessThan(sink.cooldown * 0.3)
   })
 
+  it('carries the skill NAME through the save, not just the number', () => {
+    // THE BUG THIS FILE EXISTS TO STOP COMING BACK. There were two affix
+    // parsers — one in meta/inventory.ts and one in meta/save.ts — and the
+    // second rebuilt every line as `{ kind, amount }`, dropping the field that
+    // names a skill. So "+22% Sink" written to disk came back as "+22%" of
+    // nothing, the fold matched no skill, and the 法 screen had nothing to
+    // answer. Everything downstream was correct; the line simply arrived empty.
+    const c = createCharacter()
+    const raw = {
+      owned: [
+        {
+          uid: 'u1',
+          baseId: ITEMS[0]!.id,
+          rarity: 3,
+          depth: 4,
+          affixes: [
+            { kind: 'skillPower', amount: 22, skill: 'sink' },
+            { kind: 'skillCost', amount: 1, skill: 'guardian' },
+          ],
+        },
+      ],
+      equipped: {},
+    }
+    const back = parseCharacter(JSON.stringify({ ...c, inventory: raw }))!
+    const kept = back.inventory.owned.find((e: OwnedItem) => e.uid === 'u1')!
+    expect(kept.affixes).toHaveLength(2)
+    expect(kept.affixes.map((a) => a.skill)).toEqual(['sink', 'guardian'])
+    // And it survives all the way to the numbers.
+    const boons = foldGearSkills(kept ? [kept] : [], noTalents())
+    expect(boons.perSkill.get('sink')?.power).toBeCloseTo(0.22, 9)
+    expect(boons.perSkill.get('guardian')?.cost).toBe(-1)
+  })
+
   it('drops a line naming a skill this build no longer has', () => {
     // Worse than no line: the sheet would print a raw id and the simulation
     // would never match it.

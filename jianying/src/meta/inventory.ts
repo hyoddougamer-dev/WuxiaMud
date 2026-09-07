@@ -22,30 +22,42 @@ import { ITEM_BY_ID, type Item, type Slot } from '../data/items'
 import { AFFIX_BY_KIND, namesSkill, type Affix, affixWeight } from '../data/affixes'
 import { SKILL_BY_ID } from '../data/skills'
 
+import { MAX_RARITY, type Rarity } from '../data/rarity'
+
 /**
  * Drops lines a save should not be carrying.
  *
+ * THE ONLY AFFIX PARSER, and it was not always: meta/save.ts carried a second
+ * one that rebuilt every line as `{ kind, amount }` and dropped the field
+ * naming a skill. So a "+22% Sink" written to disk came back as a plain
+ * "+22%" of nothing, silently, and the 法 screen had nothing to answer. Two
+ * validators for one shape is how the halves come to disagree; there is one
+ * now, and save.ts calls it.
+ *
  * A line naming a skill this build no longer has is worse than no line: the
- * sheet would print a raw id, the simulation would silently never match it, and
- * the player would be wearing a piece whose best row does nothing. Dropping it
- * is honest — the piece reads as having fewer lines, which it does.
+ * sheet would print a raw id, the simulation would never match it, and the
+ * player would be wearing a piece whose best row does nothing. Dropping it is
+ * honest — the piece reads as having fewer lines, which it does.
  */
-function sanitiseAffixes(raw: unknown): Affix[] {
+export function sanitiseAffixes(raw: unknown): Affix[] {
   if (!Array.isArray(raw)) return []
   const out: Affix[] = []
   for (const affix of raw as Affix[]) {
-    if (!affix || !AFFIX_BY_KIND.has(affix.kind)) continue
-    if (typeof affix.amount !== 'number' || !Number.isFinite(affix.amount)) continue
+    if (!affix || typeof affix !== 'object') continue
+    if (!AFFIX_BY_KIND.has(affix.kind)) continue
+    // Floored at 1, like every other amount this game rolls: a zero line is a
+    // row on the sheet that promises nothing.
+    const amount = Math.max(1, Math.round(Number(affix.amount)))
+    if (!Number.isFinite(amount)) continue
     if (namesSkill(affix.kind)) {
       if (typeof affix.skill !== 'string' || !SKILL_BY_ID.has(affix.skill)) continue
-      out.push({ kind: affix.kind, amount: affix.amount, skill: affix.skill })
+      out.push({ kind: affix.kind, amount, skill: affix.skill })
     } else {
-      out.push({ kind: affix.kind, amount: affix.amount })
+      out.push({ kind: affix.kind, amount })
     }
   }
   return out
 }
-import { MAX_RARITY, type Rarity } from '../data/rarity'
 
 /**
  * How many pieces the pack holds.

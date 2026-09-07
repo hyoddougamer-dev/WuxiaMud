@@ -166,14 +166,25 @@ const RANKED_SAVE = JSON.stringify({
       // exists to check had nothing to compare.
       inventory: {
         owned: [
+          // `guard` was the kind on two of these and it has never been an affix
+          // kind in this game. It went in unnoticed because the parser passed
+          // the array through untouched; the line drew as an empty string and
+          // the piece read as having one fewer row than it claimed. Caught the
+          // day the parser started sanitising.
           { uid: 'a', baseId: 'r-lamellar', rarity: 5, depth: 5, power: null,
-            affixes: [{ kind: 'body', amount: 34 }, { kind: 'guard', amount: 9 }] },
+            affixes: [{ kind: 'body', amount: 34 }, { kind: 'vigour', amount: 40 }] },
           { uid: 'b', baseId: 's-pauldron', rarity: 4, depth: 4, power: null,
-            affixes: [{ kind: 'guard', amount: 7 }, { kind: 'edge', amount: 11 }] },
+            affixes: [{ kind: 'edge', amount: 11 },
+                      { kind: 'skillPower', amount: 22, skill: 'sink' }] },
           { uid: 'c', baseId: 'h-hat', rarity: 3, depth: 4, power: null,
             affixes: [{ kind: 'spirit', amount: 12 }] },
-          { uid: 'd', baseId: 'w-great', rarity: 2, depth: 3, power: null,
-            affixes: [{ kind: 'edge', amount: 6 }] },
+          // A weapon whose lines NAME two of the skills its own class slots —
+          // the whole point of the affix, and the one arrangement that proves
+          // the 法 screen answers a piece back.
+          { uid: 'd', baseId: 'w-great', rarity: 4, depth: 5, power: null,
+            affixes: [{ kind: 'edge', amount: 6 },
+                      { kind: 'skillCost', amount: 1, skill: 'guardian' },
+                      { kind: 'skillRest', amount: 18, skill: 'sink' }] },
           // Spares in the pack, spanning the ladder — the pack grid is the one
           // surface where six rungs sit side by side, so the fixture has to
           // carry more than one of them or the check proves nothing.
@@ -337,6 +348,30 @@ async function rankCheck(parent: BrowserContext, url: string): Promise<void> {
       process.exitCode = 1
     } else {
       console.log(`rank:   ${gold} marks on the figure, ${seals} seals in ${rungs} rungs`)
+    }
+
+    // --- gear that NAMES a skill ------------------------------------------
+    // Checked HERE and not on the 法 pass below, because only this fixture
+    // wears pieces carrying skill lines: the swordsman the harness creates
+    // later walks out in a school's starting kit, which has none. A first pass
+    // asserted it there and read zero, which is the check being right about
+    // the wrong character.
+    const skillTab = page.locator('.hub-tabs .tab', { hasText: 'Skills' })
+    if ((await skillTab.count()) > 0) {
+      await skillTab.first().click()
+      await page.waitForTimeout(250)
+      const answered = await page.locator('.sk-gear').count()
+      const text = (await page.locator('.sk-gear').first().textContent().catch(() => '')) ?? ''
+      await page.screenshot({ path: join(OUT, 'hub-skill-gear.png') })
+      if (answered === 0) {
+        console.error(
+          'gear:   worn pieces name two skills and no row said so — the 法 screen is not ' +
+            'reading the lines',
+        )
+        process.exitCode = 1
+      } else {
+        console.log(`gear:   ${answered} skill row(s) answered the worn lines — "${text.trim()}"`)
+      }
     }
   } finally {
     await context.close()
@@ -580,6 +615,11 @@ async function main(): Promise<void> {
       const rests = await page.locator('.sk-on .sk-time').count()
       const boosts = await page.locator('.sk-on .sk-boost b').count()
       const manual = await page.locator('.sk-manual').count()
+      // WHAT THE GEAR ADDS, BY NAME. The fixture wears a weapon whose lines
+      // name two skills of its own class, so the rows for those skills must
+      // answer back — a "+22% Sink" on a pauldron that no screen acknowledges
+      // is a number again.
+
 
       // THE CHOICE HAS TO REACH THE SAVE, and reading the screen back cannot
       // prove that: a list that renders, responds to a tap and writes nothing
