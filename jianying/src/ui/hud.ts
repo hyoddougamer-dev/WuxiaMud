@@ -94,7 +94,7 @@ export interface Hud {
    * that does nothing. Splitting them into two methods is how a HUD comes to
    * claim readiness it cannot deliver.
    */
-  setBar(bar: SkillBar, shi: number, fired?: readonly number[]): void
+  setBar(bar: SkillBar, shi: number, maxShi: number, fired?: readonly number[]): void
   /**
    * Which postures hold right now, so each tile can show whether its boost is
    * being paid.
@@ -341,7 +341,7 @@ export function createHud(root: HTMLElement): Hud {
   const again = root.querySelector<HTMLButtonElement>('.over-again')!
   const artsEl = root.querySelector<HTMLElement>('.hud-arts')!
   const shiEl = root.querySelector<HTMLElement>('.hud-shi')!
-  const shiPips = Array.from(shiEl.querySelectorAll<HTMLElement>('i'))
+  let shiPips = Array.from(shiEl.querySelectorAll<HTMLElement>('i'))
   const gate = root.querySelector<HTMLElement>('.gate')!
   const gateBank = root.querySelector<HTMLButtonElement>('.gate-bank')!
   const gatePush = root.querySelector<HTMLButtonElement>('.gate-push')!
@@ -457,7 +457,7 @@ export function createHud(root: HTMLElement): Hud {
     onCast(handler) {
       castHandler = handler
     },
-    setBar(bar, shi, fired) {
+    setBar(bar, shi, maxShi, fired) {
       // Rebuilt only when the SET of skills changes; the per-frame work below
       // is a handful of class toggles and three transform writes.
       const key = bar.slots.map((s) => s.skill?.id ?? '-').join(',')
@@ -497,6 +497,13 @@ export function createHud(root: HTMLElement): Hud {
           castSeal.textContent = manual.seal
           castCost.innerHTML = '&#9679;'.repeat(manual.cost)
         }
+      }
+      // THE PIPS ARE DRAWN TO THE POOL, not to a constant. The Wheel's 渊 node
+      // raises the ceiling, and a fifth point banked into a rail of four is a
+      // point the player earned, spent on, and cannot see.
+      if (shiPips.length !== maxShi) {
+        shiEl.innerHTML = '<i></i>'.repeat(Math.max(1, maxShi))
+        shiPips = Array.from(shiEl.querySelectorAll<HTMLElement>('i'))
       }
       const banked = Math.floor(shi)
       for (let i = 0; i < barTiles.length; i++) {

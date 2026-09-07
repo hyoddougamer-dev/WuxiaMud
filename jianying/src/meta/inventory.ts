@@ -19,7 +19,32 @@
  * a baseId forever without either being the other.
  */
 import { ITEM_BY_ID, type Item, type Slot } from '../data/items'
-import { type Affix, affixWeight } from '../data/affixes'
+import { AFFIX_BY_KIND, namesSkill, type Affix, affixWeight } from '../data/affixes'
+import { SKILL_BY_ID } from '../data/skills'
+
+/**
+ * Drops lines a save should not be carrying.
+ *
+ * A line naming a skill this build no longer has is worse than no line: the
+ * sheet would print a raw id, the simulation would silently never match it, and
+ * the player would be wearing a piece whose best row does nothing. Dropping it
+ * is honest — the piece reads as having fewer lines, which it does.
+ */
+function sanitiseAffixes(raw: unknown): Affix[] {
+  if (!Array.isArray(raw)) return []
+  const out: Affix[] = []
+  for (const affix of raw as Affix[]) {
+    if (!affix || !AFFIX_BY_KIND.has(affix.kind)) continue
+    if (typeof affix.amount !== 'number' || !Number.isFinite(affix.amount)) continue
+    if (namesSkill(affix.kind)) {
+      if (typeof affix.skill !== 'string' || !SKILL_BY_ID.has(affix.skill)) continue
+      out.push({ kind: affix.kind, amount: affix.amount, skill: affix.skill })
+    } else {
+      out.push({ kind: affix.kind, amount: affix.amount })
+    }
+  }
+  return out
+}
 import { MAX_RARITY, type Rarity } from '../data/rarity'
 
 /**
@@ -190,13 +215,13 @@ export function sanitise(inv: Inventory): Inventory {
     // A hand-edited save can repeat a uid, and two rows sharing one would make
     // `equipped` ambiguous about which piece is actually on.
     if (seen.has(entry.uid)) continue
-    if (!Array.isArray(entry.affixes) || entry.affixes.length === 0) continue
+    if (!Array.isArray(entry.affixes) || sanitiseAffixes(entry.affixes).length === 0) continue
     seen.add(entry.uid)
     owned.push({
       uid: entry.uid,
       baseId: entry.baseId,
       rarity: Math.max(0, Math.min(MAX_RARITY, Math.floor(entry.rarity) || 0)) as Rarity,
-      affixes: entry.affixes,
+      affixes: sanitiseAffixes(entry.affixes),
       power: typeof entry.power === 'string' ? entry.power : null,
       depth: Math.max(1, Math.floor(entry.depth) || 1),
     })

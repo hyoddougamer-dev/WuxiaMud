@@ -23,6 +23,8 @@
  * everything the player owns into every tick.
  */
 import type { OwnedItem } from '../meta/inventory'
+import { namesSkill } from '../data/affixes'
+import { linesFor, type Boons } from './talents'
 import { DEFAULT_WEAPON, type Strike, type WeaponClass } from '../data/weapons'
 import { type Attributes, emptyAttributes } from '../meta/character'
 import { BASE_PICKUP_RADIUS } from './pickups'
@@ -374,6 +376,34 @@ export function wornShape(worn: readonly Worn[]): WornShape {
   // once, where it is spent, so gear and attributes share one ceiling instead
   // of each having a private one that the other could sail past.
   out.reach = Math.min(1.5, out.reach)
+  return out
+}
+
+/**
+ * Folds the SKILL LINES on the worn pieces into `out`.
+ *
+ * Separate from `deriveStats` because these are not stats: they belong to one
+ * named skill, and a sheet of fifteen numbers has no row for "Mountain costs
+ * one less". They land in the same `Boons` struct the Wheel fills, so the
+ * simulation asks one question in one place — see sim/talents.ts.
+ *
+ * Clears `perSkill` first, and only that: the Wheel's fold owns the rest of the
+ * struct and clearing it here would make the order of two folds matter.
+ */
+export function foldGearSkills(worn: readonly OwnedItem[], out: Boons): Boons {
+  out.perSkill.clear()
+  for (const entry of worn) {
+    for (const affix of entry.affixes) {
+      if (!namesSkill(affix.kind) || !affix.skill) continue
+      const lines = linesFor(out, affix.skill)
+      if (affix.kind === 'skillPower') lines.power += affix.amount / 100
+      else if (affix.kind === 'skillCost') lines.cost -= affix.amount
+      // Multiplied, so two pieces cutting rest approach zero without reaching
+      // it. Additive reduction reaches a cooldown of nothing, and a skill with
+      // no rest is a skill with no rhythm.
+      else lines.rest *= 1 - Math.min(0.6, affix.amount / 100)
+    }
+  }
   return out
 }
 

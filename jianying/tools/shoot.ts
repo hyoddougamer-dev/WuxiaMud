@@ -547,7 +547,10 @@ async function main(): Promise<void> {
     await tabs.first().click()
     await page.waitForTimeout(200)
     console.log(`hub:    ${tabCount} tabs, ${placeCount} places`)
-    if (tabCount !== 4) console.warn('warn:   expected four tabs')
+    // FIVE since the Wheel earned one. A wrong count here is a tab that failed
+    // to render, which on this screen looks exactly like a tab that was never
+    // meant to exist.
+    if (tabCount !== 5) console.warn(`warn:   expected five tabs, saw ${tabCount}`)
     if (placeCount !== 5) console.warn('warn:   expected five places on the world tab')
 
     // --- 法, and the fact that ranking there actually STICKS ---------------
@@ -632,6 +635,74 @@ async function main(): Promise<void> {
         console.log(
           `skills: 法 tab ${slotted} slotted + ${known} known with cost, power, rest and ` +
             `boost; tap wrote ${afterDrop.join(',')} then ${afterTake.join(',')}`,
+        )
+      }
+      await tabs.first().click()
+      await page.waitForTimeout(200)
+    }
+
+    // --- 轮 the Wheel -----------------------------------------------------
+    // A radial board of nineteen nodes with three gating rules is the shape of
+    // screen where "it renders" and "it works" are furthest apart. So: read the
+    // board, take a point, read the SAVE back, then respec and read it again.
+    const wheelTab = page.locator('.hub-tabs .tab', { hasText: 'Wheel' })
+    if ((await wheelTab.count()) === 0) {
+      console.error('wheel:  no 轮 tab in the hub')
+      process.exitCode = 1
+    } else {
+      await wheelTab.first().click()
+      await page.waitForTimeout(250)
+      const nodes = await page.locator('.wh-node').count()
+      const keys = await page.locator('.wh-key').count()
+      const lockedAtStart = await page.locator('.wh-locked').count()
+      const spent = async (): Promise<Record<string, number>> =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('jianying.save.v2')
+          return raw ? ((JSON.parse(raw).swordsmen?.[0]?.wheel ?? {}) as Record<string, number>) : {}
+        })
+      // The sheet has to open BEFORE a point can be spent — two steps on
+      // purpose, since a 30px target on a radial board is not something to
+      // spend an irreversible point on by accident.
+      const takeVisibleFirst = async (): Promise<void> => {
+        await page.locator('.wh-node:not(.wh-locked)').first().click()
+        await page.waitForTimeout(200)
+        const take = page.locator('.wh-take')
+        if (await take.isEnabled().catch(() => false)) await take.click()
+        await page.waitForTimeout(250)
+      }
+      const before = await spent()
+      await takeVisibleFirst()
+      const afterTake = await spent()
+      await page.screenshot({ path: join(OUT, 'hub-wheel.png') })
+      const respecButton = page.locator('.wh-respec')
+      const canRespec = await respecButton.isVisible().catch(() => false)
+      if (canRespec) {
+        await respecButton.click()
+        await page.waitForTimeout(250)
+      }
+      const afterRespec = await spent()
+      const sum = (w: Record<string, number>): number =>
+        Object.values(w).reduce((a, b) => a + b, 0)
+      const wired =
+        nodes >= 12 &&
+        keys === 4 &&
+        // Ring 2 and 3 start out of reach on every arm, which is what makes the
+        // gates a real shape rather than a label.
+        lockedAtStart >= 8 &&
+        sum(afterTake) === sum(before) + 1 &&
+        canRespec &&
+        sum(afterRespec) === 0
+      if (!wired) {
+        console.error(
+          `wheel:  not wired — ${nodes} nodes, ${keys} keystones, ${lockedAtStart} locked, ` +
+            `save ${sum(before)} -> ${sum(afterTake)} -> ${sum(afterRespec)}, ` +
+            `respec ${canRespec ? 'shown' : 'MISSING'}`,
+        )
+        process.exitCode = 1
+      } else {
+        console.log(
+          `wheel:  ${nodes} nodes (${keys} keystones, ${lockedAtStart} out of reach); ` +
+            `took a point, respec put it back`,
         )
       }
       await tabs.first().click()

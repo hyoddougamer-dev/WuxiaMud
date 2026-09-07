@@ -44,14 +44,28 @@ const FILL_PER_SECOND = 0.62
 const TURN_BONUS = 0.35
 
 export interface Shi {
-  /** 0..MAX_SHI, fractional. The HUD floors it; spending needs whole points. */
+  /** 0..`max`, fractional. The HUD floors it; spending needs whole points. */
   value: number
+  /**
+   * The ceiling, which the Wheel can raise. MAX_SHI plus whatever 渊 adds.
+   *
+   * Carried on the pool rather than read from a constant, because the HUD has
+   * to draw exactly this many pips: a pool of five drawn as four is a point the
+   * player earned, banked and cannot see.
+   */
+  max: number
   /** Whole points available to spend right now. */
   readonly ready: number
 }
 
-export function createShi(): Shi {
-  return { value: 0, get ready() { return Math.floor(this.value) } }
+export function createShi(max = MAX_SHI): Shi {
+  return {
+    value: 0,
+    max: Math.max(1, Math.round(max)),
+    get ready() {
+      return Math.floor(this.value)
+    },
+  }
 }
 
 export interface ShiInput {
@@ -59,13 +73,39 @@ export interface ShiInput {
   pace: number
   /** True on the frame a hard reversal is detected. See sim/conditions. */
   turned: boolean
+  /** Multiplier on the fill rate. 1 with an empty Wheel. */
+  fill?: number
+  /**
+   * Fraction of the running rate earned while STANDING STILL.
+   *
+   * Zero unless the 定心 keystone is held, and that keystone is the whole
+   * reason this parameter exists: it inverts the loop the resource is built on,
+   * which is a thing a keystone should be able to do and a stat should not.
+   */
+  stillFill?: number
+  /** Extra 势 on a reversal, beyond TURN_BONUS. */
+  turnGain?: number
 }
 
-/** Advances the pool. Returns nothing: `shi.value` is the whole state. */
+/**
+ * Advances the pool. Returns nothing: `shi.value` is the whole state.
+ *
+ * The still-fill floor is applied to the PACE, not added afterwards, so a
+ * swordsman drifting at a third of top speed with 定心 held earns the better of
+ * the two rather than both. Adding them would make a slow walk the best way to
+ * fill, which is neither of the two postures the game is asking about.
+ */
 export function updateShi(shi: Shi, input: ShiInput, dt: number): void {
-  const pace = Math.max(0, Math.min(1, input.pace))
-  shi.value = Math.min(MAX_SHI, shi.value + FILL_PER_SECOND * pace * dt)
-  if (input.turned) shi.value = Math.min(MAX_SHI, shi.value + TURN_BONUS)
+  const pace = Math.max(input.stillFill ?? 0, Math.max(0, Math.min(1, input.pace)))
+  shi.value = Math.min(shi.max, shi.value + FILL_PER_SECOND * (input.fill ?? 1) * pace * dt)
+  if (input.turned) {
+    shi.value = Math.min(shi.max, shi.value + TURN_BONUS + (input.turnGain ?? 0))
+  }
+}
+
+/** Puts `amount` back, never above the ceiling. Used by the 回身 refund. */
+export function refundShi(shi: Shi, amount: number): void {
+  shi.value = Math.min(shi.max, shi.value + Math.max(0, amount))
 }
 
 /**

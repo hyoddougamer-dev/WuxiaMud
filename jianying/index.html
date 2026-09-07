@@ -2133,6 +2133,16 @@
         color: rgba(13, 13, 13, 0.5);
       }
       .sk-boost b { color: rgba(13, 13, 13, 0.78); }
+      /* What the worn gear adds to THIS skill. Gold, because gold in this game
+         means "you bought this" — and it is the answer a piece that says
+         "+18% Mountain" is waiting for. */
+      .sk-gear {
+        display: block;
+        margin-top: 4px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--gold);
+      }
       .sk-seal {
         font-family: var(--display, serif);
         font-size: 14px;
@@ -2548,6 +2558,167 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
       }
+
+      /* --- 轮 the Wheel --------------------------------------------------
+         One 300x300 viewBox scaled by CSS, so every radius in hub.ts is in the
+         same made-up units and the board survives any screen width without a
+         media query. */
+      .wh-board {
+        margin: 14px 0 4px;
+        display: flex;
+        justify-content: center;
+      }
+      .wh-svg {
+        width: min(100%, 340px);
+        height: auto;
+        display: block;
+        overflow: visible;
+      }
+      .wh-rim {
+        fill: none;
+        stroke: rgba(13, 13, 13, 0.1);
+        stroke-width: 1;
+      }
+      .wh-rim-in { stroke-dasharray: 3 5; }
+      /* A spoke lights as its arm opens, so how far you have committed to an
+         arm is legible from the LINES before any node is read. */
+      .wh-spoke { stroke: rgba(13, 13, 13, 0.13); stroke-width: 2; }
+      .wh-open-2 { stroke: rgba(138, 109, 22, 0.42); }
+      .wh-open-3 { stroke: rgba(193, 39, 45, 0.5); stroke-width: 2.5; }
+
+      .wh-node { cursor: pointer; }
+      .wh-node:focus { outline: none; }
+      .wh-node:focus-visible .wh-body { stroke: var(--cinnabar); stroke-width: 3; }
+      .wh-body {
+        fill: var(--paper);
+        stroke: rgba(13, 13, 13, 0.28);
+        stroke-width: 1.5;
+        transition: fill 120ms ease, stroke 120ms ease;
+      }
+      .wh-seal {
+        font-family: var(--display, Georgia, serif);
+        font-size: 15px;
+        text-anchor: middle;
+        /* Lifted off centre, because the rank line now sits under it inside the
+           same node — centred, the two would overlap. */
+        dominant-baseline: central;
+        transform: translateY(-2px);
+        fill: rgba(13, 13, 13, 0.55);
+        pointer-events: none;
+      }
+      /* A keystone is a diamond, not a bigger circle. Shape rather than size,
+         because size on a radial board already means "further out". */
+      .wh-key .wh-body { stroke-width: 2; stroke: rgba(13, 13, 13, 0.4); }
+      .wh-key .wh-seal { font-size: 12.5px; }
+      .wh-rank {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 7.5px;
+        text-anchor: middle;
+        fill: rgba(13, 13, 13, 0.45);
+        pointer-events: none;
+      }
+      /* Taken: gold, the colour this game already spends on "you bought this".
+         Maxed goes solid, so a node with room left and one without are not the
+         same picture — the difference decides where the next point can go. */
+      .wh-taken .wh-body { fill: rgba(138, 109, 22, 0.2); stroke: var(--gold); }
+      .wh-taken .wh-seal { fill: var(--ink); }
+      .wh-maxed .wh-body { fill: var(--gold); }
+      .wh-maxed .wh-seal { fill: var(--paper); }
+      .wh-maxed .wh-rank { fill: var(--gold); }
+      /* A keystone you hold is cinnabar. It is the one node on the board that
+         changes a RULE, and it should not look like three ranks of anything. */
+      .wh-key.wh-taken .wh-body { fill: var(--cinnabar); stroke: var(--cinnabar); }
+      .wh-key.wh-taken .wh-seal { fill: var(--paper); }
+      /* Out of reach. Dashed and faint, and still readable: a player has to be
+         able to plan toward a node before the arm opens, which is most of what
+         planning a build IS. */
+      .wh-locked .wh-body {
+        fill: none;
+        stroke-dasharray: 3 3;
+        stroke: rgba(13, 13, 13, 0.22);
+      }
+      .wh-locked .wh-seal { fill: rgba(13, 13, 13, 0.28); }
+      .wh-open .wh-body { stroke: var(--cinnabar); stroke-width: 2.5; }
+
+      /* The sheet. Fixed enough in height that opening a node does not jump
+         the board out from under the thumb that just tapped it. */
+      .wh-sheet {
+        margin-top: 8px;
+        padding: 13px 14px;
+        border: 1px solid rgba(13, 13, 13, 0.16);
+        border-radius: 8px;
+        background: rgba(255, 252, 244, 0.5);
+        min-height: 132px;
+      }
+      .wh-sheet p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+      .wh-sheet-idle p { color: rgba(13, 13, 13, 0.6); }
+      .wh-sheet-idle .wh-rule {
+        margin: 10px 0 0;
+        padding-top: 10px;
+        border-top: 1px solid rgba(13, 13, 13, 0.1);
+        color: rgba(13, 13, 13, 0.75);
+      }
+      .wh-sheet-head {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .wh-sheet-seal {
+        font-family: var(--display, Georgia, serif);
+        font-size: 24px;
+        line-height: 1;
+        color: var(--cinnabar);
+        text-align: center;
+      }
+      .wh-sheet-title b { display: block; font-size: 16px; font-weight: 600; }
+      .wh-sheet-title span {
+        font-size: 11.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(13, 13, 13, 0.5);
+      }
+      .wh-sheet-rank {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 13px;
+        color: var(--gold);
+      }
+      .wh-does { font-weight: 500; }
+      /* What it costs you. Cinnabar, because every keystone charges something
+         and a player who reads only the promise has not read the node. */
+      .wh-cost { color: var(--cinnabar); font-size: 13.5px !important; }
+      .wh-take {
+        width: 100%;
+        margin-top: 4px;
+        padding: 11px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--ink);
+        color: var(--paper);
+        font: inherit;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+      .wh-take:disabled {
+        background: rgba(13, 13, 13, 0.1);
+        color: rgba(13, 13, 13, 0.45);
+        cursor: default;
+      }
+      .wh-respec {
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px dashed rgba(13, 13, 13, 0.3);
+        border-radius: 6px;
+        background: none;
+        font: inherit;
+        font-size: 13px;
+        color: rgba(13, 13, 13, 0.6);
+        cursor: pointer;
+      }
+      .wh-owed { color: var(--cinnabar) !important; }
 
       /* --- starting over ------------------------------------------------ */
       .hub-again {

@@ -23,6 +23,7 @@ import {
 import { ITEMS } from '../data/items'
 import { MAX_DEPTH } from '../data/regions'
 import { SLOTTED_SKILLS, skillsFor } from '../data/skills'
+import { sanitiseWheel } from './wheel'
 import { WEAPONS } from '../data/weapons'
 import {
   acquire,
@@ -280,6 +281,10 @@ export function parseCharacter(raw: string): Character | null {
     points: int(record.points, 0),
     spent: parseAttributes(record.spent),
     skills: parseSkills(record.skills),
+    // The wheel is sanitised against the CURRENT tables and the character's own
+    // level, so a save cannot carry ranks in a deleted node, two keystones, or
+    // more points than the swordsman has earned. See sanitiseWheel.
+    wheel: sanitiseWheel(record.wheel, int(record.level, 1, 1)),
     // NEITHER `manuals` NOR `arts` is read, and a save carrying them loses
     // them. Both named ladders this build no longer has — 秘笈 ranks, and then
     // the 器蕴 scroll the gear woke — and both climbed a number that the skill

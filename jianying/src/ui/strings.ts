@@ -224,6 +224,42 @@ export const strings = {
     'Moving fills 势 — four points under your health. Firing spends it. ' +
     'Standing still earns none, which is the whole tension.',
 
+  // --- 轮, the Wheel -----------------------------------------------------
+  wheelTitle: 'The Wheel',
+  /**
+   * The one line above the board.
+   *
+   * Says what the wheel is FOR rather than how it works. A player looking at
+   * nineteen unfamiliar seals needs to know that these change their skills, not
+   * their stats — otherwise the whole screen reads as a second attribute
+   * sheet, which is exactly what it must never be.
+   */
+  wheelNote:
+    'Nothing here is +5 damage. Every node changes what your SKILLS cost, ' +
+    'how long they run, how hard they land, or how fast 势 comes back.',
+  /** The hub of the wheel, named on a node's sheet where an arm would be. */
+  wheelCore: 'The hub',
+  /** Shown on a keystone's sheet, beside its arm. */
+  wheelKeystone: 'keystone',
+  /** With no node open. The board is unfamiliar; say what it is. */
+  wheelIdle: 'Tap a node to read it. Four arms, one for each posture that pays your skills more.',
+  /**
+   * The one rule that shapes a build, said BEFORE a point is spent.
+   *
+   * It belongs on the idle sheet rather than only on a keystone, because by
+   * the time a player is reading a keystone they have already chosen an arm.
+   */
+  wheelKeystoneRule:
+    'The four nodes on the rim are keystones. You may hold ONE, ever — that is ' +
+    'the choice that makes your swordsman a different kind of thing.',
+  wheelTake: 'Take it',
+  wheelMaxed: 'Fully taken',
+  wheelNoPoints: 'No points left',
+  /** Followed by the number of points the arm still needs. */
+  wheelLocked: 'Needs points in this arm:',
+  wheelOneKeystone: 'You already hold a keystone',
+  wheelRespec: 'Put every point back — free, always',
+
   // --- codex -------------------------------------------------------------
   codexTitle: 'The way of it',
   understood: 'Understood',

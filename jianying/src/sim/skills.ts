@@ -21,7 +21,9 @@
  */
 import { SKILL_BY_ID, SLOTTED_SKILLS, skillPower, type Skill, type SkillEffect } from '../data/skills'
 import type { Condition } from '../data/arts'
-import { spendShi, type Shi } from './shi'
+import { refundShi, spendShi, type Shi } from './shi'
+import { boostView, noTalents, type Boons } from './talents'
+import { CONDITIONS } from '../data/arts'
 import { NOVA_RADIUS, type Stats } from './loadout'
 import { addMight, copyStats, MAX_HALF_ANGLE, STEP, GRANT, CRIT_EVERY, ECHO_DELAY } from './arts'
 
@@ -38,6 +40,17 @@ export interface Slot {
 
 export interface SkillBar {
   readonly slots: Slot[]
+  /**
+   * Seconds until the 回身 refund can pay again. 0 when it can, or when no
+   * keystone grants it.
+   *
+   * On the BAR rather than on the pool, because it is a property of casting
+   * rather than of the resource — and because everything else that counts down
+   * per frame already lives here.
+   */
+  refundCooling: number
+  /** 势 the last cast spent, which is what a refund gives back. */
+  lastCost: number
 }
 
 export function createBar(ids: readonly (string | null)[] = []): SkillBar {
@@ -46,7 +59,7 @@ export function createBar(ids: readonly (string | null)[] = []): SkillBar {
     const id = ids[i]
     slots.push({ skill: (id ? SKILL_BY_ID.get(id) : null) ?? null, cooling: 0, live: 0, cast: 0 })
   }
-  return { slots }
+  return { slots, refundCooling: 0, lastCost: 0 }
 }
 
 /** The slot the player fires by hand. The last one; see the file's note. */
@@ -83,8 +96,21 @@ export function updateBar(
   active: Record<Condition, boolean>,
   wantManual: boolean,
   dt: number,
+  bonus: Boons = NO_TALENTS,
 ): CastReport {
   let fired: number[] | null = null
+  if (bar.refundCooling > 0) bar.refundCooling = Math.max(0, bar.refundCooling - dt)
+  // 回身. Checked BEFORE the casts, so a reversal pays back the cast that has
+  // already happened rather than the one about to — a refund that pre-paid its
+  // own spend would be a free cast, not a refund.
+  if (bonus.refundEvery > 0 && active.turn && bar.refundCooling <= 0 && bar.lastCost > 0) {
+    refundShi(shi, bar.lastCost)
+    bar.refundCooling = bonus.refundEvery
+    bar.lastCost = 0
+  }
+  // 破围 turns every boost on at once. One place decides it, so the tile, the
+  // hub row and the arithmetic cannot disagree — see boostView.
+  const paying = boostView(active, bonus)
   for (let i = 0; i < bar.slots.length; i++) {
     const slot = bar.slots[i]!
     if (slot.cooling > 0) slot.cooling = Math.max(0, slot.cooling - dt)
@@ -93,17 +119,59 @@ export function updateBar(
     if (!skill || slot.cooling > 0) continue
     const wants = i === MANUAL_SLOT ? wantManual : true
     if (!wants) continue
-    if (!spendShi(shi, skill.cost)) continue
-    slot.cooling = skill.cooldown
+    const cost = costOf(skill, bonus)
+    if (!spendShi(shi, cost)) continue
+    bar.lastCost = cost
+    slot.cooling = restOf(skill, bonus)
     // FROZEN AT THE CAST. The posture that paid for it is the one you were in
     // when you fired, not the one you drift into afterwards — otherwise a
     // four-second buff would flicker in strength as the player moved, which is
     // both unreadable and impossible to plan around.
-    slot.cast = skillPower(skill, active)
-    slot.live = Math.max(dt, skill.duration)
+    slot.cast = skillPower(skill, paying) + powerBonus(skill, paying, bonus)
+    slot.live = Math.max(dt, skill.duration * bonus.duration)
     ;(fired ??= []).push(i)
   }
   return fired ? { fired } : NOTHING
+}
+
+/** A frozen empty wheel, so the default argument allocates nothing per frame. */
+const NO_TALENTS: Boons = noTalents()
+
+/**
+ * What a skill costs with the Wheel folded in. Never below zero.
+ *
+ * 无踪 takes a point off every cost, which makes the one-点 skills FREE — and
+ * that is the keystone's whole promise, so the floor is zero rather than one.
+ */
+export function costOf(skill: Skill, bonus: Boons): number {
+  return Math.max(0, skill.cost + bonus.cost + (bonus.perSkill.get(skill.id)?.cost ?? 0))
+}
+
+/** What a skill's rest is, with the Wheel and the gear that names it folded in. */
+export function restOf(skill: Skill, bonus: Boons): number {
+  return skill.cooldown * bonus.cooldown * (bonus.perSkill.get(skill.id)?.rest ?? 1)
+}
+
+/**
+ * What the Wheel adds to a skill's power, in the same unit the skill states.
+ *
+ * ADDED TO THE READING rather than multiplied into it, so a node that says
+ * "+9% skill power while still" moves a 55% damage skill to 64% — a figure the
+ * player can add up in their head from two lines they have both read. A
+ * multiplier would make the node's own number untrue on every skill.
+ */
+export function powerBonus(
+  skill: Skill,
+  paying: Record<Condition, boolean>,
+  bonus: Boons,
+): number {
+  let extra = bonus.powerAlways + (bonus.perSkill.get(skill.id)?.power ?? 0)
+  for (const cond of CONDITIONS) {
+    if (paying[cond.id]) extra += bonus.power[cond.id]
+  }
+  // In the skill's own unit: a percentage skill takes a percentage, a skill
+  // measured in blades takes a proportion of its blades.
+  return skill.power * extra
 }
 
 /**
@@ -113,7 +181,13 @@ export function updateBar(
  * constants are literally its constants — imported rather than copied, so the
  * two can never drift while both exist.
  */
-export function applySkills(base: Stats, bar: SkillBar, out: Stats, runLevel = 1): Stats {
+export function applySkills(
+  base: Stats,
+  bar: SkillBar,
+  out: Stats,
+  runLevel = 1,
+  bonus: Boons = NO_TALENTS,
+): Stats {
   copyStats(base, out)
   // 内力 folded in HERE rather than into `base`, and that is not tidiness. The
   // run's levels are a running total; adding them to the permanent block would
@@ -198,6 +272,16 @@ export function applySkills(base: Stats, bar: SkillBar, out: Stats, runLevel = 1
         break
     }
   }
+  // THE WHEEL'S FLAT LEVERS, folded AFTER the skills.
+  //
+  // After, not before, and the order is a decision: armour subtracts from a
+  // blow and `damageScale` multiplies what is left, so a guard skill and the
+  // 岿 node compound rather than one overwriting the other. Movement is
+  // multiplied last for the same reason — 捷 is worth the same proportion
+  // whatever a speed skill has already done.
+  out.armour += bonus.armour
+  out.moveSpeed *= bonus.move
+  out.damageScale *= bonus.taken
   return out
 }
 

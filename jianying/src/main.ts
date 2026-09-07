@@ -39,7 +39,7 @@ import { Bolts } from './sim/projectiles'
 import { Hazards } from './sim/hazards'
 import { Drops } from './sim/drops'
 import { HURT_IMMUNITY, ORBIT_RADIUS, SLASH_VISUAL, createRun, updateCombat } from './sim/combat'
-import { deriveStats } from './sim/loadout'
+import { deriveStats, foldGearSkills } from './sim/loadout'
 import { xpForLevel } from './data/insight'
 import { createPlayer, playerSpeed, playerSpeedRatio, updatePlayer } from './sim/player'
 import {
@@ -53,7 +53,8 @@ import { SURROUND_RADIUS, activeSeals, createSense, senseConditions } from './si
 
 import { MIGHT } from './sim/arts'
 import type { SkillEffect } from './data/skills'
-import { createShi, updateShi } from './sim/shi'
+import { MAX_SHI, createShi, updateShi } from './sim/shi'
+import { foldTalents, noTalents } from './sim/talents'
 import { applySkills, bladeIsHot, createBar, liveEffects, updateBar } from './sim/skills'
 import { castLook, createCasts } from './render/casts'
 import {
@@ -268,8 +269,18 @@ async function boot(): Promise<void> {
    * simulation is reading. See the dataset.base line.
    */
   const EMPTY_BAR = createBar()
-  /** 势 — filled by moving, spent by firing. See sim/shi.ts. */
-  const shi = createShi()
+  /**
+   * What the Wheel adds up to, folded once and read every frame.
+   *
+   * Refreshed with the kit rather than per frame: nineteen nodes walked sixty
+   * times a second is the exact cost `deriveStats` exists to avoid, and the
+   * board cannot change during an expedition.
+   */
+  const talents = noTalents()
+  foldTalents(character.wheel, talents)
+  foldGearSkills(kit.worn, talents)
+  /** 势 — filled by moving, spent by firing. The Wheel can raise the pool. */
+  let shi = createShi(MAX_SHI + talents.maxShi)
   /**
    * The three slotted skills. Two fire themselves, the third waits for the
    * button; see sim/skills.ts.
@@ -294,6 +305,18 @@ async function boot(): Promise<void> {
    */
   const refreshKit = (): void => {
     stats = deriveStats(kit)
+    foldTalents(character.wheel, talents)
+    // The gear's skill lines, folded into the SAME struct. Refreshed here
+    // rather than at the start of an expedition because a piece can go on
+    // mid-run — see the pickup handler.
+    foldGearSkills(kit.worn, talents)
+    // A raised ceiling has to reach the pool AND the pips. Rebuilt rather than
+    // patched so `max` and `value` can never disagree about which is bigger.
+    if (shi.max !== MAX_SHI + talents.maxShi) {
+      const carried = shi.value
+      shi = createShi(MAX_SHI + talents.maxShi)
+      shi.value = Math.min(shi.max, carried)
+    }
     const wanted = barFor(character, kit.weapon.id)
     // Only when the SET actually changes, so a level-up does not silently wipe
     // every cooldown the player has spent the last ten seconds waiting out.
@@ -810,6 +833,8 @@ async function boot(): Promise<void> {
     paceLastFrame = 0
     wantCast = false
     shi.value = 0
+    bar.refundCooling = 0
+    bar.lastCost = 0
     for (const slot of bar.slots) {
       slot.cooling = 0
       slot.live = 0
@@ -1053,10 +1078,20 @@ async function boot(): Promise<void> {
     // on a move that depends on the speed skill. One frame of lag at 60Hz is
     // sixteen milliseconds — not a thing anyone can feel, and the only way out
     // of the circle.
-    updateShi(shi, { pace: paceLastFrame, turned: sense.active.turn }, dt)
-    const report = updateBar(bar, shi, sense.active, wantCast, dt)
+    updateShi(
+      shi,
+      {
+        pace: paceLastFrame,
+        turned: sense.active.turn,
+        fill: talents.fill,
+        stillFill: talents.stillFill,
+        turnGain: talents.turnGain,
+      },
+      dt,
+    )
+    const report = updateBar(bar, shi, sense.active, wantCast, dt, talents)
     wantCast = false
-    applySkills(stats, bar, live, run.level)
+    applySkills(stats, bar, live, run.level, talents)
     for (const index of report.fired) {
       const skill = bar.slots[index]?.skill
       if (!skill) continue
@@ -1676,7 +1711,7 @@ async function boot(): Promise<void> {
     // `bar` IS what updateBar reads each frame, so the strip and the simulation
     // cannot disagree about what is in hand — the exact class of lie this
     // project keeps having to dig out.
-    ui.setBar(bar, shi.value, firedThisFrame)
+    ui.setBar(bar, shi.value, shi.max, firedThisFrame)
     firedThisFrame.length = 0
     ui.setPostures(sense.active)
     ui.setDodge(dodgeCharge(dodge))
@@ -1823,7 +1858,7 @@ async function boot(): Promise<void> {
         `${s.critEvery},${s.echoDamage.toFixed(2)},${s.pushForce.toFixed(0)},` +
         `${s.damageScale.toFixed(2)},${s.healPerKill.toFixed(2)},${s.pickupRadius.toFixed(0)}`
       document.body.dataset.live = vector(live)
-      applySkills(stats, EMPTY_BAR, resting, run.level)
+      applySkills(stats, EMPTY_BAR, resting, run.level, talents)
       document.body.dataset.base = vector(resting)
       // Published so a performance report can be turned into a measurement.
       // "It stutters on my phone" is unactionable; "render costs 9ms with 240

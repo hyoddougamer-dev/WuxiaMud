@@ -26,6 +26,7 @@ import { emptyInventory, type Inventory } from './inventory'
 import { DEFAULT_LOOK, type Look } from './look'
 import { LEVELS_PER_REALM, isRealmAdvance } from './realms'
 import { DEFAULT_SCHOOL } from './schools'
+import type { Wheel } from '../data/talents'
 
 /** The four things a point can be spent on. */
 export type AttributeId = 'body' | 'edge' | 'swift' | 'spirit'
@@ -91,6 +92,18 @@ export interface Character {
   points: number
   spent: Attributes
   /**
+   * 势轮 — ranks taken on the Wheel, keyed by talent id.
+   *
+   * A SECOND, SEPARATE currency from `points`, and that separation is the whole
+   * reason both are interesting. One pool would make every level "stats or
+   * build?", which is a false choice dressed as a real one: a player who wants
+   * a keystone would be choosing to be weaker to get it. Both tracks advance
+   * on their own, and what the player decides is the shape of each.
+   *
+   * See data/talents.ts for the board and meta/wheel.ts for what may be spent.
+   */
+  wheel: Wheel
+  /**
    * The three skills slotted, per weapon, in the order they sit on the bar.
    *
    * Keyed by weapon because a skill belongs to a class: picking up flying
@@ -148,6 +161,7 @@ export function createCharacter(
     points: 1,
     spent: emptyAttributes(),
     skills: {},
+    wheel: {},
     depth: 1,
     runs: 0,
     bestSeconds: 0,

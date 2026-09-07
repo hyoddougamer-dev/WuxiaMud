@@ -25,14 +25,46 @@
 import type { AttributeId } from '../meta/character'
 import { type Rarity, hasNamedPower, rarityOf } from './rarity'
 import type { Rng } from '../core/rng'
+import { SKILLS, SKILL_BY_ID } from './skills'
 
-/** The four attributes, plus the three things that change the sweep's shape. */
-export type AffixKind = AttributeId | 'reach' | 'haste' | 'vigour'
+/**
+ * The four attributes, the three that shape the sweep, and the three that NAME
+ * A SKILL.
+ *
+ * The last three are what turn a piece of gear from a number into a decision.
+ * "+9 Body" is a bigger version of what you already had; "+18% Mountain" points
+ * at one of the three things on your bar and asks whether it is worth building
+ * around — which is the loop every ARPG in the reference set runs on and the
+ * one this game's loot did not have.
+ */
+export type AffixKind =
+  | AttributeId
+  | 'reach'
+  | 'haste'
+  | 'vigour'
+  | 'skillPower'
+  | 'skillCost'
+  | 'skillRest'
 
 export interface Affix {
   readonly kind: AffixKind
   /** Attributes are flat points; reach and haste are percents; vigour is health. */
   readonly amount: number
+  /**
+   * Which skill this line names, for the three kinds that name one.
+   *
+   * ROLLED FROM THE WHOLE ROSTER, not from what the finder can use, and that is
+   * deliberate. A line that always matched would be a flat bonus wearing a
+   * skill's name; a line that might not is the thing that makes a drop worth
+   * reading — you either build toward it or you keep looking. The sheet says
+   * the skill's name plainly, so a piece is never a mystery, only a mismatch.
+   */
+  readonly skill?: string
+}
+
+/** True when the kind names a skill and is worthless without one. */
+export function namesSkill(kind: AffixKind): boolean {
+  return kind === 'skillPower' || kind === 'skillCost' || kind === 'skillRest'
 }
 
 interface AffixSpec {
@@ -71,6 +103,16 @@ const SPECS: readonly AffixSpec[] = [
   { kind: 'vigour', seal: '命', name: 'Health', base: 14, perDepth: 0.5, weight: 70 },
   { kind: 'reach', seal: '远', name: 'Sweep reach', base: 4, perDepth: 0.35, weight: 42 },
   { kind: 'haste', seal: '疾', name: 'Sweep speed', base: 3, perDepth: 0.35, weight: 42 },
+  // The three that name a skill. Scarcer than the attributes and commoner than
+  // reach: they are the interesting lines, and a bag where every piece named a
+  // skill would make the four attributes the filler nobody reads — which is the
+  // note directly above, applied to the newer kind.
+  { kind: 'skillPower', seal: '增', name: 'skill power', base: 9, perDepth: 0.3, weight: 58 },
+  // Flat and small on purpose. A cost line is worth far more than its number
+  // says — a 2-点 skill at 1 fires twice as often out of the same pool — so it
+  // rolls 1 at every depth and the roll decides only whether you get one.
+  { kind: 'skillCost', seal: '省', name: '势 cost', base: 1, perDepth: 0, weight: 26 },
+  { kind: 'skillRest', seal: '疾', name: 'rest', base: 8, perDepth: 0.25, weight: 44 },
 ] as const
 
 export const AFFIX_SPECS = SPECS
@@ -78,13 +120,29 @@ export const AFFIX_BY_KIND = new Map(SPECS.map((s) => [s.kind, s]))
 
 /** True when the kind reads as a percentage rather than a flat number. */
 export function isPercent(kind: AffixKind): boolean {
-  return kind === 'reach' || kind === 'haste'
+  return kind === 'reach' || kind === 'haste' || kind === 'skillPower' || kind === 'skillRest'
 }
 
-/** The line as the player reads it: "+5 Body", "+8% sweep reach". */
+/**
+ * The line as the player reads it.
+ *
+ * "+5 Body" · "+8% sweep reach" · "+18% Mountain" · "−1 势 Sink" ·
+ * "−12% rest · Guardian Blades"
+ *
+ * A skill line leads with the NAME, not the seal, because a player scanning a
+ * bag is looking for one of three words they chose on another screen. The two
+ * that make a skill better are drawn as reductions with a real minus sign — a
+ * "+12% rest" line reads as a downside at a glance and is the opposite.
+ */
 export function affixLine(affix: Affix): string {
   const spec = AFFIX_BY_KIND.get(affix.kind)
   if (!spec) return ''
+  if (namesSkill(affix.kind)) {
+    const name = affix.skill ? (SKILL_BY_ID.get(affix.skill)?.name ?? affix.skill) : '—'
+    if (affix.kind === 'skillPower') return `+${affix.amount}% ${name}`
+    if (affix.kind === 'skillCost') return `−${affix.amount} 势 · ${name}`
+    return `−${affix.amount}% rest · ${name}`
+  }
   return isPercent(affix.kind)
     ? `+${affix.amount}% ${spec.name.toLowerCase()}`
     : `+${affix.amount} ${spec.name}`
@@ -132,7 +190,13 @@ export function rollAffixes(rarity: Rarity, depth: number, rng: Rng): Affix[] {
       }
     }
     const spec = pool.splice(index, 1)[0]!
-    out.push({ kind: spec.kind, amount: rollAmount(spec.kind, depth, rng.next(), tier.potency) })
+    const amount = rollAmount(spec.kind, depth, rng.next(), tier.potency)
+    if (namesSkill(spec.kind)) {
+      // A skill is drawn from the WHOLE roster — see the note on Affix.skill.
+      out.push({ kind: spec.kind, amount, skill: SKILLS[Math.floor(rng.next() * SKILLS.length)]!.id })
+    } else {
+      out.push({ kind: spec.kind, amount })
+    }
   }
   return out
 }
