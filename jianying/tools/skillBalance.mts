@@ -25,7 +25,6 @@ import { TICK_S } from '../src/core/loop'
 import { Rng } from '../src/core/rng'
 import { REGIONS } from '../src/data/regions'
 import { WEAPONS } from '../src/data/weapons'
-import { CONDITION_BY_ID } from '../src/data/arts'
 import { createPlayer, playerSpeed, updatePlayer } from '../src/sim/player'
 import { Swarm } from '../src/sim/enemies'
 import { Motes } from '../src/sim/pickups'
@@ -33,10 +32,12 @@ import { Bolts } from '../src/sim/projectiles'
 import { Hazards } from '../src/sim/hazards'
 import { createRun, updateCombat } from '../src/sim/combat'
 import { deriveStats } from '../src/sim/loadout'
-import { SKILL_BY_ID, defaultBar } from '../src/data/skills'
+import { defaultBar } from '../src/data/skills'
 import { MIGHT } from '../src/sim/arts'
-import { createShi, updateShi } from '../src/sim/shi'
-import { MANUAL_SLOT, applySkills, createBar, updateBar } from '../src/sim/skills'
+import { MAX_SHI, createShi, updateShi } from '../src/sim/shi'
+import { MANUAL_SLOT, applySkills, costOf, createBar, updateBar } from '../src/sim/skills'
+import { foldTalents, noTalents } from '../src/sim/talents'
+import type { Wheel } from '../src/data/talents'
 import { SURROUND_RADIUS, createSense, senseConditions } from '../src/sim/conditions'
 import { emptyAttributes } from '../src/meta/character'
 
@@ -50,6 +51,21 @@ import { emptyAttributes } from '../src/meta/character'
 const SEEDS = [4242, 90210, 31337, 8675309, 1618, 271828]
 /** One place for every row, so the only thing varying is the weapon. */
 const REGION = REGIONS[0]!
+/**
+ * How long a row is allowed to run before it is called a survival.
+ *
+ * TEN MINUTES IS NOW THE BINDING CONSTRAINT ON MOST ROWS, and that is a
+ * finding rather than a setting. With the Wheel folded in, ten of the sixteen
+ * keystone columns sat exactly on this ceiling — so the tool can still say the
+ * bar and the wheel are worth taking, and can no longer tell two good builds
+ * apart. The one row that is not saturated (the greatsword under `kite`) shows
+ * a real spread: 330 plain, 339 to 505 across the four keystones.
+ *
+ * Raising it is not free — every row is a full simulated expedition, and the
+ * whole tool already takes about fifteen minutes. Left where it is, and
+ * written down, so the next person reading a wall of 600s knows it is the
+ * ceiling talking and not the build.
+ */
 const SECONDS = 600
 
 type Pilot = (t: number) => [number, number]
@@ -98,10 +114,36 @@ interface Result {
  *         the difference between the columns can only be the skills.
  *   bar   the default three, with the manual slot fired the instant it can be
  */
-type Growth = 'bare' | 'bar'
+type Growth = 'bare' | 'bar' | 'still' | 'run' | 'turn' | 'ring'
+
+/**
+ * A full wheel per keystone, spent the way a player would reach one.
+ *
+ * Six points into the arm to open the rim, then the keystone, then the hub —
+ * which is the cheapest legal route to each of the four, and therefore the one
+ * a build guide would print. Same total spend on every row, so the columns
+ * differ by WHICH keystone rather than by how many points went in.
+ */
+const WHEELS: Record<string, Wheel> = {
+  still: { rooted: 3, anvil: 3, stillpoint: 1, current: 3, deepwell: 2 },
+  run: { gale: 3, swiftfoot: 3, traceless: 1, current: 3, deepwell: 2 },
+  turn: { whirl: 3, pivot: 3, aboutface: 1, current: 3, deepwell: 2 },
+  ring: { press: 3, ironring: 3, breakring: 1, current: 3, deepwell: 2 },
+}
 
 /** The worst swing any pilot produced, for the exit code below. */
 let worst = Infinity
+/** Keystone/weapon pairs that came in under the floor. */
+let keystoneFailures = 0
+/**
+ * How far under a plain bar a keystone may fall.
+ *
+ * Slightly negative on purpose. Three of the four reward a posture the robot
+ * pilots do not play for — 回身 pays only when you reverse, and neither pilot
+ * reverses on purpose — so demanding a gain from every one of them would be
+ * demanding that a keystone beat a plain bar while being used wrongly.
+ */
+const KEYSTONE_FLOOR = -8
 
 function play(weaponId: string, growth: Growth, fly: Pilot): Result {
   const seeds = SEEDS
@@ -123,11 +165,14 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
     run.hp = stats.maxHp
 
     const sense = createSense()
-    const shi = createShi()
+    const boons = noTalents()
+    foldTalents(WHEELS[growth] ?? {}, boons)
+    const shi = createShi(MAX_SHI + boons.maxShi)
     // An empty bar is how "off" is expressed, rather than a branch: the same
     // code path runs in both rows, so the delta cannot be an artefact of one
     // row taking a different route through the simulation.
-    const bar = createBar(growth === 'bar' ? defaultBar(weapon.id) : [])
+    const bar = createBar(growth === 'bare' ? [] : defaultBar(weapon.id))
+    // THE WHEEL, folded once, exactly as an expedition does it.
     const rule = REGION.rule
     const drift = rule.drift ?? 0
     let t = 0
@@ -142,12 +187,23 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
       // The same three steps in the same order as main.ts, and it matters that
       // they are the same: a tool that resolves the bar differently from the
       // game is measuring a game nobody plays.
-      updateShi(shi, { pace, turned: sense.active.turn }, TICK_S)
+      updateShi(
+        shi,
+        {
+          pace,
+          turned: sense.active.turn,
+          fill: boons.fill,
+          stillFill: boons.stillFill,
+          turnGain: boons.turnGain,
+        },
+        TICK_S,
+      )
       // THE ROBOT FIRES THE MANUAL SLOT ON SIGHT. See the file's note: this is
       // the floor, because a person would hold it for a posture that pays.
-      const manualCost = bar.slots[MANUAL_SLOT]?.skill?.cost ?? 0
-      updateBar(bar, shi, sense.active, shi.ready >= manualCost, TICK_S)
-      applySkills(stats, bar, live, run.level)
+      const manual = bar.slots[MANUAL_SLOT]?.skill
+      const manualCost = manual ? costOf(manual, boons) : 0
+      updateBar(bar, shi, sense.active, shi.ready >= manualCost, TICK_S, boons)
+      applySkills(stats, bar, live, run.level, boons)
       const topSpeed = live.moveSpeed * (rule.playerSpeed ?? 1)
       updatePlayer(player, ix, iy, TICK_S, topSpeed, Math.cos(wind) * drift, Math.sin(wind) * drift)
       pace = topSpeed > 0 ? playerSpeed(player) / topSpeed : 0
@@ -190,47 +246,69 @@ function play(weaponId: string, growth: Growth, fly: Pilot): Result {
 }
 
 for (const [pilotName, fly] of PILOTS) {
-  console.log(`\nThe skill bar — pilot "${pilotName}". ${REGION.name}, ${SEEDS.length} seeds.`)
-  console.log('weapon                secs: bare   bar   kills: bare   bar   the three slotted')
+  console.log(`\nThe bar and the Wheel — pilot "${pilotName}". ${REGION.name}, ${SEEDS.length} seeds.`)
+  console.log(
+    'weapon             bare    bar   静定心   疾无踪   转回身   围破围   best keystone',
+  )
   let bareTotal = 0
   let barTotal = 0
   for (const weapon of WEAPONS) {
-    const bare = play(weapon.id, 'bare', fly)
-    const withBar = play(weapon.id, 'bar', fly)
-    bareTotal += bare.secs
-    barTotal += withBar.secs
-    // The boost condition's SEAL, not its first letter: "still" and
-    // "surrounded" both start with s, and reading one as the other sent a
-    // whole tuning pass in the wrong direction once already.
-    const slotted = defaultBar(weapon.id)
-      .map((id) => SKILL_BY_ID.get(id)!)
-      .map((sk) => `${CONDITION_BY_ID.get(sk.boost.when)!.seal}${sk.seal}`)
-      .join(' ')
+    const rows: Record<Growth, Result> = {
+      bare: play(weapon.id, 'bare', fly),
+      bar: play(weapon.id, 'bar', fly),
+      still: play(weapon.id, 'still', fly),
+      run: play(weapon.id, 'run', fly),
+      turn: play(weapon.id, 'turn', fly),
+      ring: play(weapon.id, 'ring', fly),
+    }
+    bareTotal += rows.bare.secs
+    barTotal += rows.bar.secs
+    const keys: Growth[] = ['still', 'run', 'turn', 'ring']
+    const best = keys.reduce((a, b) => (rows[b].secs > rows[a].secs ? b : a))
+    const label: Record<string, string> = {
+      still: '定心 Stillpoint',
+      run: '无踪 Traceless',
+      turn: '回身 About-Face',
+      ring: '破围 Breaking',
+    }
     console.log(
-      `${weapon.name.padEnd(20)} ${bare.secs.toFixed(0).padStart(6)} ` +
-        `${withBar.secs.toFixed(0).padStart(5)} ` +
-        `${bare.kills.toFixed(0).padStart(9)} ${withBar.kills.toFixed(0).padStart(5)}   ${slotted}`,
+      `${weapon.name.padEnd(18)} ${rows.bare.secs.toFixed(0).padStart(4)} ` +
+        `${rows.bar.secs.toFixed(0).padStart(6)} ` +
+        keys.map((k) => rows[k].secs.toFixed(0).padStart(7)).join(' ') +
+        `   ${label[best]}`,
     )
+    // EVERY KEYSTONE HAS TO BE WORTH TAKING, and that is a real bar. A rim node
+    // that loses to a plain bar is a node the wheel would be better without —
+    // it costs six points to reach and it is the choice the whole board turns
+    // on. Reported per weapon rather than averaged, because a keystone that
+    // works on one class and not the other is exactly the interesting case.
+    for (const k of keys) {
+      const swing = ((rows[k].secs - rows.bar.secs) / rows.bar.secs) * 100
+      if (swing < KEYSTONE_FLOOR) {
+        console.error(
+          `  ! ${label[k]} on ${weapon.name} is ${swing.toFixed(0)}% against a plain bar`,
+        )
+        keystoneFailures++
+      }
+    }
   }
   const swing = ((barTotal - bareTotal) / bareTotal) * 100
-  console.log(`  the bar is worth ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival overall`)
+  console.log(`  the bar alone is worth ${swing >= 0 ? '+' : ''}${swing.toFixed(0)}% survival`)
   worst = Math.min(worst, swing)
 }
 
 /**
- * The bar, enforced HERE rather than in the suite, and that is a decision with
- * a measurement behind it.
+ * The two bars, enforced HERE rather than in the suite.
  *
- * It belongs in the suite by rights — a number nobody is required to look at
- * is a number that drifts, and the one this replaced drifted 26% without
- * anybody noticing. It is not in the suite because it cannot be made cheap: a
- * single comparison is many runs of a simulation that slows to a few thousand
- * ticks a second once a late crowd is on the grid. The suite is sixty seconds,
- * and a suite that takes four minutes is a suite that gets skipped — which is
- * how this project lost its balance tests once already.
+ * A number nobody is required to look at is a number that drifts, and the one
+ * this replaced drifted 26% without anybody noticing. It is not in the suite
+ * because it cannot be made cheap: this is forty-eight runs of a simulation
+ * that slows to a few thousand ticks a second once a late crowd is on the grid.
+ * The suite is a hundred seconds, and a suite that takes ten minutes is a suite
+ * that gets skipped — which is how this project lost its balance tests once.
  *
  * So it exits non-zero instead. Run it before shipping a change to the skills,
- * the conditions, or 势.
+ * the Wheel, the conditions, or 势.
  */
 const FLOOR = 4
 if (worst < FLOOR) {
@@ -241,9 +319,17 @@ if (worst < FLOOR) {
   )
   process.exitCode = 1
 }
+if (keystoneFailures > 0) {
+  console.error(
+    `\nFAIL: ${keystoneFailures} keystone/weapon pairs came in under ${KEYSTONE_FLOOR}%.\n` +
+      `A rim node costs six points to reach and is the choice the board turns on;\n` +
+      `one that loses to a plain bar is a node the wheel would be better without.`,
+  )
+  process.exitCode = 1
+}
 
 console.log(
   '\nThe manual slot is fired ON SIGHT here, which is the dumbest possible play —\n' +
-    'a person holds it for the posture that pays its boost. So this column is a\n' +
-    'FLOOR for what three skills are worth, not a claim about a good build.',
+    'a person holds it for the posture that pays its boost, and three of the four\n' +
+    'keystones reward exactly that. So every column is a FLOOR.',
 )
