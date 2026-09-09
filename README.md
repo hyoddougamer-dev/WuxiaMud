@@ -1,185 +1,85 @@
-# 🎮 Wuxia MUD - Browser-Based Martial Arts Game
+# Lineage
 
-A React + Vite + TypeScript browser-based MUD (Multi-User Dungeon) set in a Wuxia/Xianxia universe. Fight mobs, level up, master martial arts, and progress through 12 unique hybrid classes with deep combat systems.
+An idle cultivation game where a path is a schedule, not a power level — and where
+progress flows down a lineage from master to disciple.
 
-## 🎯 Quick Start
+**Where the APK is:** every push builds one and publishes it here, at a URL that
+never changes:
+
+<https://github.com/hyoddougamer-dev/WuxiaMud/releases/download/lineage-latest/lineage-latest.apk>
+
+It is an unsigned debug build, so Android will warn about an unknown source; you have
+to allow "install unknown apps" for whatever opens it.
+
+## Run it
 
 ```bash
 npm install
-npm run dev     # Start development server
-npm run build   # Build for production
-npm run preview # Preview production build
+npm run dev        # http://localhost:5173
+npm test           # the progress engine and the path balance
+npm run build      # typecheck + production bundle into dist/
+npm run preview    # serve the production build
 ```
 
-Server runs on `http://localhost:5173`
+## What exists today
 
----
+The vertical slice from weeks 1–7 of the plan: the Cultivate loop, both paths, realms,
+techniques, flames, the bestiary, offline progress, and the PWA shell. Lineage — the
+co-op layer the game is named after — is deliberately stubbed, because it cannot be
+built honestly without accounts and a server-owned clock.
 
-## 📚 Documentation
+| Screen | State |
+|---|---|
+| Cultivate | Complete. Realms 1–7, breakthroughs, offline accrual, the qi ring. |
+| Arts | Complete. 18 techniques, insight, slots that open as you climb. |
+| Sect | Complete. Realm ladder, three flames, ten-beast bestiary. |
+| Lineage | Stub. Shows the shape and says plainly what is missing. |
 
-**All game design documentation is organized in [`docs/gdd/`](./docs/gdd/)**
-
-- 📋 **[docs/gdd/INDEX.md](./docs/gdd/INDEX.md)** - Master index and navigation
-- 🎯 **[docs/gdd/0_OVERVIEW/](./docs/gdd/0_OVERVIEW/)** - Project overview and summaries
-- 🗡️ **[docs/gdd/1_CLASS_SYSTEM/](./docs/gdd/1_CLASS_SYSTEM/)** - All 12 classes, passives, gear
-- 📈 **[docs/gdd/2_PROGRESSION/](./docs/gdd/2_PROGRESSION/)** - Leveling and scaling
-- 👹 **[docs/gdd/3_CONTENT/](./docs/gdd/3_CONTENT/)** - Mobs, items, loot
-- ⚙️ **[docs/gdd/4_SYSTEMS/](./docs/gdd/4_SYSTEMS/)** - Game mechanics and systems
-- 🔧 **[docs/gdd/5_IMPLEMENTATION/](./docs/gdd/5_IMPLEMENTATION/)** - Code references and snippets
-
----
-
-## 🚀 Current Status
-
-### Phase 1: Complete ✅
-- 60 Gear items with stat bonuses
-- Gear system with set bonuses
-- Passive ability tracking per class
-- Element damage system
-- Combat integration
-
-### Phase 2: Complete ✅
-- Buff/Debuff engine with 5 effect types
-- Passive abilities triggering effects
-- Effect persistence and duration tracking
-- Effect resistance with level scaling
-- Combat log with effect information
-
-### Phase 3: In Progress 🔄
-- QI/Spell system with cooldowns
-- Zither ranged/magic attack patterns
-- Mob resistance integration
-- Enhanced UI for effects
-
----
-
-## 🎮 Game Features
-
-### Combat System
-- **Real-time 1.5s turn-based combat** with auto-attacks
-- **12 unique hybrid classes** with distinct playstyles
-- **5 element types** with advantage matrix (Fire beats Ice, etc.)
-- **Passive abilities** unique to each class
-- **Buff/Debuff system** with 5 status effects
-- **Gear progression** with 5 tiers per class
-
-### Classes
-```
-Swords:     Blazing Sword, Glacial Shadow, Spellfire Duelist, Toxic Viper
-Sabers:     Asura of War, Frozen Steel Guard, Verdant Blade, Wilderness Stalker
-Zithers:    Phoenix Cry, Divine Melody, Phantom Musician, Spirit Sage
-```
-
-### World
-- **44 mobs** across multiple zones
-- **29 levels** with scaling difficulty
-- **Location-based combat** with progression zones
-- **Loot system** with randomized drops
-
----
-
-## 📂 Project Structure
+## How it is arranged
 
 ```
-src/
-├── App.tsx              # Main app with combat loop
-├── components/          # UI components
-├── data/
-│   ├── constants.ts     # Game data (classes, mobs, items)
-│   ├── hybridClasses.ts # 12 class definitions
-│   ├── gearItems.ts     # 60 gear items
-│   ├── gearSystem.ts    # Gear bonus calculation
-│   ├── passiveState.ts  # Passive ability tracking
-│   ├── buffDebuffEngine.ts # Buff/debuff system
-│   ├── elementSystem.ts # Element damage and advantages
-│   ├── passiveBalance.ts # Balance reference
-│   └── helpers.ts       # Utility functions
-└── utils/               # Helper functions
+src/core/     pure game logic — no browser APIs, no React, no Date.now()
+src/ui/       React components, screens and the SVG art sprite
+src/styles/   the seventeen colours and everything built from them
+test/         the progress engine and the balance assertion between paths
 ```
 
----
+**`src/core` is the part that matters.** It is pure and free of browser APIs on
+purpose: today it runs on the client, and before any merit flows between players it
+moves to an edge function *unchanged*, with the client keeping only a display copy.
+Nothing in there may read `Date.now()`, `localStorage` or `window` — `advance(state,
+now)` takes the instant as an argument for exactly this reason.
 
-## 🔑 Key Mechanics
+That is not architectural neatness. In a solo idle game a forged clock only cheats the
+person forging it; the moment progress flows between players, it steals from someone
+real.
 
-### Passive Abilities
-Each class has a unique passive:
-- **Class 1 (Blazing Sword)**: Inferno Aura - 8% max HP damage aura, 40% burn proc
-- **Class 2 (Glacial Shadow)**: Frostbite Chain - Freeze on crit, -30% damage taken
-- ... and 10 more unique mechanics
+## The balance assertion
 
-See [docs/gdd/1_CLASS_SYSTEM/](./docs/gdd/1_CLASS_SYSTEM/) for complete list.
+`test/paths.test.ts` enforces the central design claim: Sword left alone for a day and
+Blade opened five times across a day land within 5% of each other. If a tuning change
+breaks that, the build fails. Sword and Blade are meant to be two schedules, not a
+strong option and a weak one.
 
-### Buff/Debuff Effects
-- **Burning**: 2 DoT/s per stack (max 5 stacks)
-- **Frozen**: Enemy takes 30% more damage, movement -50%
-- **Entangled**: Movement -25%, max 2 stacks
-- **Stunned**: Cannot attack, 50% damage reduction
-- **Corrupted**: 1 DoT/s per stack (max 4), longer duration
+## Android
 
-### Element System
-- 5 elements: Fire, Ice, Wood, Lightning, Void
-- Advantage matrix with 1.2x-1.3x multipliers
-- Level-based resistance scaling (5%-28%)
-- Element affinity procs (Burning, Frozen, etc.)
+The web build is the product; the APK is a wrapper around it.
 
----
+```bash
+npm run cap:sync   # build + copy into android/
+npm run cap:open   # open in Android Studio
+```
 
-## 💻 Tech Stack
+There is no Android SDK in the development container, so APKs are built in CI:
+`.github/workflows/lineage-android.yml` produces a **debug** APK on every push and
+uploads it as an artifact. A release APK needs a signing keystore, which must never be
+committed — add it as a repository secret when you want signed builds.
 
-- **React 18** with TypeScript
-- **Vite** for ultra-fast builds
-- **TailwindCSS** for styling
-- **Lucide React** for icons
-- **LocalStorage** for persistence
+## Known gaps
 
----
-
-## 🎮 How to Play
-
-1. **Select a Martial Path** (class) → Initializes passives and equipment
-2. **Navigate the world** → Move between zones with different mobs
-3. **Fight mobs** → Auto-attack every 1.5s with passive abilities triggering
-4. **Gain experience** → Level up to unlock harder zones
-5. **Collect gear** → Find better equipment for stat bonuses
-6. **Master mechanics** → Learn timing and element advantages
-
----
-
-## 📊 Current Game Stats
-
-| Metric | Count |
-|--------|-------|
-| Playable Classes | 12 |
-| Weapons | 3 (Sword, Saber, Zither) |
-| Elements | 5 (Fire, Ice, Wood, Lightning, Void) |
-| Gear Items | 60 (5 tiers per class) |
-| Mobs | 44 |
-| Levels | 29 |
-| Passive Abilities | 12 |
-| Status Effects | 5 |
-| Buff/Debuff Types | 8 |
-
----
-
-## 🤝 Contributing
-
-When adding new features:
-1. Update relevant documentation in `docs/gdd/`
-2. Follow existing code patterns in `src/data/`
-3. Test in combat system before merging
-4. Run `npm run build` to verify no TypeScript errors
-
----
-
-## 📖 For Developers
-
-- **Combat Loop**: See [App.tsx](./src/App.tsx) lines 228-360
-- **Class Definitions**: [src/data/hybridClasses.ts](./src/data/hybridClasses.ts)
-- **Effect System**: [src/data/buffDebuffEngine.ts](./src/data/buffDebuffEngine.ts)
-- **Balance Reference**: [src/data/passiveBalance.ts](./src/data/passiveBalance.ts)
-
----
-
-**Last Updated**: January 19, 2026  
-**Phase**: 2/3 Complete  
-**Status**: Production-Ready
+- **Fonts load from Google Fonts.** Fine on the web, wrong for the APK, which should
+  work offline. Self-host the four families before shipping to a store.
+- **Icons are SVG only.** Android wants PNG launcher icons at several densities.
+- **Progress is client-side.** By design for the slice, and the first thing to change.
+- **Balance numbers are placeholders.** They are shaped correctly and tuned against
+  nothing but arithmetic; real values come from a closed test.

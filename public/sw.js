@@ -1,49 +1,38 @@
-// ============================================
-// SERVICE WORKER - LÍNGYÚN DÀO
-// Online-Only PWA (no offline caching)
-// ============================================
+/* Cache-first shell so the game opens with no network — which is most of the point of
+   a PWA for an idle game. Bump CACHE on every release. */
+const CACHE = 'lineage-v1'
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg']
 
-const CACHE_NAME = 'lingyundao-shell-v1';
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
+})
 
-// Only cache the absolute minimum for install prompt
-const SHELL_CACHE = [
-  '/manifest.json',
-  '/favicon.png'
-];
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  )
+})
 
-// Install - cache only shell files for PWA install
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_CACHE))
-      .then(() => self.skipWaiting())
-  );
-});
+self.addEventListener('fetch', (e) => {
+  const req = e.request
+  if (req.method !== 'GET') return
+  const url = new URL(req.url)
+  if (url.origin !== self.location.origin) return
 
-// Activate - clean old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
+  e.respondWith(
+    caches.match(req).then((hit) => {
+      if (hit) return hit
+      return fetch(req)
+        .then((res) => {
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone()
+            caches.open(CACHE).then((c) => c.put(req, copy))
           }
+          return res
         })
-      );
-    }).then(() => self.clients.claim())
-  );
-});
-
-// Fetch - ALWAYS go to network (online-only game)
-// Only use cache as absolute fallback for shell files
-self.addEventListener('fetch', (event) => {
-  // Always fetch from network - this is an online game
-  event.respondWith(
-    fetch(event.request)
-      .catch(() => {
-        // Only return cached shell files if network fails completely
-        return caches.match(event.request);
-      })
-  );
-});
+        .catch(() => caches.match('./index.html'))
+    }),
+  )
+})
