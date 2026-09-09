@@ -1,0 +1,48 @@
+/* The seventeen colours from the art bible, plus the surfaces they sit on.
+   Nothing in the game may introduce a colour that is not declared here. */
+:root {
+  --abyss: #060911;
+  --ink: #0C1220;
+  --slate: #18202F;
+  --stone: #364256;
+  --ash: #7C8798;
+  --bone: #E9E6DC;
+
+  --t1: #7C3411; --t2: #91400F; --t3: #A64F12; --t4: #BC6016; --t5: #D0741C;
+  --t6: #E08E2C; --t7: #EDA948; --t8: #F6C673; --t9: #FCE2AA;
+
+  --jade: #35C79A;
+  --crimson: #E03E2D;
+  --demon: #8C5CF0;
+  --apex: #FFF0C4;
+
+  /* Surfaces */
+  --bg: #070A12;
+  --panel: #0E1420;
+  --panel-2: #131A28;
+  --line: #1D2634;
+  --line-soft: #151C28;
+  --text: #E9E6DC;
+  --text-soft: #98A2B2;
+  --text-faint: #6B7484;
+
+  /* The three variables every drawing reads. Set per realm at the app root. */
+  --flame-lo: var(--t3);
+  --flame-mid: var(--t6);
+  --flame-hi: var(--t9);
+
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-body: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-han: 'Noto Serif SC', serif;
+
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+/* The deviant path swaps the ramp wholesale, which is why it reads as wrong on sight. */
+.deviant {
+  --flame-lo: #3A1B6B;
+  --flame-mid: var(--demon);
+  --flame-hi: #D6C2FF;
+}
