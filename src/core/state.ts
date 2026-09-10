@@ -1,6 +1,8 @@
 import type { PathId } from './paths.ts'
+import type { Satchel } from './materials.ts'
+import type { PillBag } from './pills.ts'
 
-export const SAVE_VERSION = 1
+export const SAVE_VERSION = 2
 
 export interface PlayerState {
   readonly version: number
@@ -13,6 +15,19 @@ export interface PlayerState {
   equipped: string[]
   flame: string | null
   seenBeasts: string[]
+  /** 心魔. Rises with every qi gathered; the whole risk axis of the game. 0–100. */
+  turmoil: number
+  /** While settling, generation drops and turmoil drains. A deliberate pause. */
+  settling: boolean
+  satchel: Satchel
+  pills: PillBag
+  /** A Tribulation Pill already swallowed, waiting for the next attempt. */
+  pillPrimed: boolean
+  /** Epoch ms until which a failed tribulation still slows you. */
+  injuredUntil: number
+  /** Epoch ms the next hunt becomes available. */
+  huntReadyAt: number
+  failedTribulations: number
   /** Epoch ms. All three clocks are server-owned in production. */
   lastSeenAt: number
   lastOpenedAt: number
@@ -34,6 +49,14 @@ export function newPlayer(path: PathId, now: number): PlayerState {
     equipped: [],
     flame: null,
     seenBeasts: [],
+    turmoil: 0,
+    settling: false,
+    satchel: {},
+    pills: {},
+    pillPrimed: false,
+    injuredUntil: 0,
+    huntReadyAt: 0,
+    failedTribulations: 0,
     lastSeenAt: now,
     lastOpenedAt: now,
     lastBreakthroughAt: now,

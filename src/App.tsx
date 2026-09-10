@@ -6,7 +6,10 @@ import { Arts } from './ui/screens/Arts.tsx'
 import { Lineage } from './ui/screens/Lineage.tsx'
 import { Sect } from './ui/screens/Sect.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
-import { advance, breakThrough, equip, learn, openSession, unequip } from './core/progress.ts'
+import { advance, brew, equip, learn, openSession, takePill, toggleSettle, unequip } from './core/progress.ts'
+import { attempt, type Outcome } from './core/tribulation.ts'
+import { hunt, type Spoils } from './core/hunt.ts'
+import type { PillId } from './core/pills.ts'
 import { newPlayer, type PlayerState } from './core/state.ts'
 import { slotsAt } from './core/techniques.ts'
 import { realmColour } from './core/realms.ts'
@@ -30,11 +33,17 @@ const REPORT_FLOOR_SECONDS = 120
 
 interface Welcome { away: number; gained: number; capped: number }
 
+/** One place to draw randomness, so every roll in the game is easy to find and,
+ *  when the server takes over, easy to move. */
+const roll = () => Math.random()
+
 export default function App() {
   const [state, setState] = useState<PlayerState | null>(() => store.load())
   const [tab, setTab] = useState<Tab>('cultivate')
   const [now, setNow] = useState(() => Date.now())
   const [welcome, setWelcome] = useState<Welcome | null>(null)
+  const [trial, setTrial] = useState<Outcome | null>(null)
+  const [spoils, setSpoils] = useState<Spoils | null>(null)
   const lastSave = useRef(0)
 
   /** Bring the game forward to real time. Runs on mount and whenever the tab wakes. */
@@ -116,7 +125,17 @@ export default function App() {
       <Sprite />
       <div className="app" style={ramp}>
         {tab === 'cultivate' && (
-          <Cultivate state={state} now={now} onBreakThrough={() => setState((s) => (s ? breakThrough(s, Date.now()) : s))} />
+          <Cultivate
+            state={state}
+            now={now}
+            onSettle={() => setState((s) => (s ? toggleSettle(s) : s))}
+            onAttempt={() => setState((s) => {
+              if (!s) return s
+              const out = attempt(s, Date.now(), roll())
+              if (out.state !== s) setTrial(out)
+              return out.state
+            })}
+          />
         )}
         {tab === 'lineage' && <Lineage state={state} />}
         {tab === 'arts' && (
@@ -130,6 +149,16 @@ export default function App() {
         {tab === 'sect' && (
           <Sect
             state={state}
+            now={now}
+            onHunt={() => setState((s) => {
+              if (!s) return s
+              const got = hunt(s, Date.now(), roll())
+              if (!got) return s
+              setSpoils(got)
+              return got.state
+            })}
+            onBrew={(id: PillId) => setState((s) => (s ? brew(s, id) : s))}
+            onTakePill={(id: PillId) => setState((s) => (s ? takePill(s, id, Date.now()) : s))}
             onPickFlame={(id) => setState((s) => (s ? { ...s, flame: id } : s))}
             onWipe={() => { store.wipe(); setState(null); setTab('cultivate') }}
           />
@@ -143,6 +172,42 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        {trial && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="Tribulation">
+            <div className={`modal${trial.succeeded ? '' : ' failed'}`}>
+              <h2>{trial.succeeded ? 'The tribulation passes.' : 'The tribulation breaks you.'}</h2>
+              <p>
+                {trial.chance < 1
+                  ? `You went in at ${Math.round(trial.chance * 100)}%.`
+                  : 'The early realms give way without a fight.'}
+              </p>
+              <p>
+                {trial.succeeded
+                  ? 'The heart quiets on the far side of it, and the next realm opens.'
+                  : 'You keep the realm you had, lose almost half your stored qi, and cultivate at little more than half speed for two hours.'}
+              </p>
+              <button className="cta" onClick={() => setTrial(null)}>
+                {trial.succeeded ? 'Continue' : 'Endure it'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {spoils && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="The hunt">
+            <div className="modal">
+              <h2>{spoils.firstSighting ? `A ${spoils.beast.name}` : spoils.beast.name}</h2>
+              <p>{spoils.beast.note}</p>
+              <p>
+                Taken: <strong>{spoils.material.amount}× {spoils.material.id}</strong>, and{' '}
+                <strong>{spoils.insight}</strong> insight.
+                {spoils.firstSighting && ' Recorded in the bestiary.'}
+              </p>
+              <button className="cta" onClick={() => setSpoils(null)}>Continue</button>
+            </div>
+          </div>
+        )}
 
         {welcome && (
           <div className="scrim" role="dialog" aria-modal="true" aria-label="While you were away">

@@ -1,5 +1,7 @@
 import { Glyph } from '../art/Glyph.tsx'
-import { TECHNIQUES, slotsAt, technique } from '../../core/techniques.ts'
+import { TECHNIQUES, slotsAt, technique, upkeepOf } from '../../core/techniques.ts'
+import { modifiers } from '../../core/progress.ts'
+import { short } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
 export function Arts({ state, onLearn, onEquip, onUnequip }: {
@@ -10,6 +12,7 @@ export function Arts({ state, onLearn, onEquip, onUnequip }: {
 }) {
   const slots = slotsAt(state.realm)
   const equipped = state.equipped
+  const upkeep = modifiers(state).upkeep
 
   return (
     <div className="screen">
@@ -18,8 +21,12 @@ export function Arts({ state, onLearn, onEquip, onUnequip }: {
           <span className="k">Equipped</span>
           <span className="v num">{equipped.length} / {slots} slots</span>
         </div>
+        <div className="row">
+          <span className="k">Total upkeep</span>
+          <span className="v num crimson">−{short(upkeep)} qi/s</span>
+        </div>
         <div className="list">
-          {equipped.length === 0 && <p className="muted" style={{ fontSize: 12.5 }}>Nothing equipped. Learned arts do nothing until they sit in a slot.</p>}
+          {equipped.length === 0 && <p className="hint">Nothing equipped. Learned arts do nothing until they sit in a slot — and every slot filled costs qi per second, so a full bar is rarely the right bar.</p>}
           {equipped.map((id) => {
             const t = technique(id)!
             return (
@@ -61,8 +68,9 @@ export function Arts({ state, onLearn, onEquip, onUnequip }: {
             >
               <Glyph symbol={t.glyph} />
               <span className="cb">
-                <span className="cn">{t.name} <span className="han" style={{ fontSize: 10, color: 'var(--text-faint)' }}>{t.zh}</span></span>
+                <span className="cn">{t.name} <span className="han dim-han">{t.zh}</span></span>
                 <span className="cd">{t.text}</span>
+                <span className="cd dim">−{short(upkeepOf(t))} qi/s upkeep</span>
               </span>
               <span className={`cx${disabled ? ' dim' : ''}`}>{action}</span>
             </button>

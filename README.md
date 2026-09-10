@@ -1,6 +1,6 @@
-# Lineage
+# Ninefold 九重
 
-An idle cultivation game where a path is a schedule, not a power level — and where
+Nine realms, and an idle cultivation game where a path is a schedule, not a power level — and where
 progress flows down a lineage from master to disciple.
 
 **Where the APK is:** every push builds one and publishes it here, at a URL that
@@ -21,19 +21,32 @@ npm run build      # typecheck + production bundle into dist/
 npm run preview    # serve the production build
 ```
 
-## What exists today
+## What the game actually is
 
-The vertical slice from weeks 1–7 of the plan: the Cultivate loop, both paths, realms,
-techniques, flames, the bestiary, offline progress, and the PWA shell. Lineage — the
-co-op layer the game is named after — is deliberately stubbed, because it cannot be
-built honestly without accounts and a server-owned clock.
+Nine realms. You pick a **path** — a schedule, not a power level — and cultivate. Every
+system below exists to make one decision interesting: **when to break through.**
 
-| Screen | State |
-|---|---|
-| Cultivate | Complete. Realms 1–7, breakthroughs, offline accrual, the qi ring. |
-| Arts | Complete. 18 techniques, insight, slots that open as you climb. |
-| Sect | Complete. Realm ladder, three flames, ten-beast bestiary. |
-| Lineage | Stub. Shows the shape and says plainly what is missing. |
+| System | What it does | Why it earns its place |
+|---|---|---|
+| **Paths** 劍修 / 刀修 | Sword sharpens while untouched; Blade decays from every visit. Same daily total. | The class is a rhythm, so the game fits your life instead of demanding one. |
+| **Realms** 練氣→合體 | Seven reachable of nine. Colour of every asset warms as you climb. | Progress you can see at a glance, without reading a number. |
+| **Tribulation** 雷劫 | From realm 3, breaking through is a roll. Odds shown before you commit. | The only real decision in the game, and the reason the rest exists. |
+| **Heart demon** 心魔 | Turmoil rises as you cultivate. Past 50 it eats your rate and your odds. | The cost axis. Speed and safety pull against each other. |
+| **Settling** | Drop to 15% output to drain turmoil fast. | Makes the cost payable, at a price you feel. |
+| **Arts** | 18 techniques, six slots — each with **upkeep in qi/second**. | Upkeep is what turns a shopping list into a build. A full bar is rarely the right bar. |
+| **The hunt** 狩 | Spend stored qi on a 25-minute cooldown to take a beast. | The one active verb. Competes with breaking through for the same qi. |
+| **Pills** 丹 | Three, brewed from beast materials: quiet the heart, buy 20% of tribulation odds, bank two hours. | The sink that makes hunting matter and tribulations plannable. |
+| **Flames** 異火 | Three, each changing a *rule* rather than a number. | If it can be written as "+15% to something", it does not ship. |
+| **Bestiary** | Ten beasts, recorded by hunting them. | Earned, not unlocked by realm. |
+| **Lineage** | Deliberately a stub. | It needs accounts and a server clock; faking it locally teaches nothing. |
+
+### The loop, in one paragraph
+
+Cultivate. Turmoil rises. Around realm 3 the breakthrough becomes a gamble, and now you
+have three levers and a real choice: **wait** past the cost for surplus, **settle** to
+quiet the heart, or **hunt** for materials and brew a pill. Each costs something the
+others want — time, output, or the same stored qi. Fail and you keep the realm but lose
+half your qi and two hours to injury. Pass and the heart quiets on the other side.
 
 ## How it is arranged
 

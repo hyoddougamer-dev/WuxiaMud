@@ -1,6 +1,6 @@
 /* Cache-first shell so the game opens with no network — which is most of the point of
    a PWA for an idle game. Bump CACHE on every release. */
-const CACHE = 'lineage-v1'
+const CACHE = 'ninefold-v1'
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg']
 
 self.addEventListener('install', (e) => {

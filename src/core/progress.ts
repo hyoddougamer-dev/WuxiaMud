@@ -1,6 +1,8 @@
 import { PATHS, meanRate } from './paths.ts'
 import { realm, V1_CEILING } from './realms.ts'
-import { TECHNIQUES, technique } from './techniques.ts'
+import { TECHNIQUES, technique, upkeepOf } from './techniques.ts'
+import { PILLS, type PillId, held } from './pills.ts'
+import { canPay, pay, type Satchel } from './materials.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -15,12 +17,33 @@ export const BASE_QI_PER_SECOND = 1
 export const DEFAULT_OFFLINE_CAP_HOURS = 24
 const HOUR_MS = 3_600_000
 
+/** Turmoil above this is free; past it, cultivation starts fighting you. */
+export const TURMOIL_FREE = 50
+export const TURMOIL_MAX = 100
+/**
+ * Turmoil per hour of cultivation, scaled by how hard the path is pushing at the time.
+ *
+ * The first model tied this to qi gathered against the realm's cost, which saturated
+ * in under an hour: early realms are cheap relative to the rate, so an idle player
+ * banked twelve realms' worth of qi overnight and pinned the meter at maximum before
+ * the mechanic had said anything. Time is the honest unit — and multiplying by the
+ * path's own curve means Sword's sharpened intent and Blade's fresh momentum both
+ * cost the same calm for the same output.
+ */
+export const TURMOIL_PER_HOUR = 4
+/** Settling trades output for quiet: this share of the rate, this much drained per hour. */
+export const SETTLE_RATE = 0.15
+export const SETTLE_DRAIN_PER_HOUR = 180
+export const INJURY_RATE = 0.55
+
 export interface Modifiers {
   rate: number
   breakthrough: number
   insight: number
   offlineCapHours: number
   noDecay: boolean
+  /** Absolute qi/second consumed by equipped arts. */
+  upkeep: number
 }
 
 export function modifiers(s: PlayerState): Modifiers {
@@ -30,6 +53,7 @@ export function modifiers(s: PlayerState): Modifiers {
     insight: 1,
     offlineCapHours: DEFAULT_OFFLINE_CAP_HOURS,
     noDecay: false,
+    upkeep: 0,
   }
   for (const id of s.equipped) {
     const t = technique(id)
@@ -38,6 +62,7 @@ export function modifiers(s: PlayerState): Modifiers {
     else if (t.kind === 'breakthrough') m.breakthrough -= t.value
     else if (t.kind === 'insight') m.insight += t.value
     else if (t.kind === 'offlineCap') m.offlineCapHours += t.value
+    m.upkeep += upkeepOf(t)
   }
   if (s.flame === 'bonechill') m.noDecay = true
   if (s.flame === 'fallheart') m.breakthrough *= 0.5
@@ -52,12 +77,30 @@ export function clockHours(s: PlayerState, at: number): number {
   return Math.max(0, (at - anchor) / HOUR_MS)
 }
 
-/** Qi per second right now — what the Cultivate screen shows ticking. */
-export function ratePerSecond(s: PlayerState, at: number): number {
+/** Penalty from an unquiet heart. Free up to TURMOIL_FREE, then down to 0.7x. */
+export function turmoilFactor(turmoil: number): number {
+  const over = Math.max(0, Math.min(turmoil, TURMOIL_MAX) - TURMOIL_FREE)
+  return 1 - (over / (TURMOIL_MAX - TURMOIL_FREE)) * 0.3
+}
+
+/** Before upkeep and before settling: what the cultivator produces. */
+export function grossPerSecond(s: PlayerState, at: number): number {
   const m = modifiers(s)
   const path = PATHS[s.path]
   const mult = path.rateAt(clockHours(s, at), { noDecay: m.noDecay })
-  return BASE_QI_PER_SECOND * realm(s.realm).rate * mult * m.rate
+  const injured = at < s.injuredUntil ? INJURY_RATE : 1
+  return BASE_QI_PER_SECOND * realm(s.realm).rate * mult * m.rate * turmoilFactor(s.turmoil) * injured
+}
+
+/**
+ * Qi per second right now — what the Cultivate screen shows ticking.
+ * Upkeep can never take more than 90% of the gross, so a bad loadout is a bad
+ * decision rather than a dead save.
+ */
+export function ratePerSecond(s: PlayerState, at: number): number {
+  const gross = grossPerSecond(s, at)
+  if (s.settling) return gross * SETTLE_RATE
+  return Math.max(gross * 0.1, gross - modifiers(s).upkeep)
 }
 
 export function breakthroughCost(s: PlayerState): number {
@@ -91,10 +134,28 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
   const h0 = clockHours(s, s.lastSeenAt)
   const h1 = h0 + creditedMs / HOUR_MS
   const mult = meanRate(path, h0, h1, { noDecay: m.noDecay })
-  const qiGained = (creditedMs / 1000) * BASE_QI_PER_SECOND * realm(s.realm).rate * mult * m.rate
+
+  // The injury clock may expire partway through the window, so credit the two
+  // stretches separately rather than judging the whole window by its start.
+  const injuredMs = Math.max(0, Math.min(s.injuredUntil, s.lastSeenAt + creditedMs) - s.lastSeenAt)
+  const injuryFactor = creditedMs === 0 ? 1
+    : (injuredMs * INJURY_RATE + (creditedMs - injuredMs)) / creditedMs
+
+  const seconds = creditedMs / 1000
+  const gross = seconds * BASE_QI_PER_SECOND * realm(s.realm).rate * mult * m.rate
+    * turmoilFactor(s.turmoil) * injuryFactor
+
+  const qiGained = s.settling
+    ? gross * SETTLE_RATE
+    : Math.max(gross * 0.1, gross - m.upkeep * seconds)
+
+  const hours = creditedMs / HOUR_MS
+  const turmoil = s.settling
+    ? Math.max(0, s.turmoil - SETTLE_DRAIN_PER_HOUR * hours)
+    : Math.min(TURMOIL_MAX, s.turmoil + hours * TURMOIL_PER_HOUR * mult)
 
   return {
-    state: { ...s, qi: s.qi + qiGained, lastSeenAt: now },
+    state: { ...s, qi: s.qi + qiGained, turmoil, lastSeenAt: now },
     report: {
       elapsedSeconds: elapsedMs / 1000,
       creditedSeconds: creditedMs / 1000,
@@ -107,21 +168,6 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
 /** Called once when the player brings the game to the foreground. Resets Blade's clock. */
 export function openSession(s: PlayerState, now: number): PlayerState {
   return { ...s, lastOpenedAt: now, lastSeenAt: now }
-}
-
-export function breakThrough(s: PlayerState, now: number): PlayerState {
-  if (!canBreakThrough(s)) return s
-  const cost = breakthroughCost(s)
-  const m = modifiers(s)
-  const gained = Math.round((s.realm * 2) * m.insight)
-  return {
-    ...s,
-    qi: s.qi - cost,
-    realm: s.realm + 1,
-    insight: s.insight + gained,
-    totalBreakthroughs: s.totalBreakthroughs + 1,
-    lastBreakthroughAt: now,
-  }
 }
 
 export function learn(s: PlayerState, id: string): PlayerState {
@@ -141,4 +187,34 @@ export function unequip(s: PlayerState, id: string): PlayerState {
 
 export function available(s: PlayerState) {
   return TECHNIQUES.filter((t) => t.realm <= s.realm)
+}
+
+/** Toggling settle is instantaneous, but only after the elapsed window is credited —
+ *  otherwise the last hour of cultivation is re-priced at the new mode's rate. */
+export function toggleSettle(s: PlayerState): PlayerState {
+  return { ...s, settling: !s.settling }
+}
+
+export function brew(s: PlayerState, id: PillId): PlayerState {
+  const p = PILLS.find((x) => x.id === id)
+  if (!p || !canPay(s.satchel, p.cost as Satchel)) return s
+  return {
+    ...s,
+    satchel: pay(s.satchel, p.cost as Satchel),
+    pills: { ...s.pills, [id]: held(s.pills, id) + 1 },
+  }
+}
+
+export function takePill(s: PlayerState, id: PillId, at: number): PlayerState {
+  if (held(s.pills, id) < 1) return s
+  const bag = { ...s.pills, [id]: held(s.pills, id) - 1 }
+  if (id === 'settling') {
+    return { ...s, pills: bag, turmoil: Math.max(0, s.turmoil - 45) }
+  }
+  if (id === 'tribulation') {
+    if (s.pillPrimed) return s
+    return { ...s, pills: bag, pillPrimed: true }
+  }
+  // gathering: two hours of what you currently produce, banked immediately
+  return { ...s, pills: bag, qi: s.qi + ratePerSecond(s, at) * 7200 }
 }

@@ -37,4 +37,9 @@
       <path d="M73 51C80 57 86 65.5 89 75.5C83 72.5 76 70.5 69.2 71C71 65 72.4 57.5 73 51Z"/>
     </g>
   </g>
+  <g transform="translate(352 352)">
+    <rect x="0" y="0" width="128" height="128" rx="6" fill="#E03E2D"/>
+    <text x="64" y="64" fill="#070A12" font-family="Noto Serif SC, Songti SC, serif"
+          font-weight="700" font-size="92" text-anchor="middle" dominant-baseline="central">九</text>
+  </g>
 </svg>

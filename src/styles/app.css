@@ -171,3 +171,34 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- depth systems ---------- */
+.hint { font-size: 11.5px; line-height: 1.45; color: var(--text-soft); margin: 0; }
+.hint.centered { text-align: center; }
+.row .v.dim { color: var(--text-faint); }
+.dim-han { font-size: 10px; color: var(--text-faint); }
+.card .cd.dim { color: var(--text-faint); font-size: 10.5px; }
+
+.bar.turmoil > i { background: linear-gradient(90deg, var(--stone), var(--crimson)); }
+.panel.alarm { border-color: rgba(224, 62, 45, .45); }
+.notice.warn { border-left-color: var(--crimson); color: var(--text-soft); }
+
+.matrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mat {
+  border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
+  padding: 9px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.mat .mn { font-size: 10.5px; color: var(--text-soft); text-align: center; }
+.mat .mv { font-family: var(--font-mono); font-size: 15px; color: var(--flame-mid); }
+
+.pillcol { display: flex; flex-direction: column; gap: 5px; align-items: stretch; }
+.mini {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em;
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px;
+  color: var(--text-soft); white-space: nowrap;
+}
+.mini.on { border-color: var(--flame-mid); color: var(--flame-hi); }
+.mini:disabled { opacity: .35; cursor: default; }
+
+.modal.failed { border-color: rgba(224, 62, 45, .5); }
+.modal.failed h2 { color: var(--crimson); }

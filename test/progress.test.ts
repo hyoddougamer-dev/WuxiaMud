@@ -2,9 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { newPlayer } from '../src/core/state.ts'
 import {
-  advance, breakThrough, breakthroughCost, canBreakThrough, equip, learn,
+  advance, breakthroughCost, canBreakThrough, equip, learn,
   modifiers, openSession, ratePerSecond, DEFAULT_OFFLINE_CAP_HOURS,
 } from '../src/core/progress.ts'
+import { attempt } from '../src/core/tribulation.ts'
 import { V1_CEILING } from '../src/core/realms.ts'
 
 const H = 3_600_000
@@ -41,7 +42,7 @@ test('breaking through spends qi, climbs a realm and resets the sword clock', ()
   const cost = breakthroughCost(s)
   s = { ...s, qi: cost + 5 }
   assert.ok(canBreakThrough(s))
-  const after = breakThrough(s, T0 + 10 * H)
+  const after = attempt(s, T0 + 10 * H, 0.99).state
   assert.equal(after.realm, 2)
   assert.equal(after.qi, 5)
   assert.equal(after.lastBreakthroughAt, T0 + 10 * H)
@@ -52,7 +53,7 @@ test('release one stops at the ceiling even with unlimited qi', () => {
   let s = newPlayer('sword', T0)
   s = { ...s, realm: V1_CEILING, qi: Number.MAX_SAFE_INTEGER }
   assert.equal(canBreakThrough(s), false)
-  assert.equal(breakThrough(s, T0).realm, V1_CEILING)
+  assert.equal(attempt(s, T0, 0).state.realm, V1_CEILING)
 })
 
 test('opening a session resets blade momentum but not sword intent', () => {

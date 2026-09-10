@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'com.hyoddou.lineage',
-  appName: 'Lineage',
+  appId: 'com.hyoddou.ninefold',
+  appName: 'Ninefold',
   webDir: 'dist',
   android: {
     backgroundColor: '#070A12',

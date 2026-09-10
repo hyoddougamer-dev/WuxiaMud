@@ -1,9 +1,9 @@
 {
-  "name": "lineage",
+  "name": "ninefold",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Lineage — an idle cultivation game where progress flows between master and disciple.",
+  "description": "Ninefold \u2014 an idle cultivation game where a path is a schedule, not a power level.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
