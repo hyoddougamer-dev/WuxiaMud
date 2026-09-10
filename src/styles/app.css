@@ -38,13 +38,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   gap: 14px;
   position: relative;
 }
-.glow-bed {
-  position: absolute; left: 50%; top: 60px; width: 380px; height: 380px;
-  transform: translateX(-50%);
-  background: radial-gradient(circle, rgba(224,142,44,.13) 0%, rgba(166,79,18,.05) 45%, transparent 70%);
-  pointer-events: none; z-index: 0;
+/* Painted onto the scroll container rather than a positioned box, because a box
+   large enough to look like light gets clipped by the scroller and reads as a
+   rectangle. A background cannot have an edge. */
+.screen.lit {
+  background:
+    radial-gradient(60% 34% at 50% 26%, rgba(224,142,44,.14) 0%, rgba(166,79,18,.05) 45%, transparent 72%)
+    no-repeat;
+  background-attachment: local;
 }
-.screen > * { position: relative; z-index: 1; }
 
 /* ---------- type ---------- */
 .h-display { font-family: var(--font-display); font-weight: 500; margin: 0; line-height: 1.15; }

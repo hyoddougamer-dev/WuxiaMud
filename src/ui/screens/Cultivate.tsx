@@ -21,8 +21,7 @@ export function Cultivate({ state, now, onBreakThrough }: {
   const remaining = ready ? 0 : (cost - state.qi) / Math.max(rate, 1e-9)
 
   return (
-    <div className="screen">
-      <div className="glow-bed" />
+    <div className="screen lit">
 
       <div className="hero-fig">
         <Figure
