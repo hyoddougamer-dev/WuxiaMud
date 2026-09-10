@@ -26,10 +26,22 @@ test('turmoil rises with cultivation and does not saturate in an hour', () => {
   assert.ok(one.turmoil < TURMOIL_FREE, 'one hour must not already be a problem')
 })
 
-test('a full day away pushes the heart past the free threshold', () => {
+test('settling is a thing you do every few days, not every single one', () => {
+  // A day of gathering must cost real turmoil without immediately demanding the cure.
+  // Turmoil ran at 4/hour until a simulation showed what that does to the Sword Path:
+  // a player who opens the game once a day banks the whole day in one go and so meets
+  // every tribulation with a full meter and no way to empty it in one sitting. The
+  // threshold has to be reachable in a few days of neglect, not in one.
   const day = advance(newPlayer('sword', T0), T0 + 24 * H).state
-  assert.ok(day.turmoil > TURMOIL_FREE, 'coming back to a day of gains should need settling')
-  assert.ok(day.turmoil <= TURMOIL_MAX)
+  assert.ok(day.turmoil > 10, 'a day of gains is never free')
+  assert.ok(day.turmoil < TURMOIL_FREE, 'but one day alone must not force a player to sit down')
+
+  // Three *visits* a day apart, not one 72-hour jump: offline credit is capped at a
+  // day, so a single long absence and a single day are worth the same turmoil.
+  let three = newPlayer('sword', T0)
+  for (let d = 1; d <= 3; d++) three = advance(three, T0 + d * 24 * H).state
+  assert.ok(three.turmoil > TURMOIL_FREE, 'three days of neglect should')
+  assert.ok(three.turmoil <= TURMOIL_MAX)
 })
 
 test('turmoil is free below the threshold and never exceeds the maximum', () => {

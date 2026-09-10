@@ -37,11 +37,11 @@ export function Sect({ state, now, onHunt, onBrew, onTakePill, onPickFlame, onWi
       <div className="panel">
         <p className="hint">
           Spend stored qi to hunt a spirit beast. Beasts give the materials every pill is
-          made of — and hunting competes with breaking through for the same qi.
+          made of, and the insight every art is bought with.
         </p>
         <div className="row">
           <span className="k">Cost</span>
-          <span className="v num">{short(huntCost(state))} qi · 20% of stored</span>
+          <span className="v num">{short(huntCost(state))} qi · five minutes of gathering</span>
         </div>
         <button className="cta" onClick={onHunt} disabled={!huntReady}>
           {huntReady ? 'Hunt' : waiting > 0 ? `Ready in ${duration(waiting)}` : 'Nothing to hunt yet'}

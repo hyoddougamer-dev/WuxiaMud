@@ -64,7 +64,7 @@ export const ORIGINS: readonly Origin[] = [
     // Nothing: the cooldown starts spent for everyone, because locking a new player
     // out of a whole system for twenty-five minutes is a worse idea than the perk.
     kit: 'An Ash Hare already taken, and two hides from it.',
-    trait: 'Hunting costs 10% of your qi instead of 20%.',
+    trait: 'Every hunt costs you half what it costs anyone else.',
     starting: { beasts: ['hare'], materials: { hide: 2 } },
   },
   {
@@ -94,8 +94,9 @@ export function originRate(id: OriginId): number {
 export function originTurmoilRate(id: OriginId): number {
   return id === 'castout' ? 1.2 : 1
 }
-export function originHuntFraction(id: OriginId): number {
-  return id === 'hunter' ? 0.1 : 0.2
+/** A multiplier on the qi price of a hunt, not on the spoils. */
+export function originHuntDiscount(id: OriginId): number {
+  return id === 'hunter' ? 0.5 : 1
 }
 /** Pills cost one fewer of each material they ask for, never below one. */
 export function originPillDiscount(id: OriginId): number {

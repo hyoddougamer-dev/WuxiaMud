@@ -48,8 +48,8 @@ test('the Cauldron Child brews cheaper, and never for free', () => {
 test('the Hunter hunts at half price, forever', () => {
   const h = { ...born('hunter'), qi: 1000 }
   const r = { ...born('rogue'), qi: 1000 }
-  assert.equal(huntCost(h), 100)
-  assert.equal(huntCost(r), 200)
+  assert.equal(huntCost(h) * 2, huntCost(r), 'the Hunter pays half, at every realm')
+  assert.ok(huntCost(r) < 1000, 'and a first hunt must be affordable on the first morning')
   assert.deepEqual(h.seenBeasts, ['hare'])
   assert.equal(count(h.satchel, 'hide'), 2)
 })

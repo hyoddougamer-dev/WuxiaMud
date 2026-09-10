@@ -25,6 +25,12 @@ export const TURMOIL_MAX = 100
 /**
  * Turmoil per hour of cultivation, scaled by how hard the path is pushing at the time.
  *
+ * Was 4/hour until a simulation of real play found it trapped the Sword Path: a
+ * player who opens the game once a day banks twenty-four hours in one go, arrived at
+ * every tribulation with a full meter, and could never present a quiet heart. At 1.5
+ * a day of gathering costs about twenty-two — well under the free fifty — so settling
+ * is something you do every third day rather than every single one.
+ *
  * The first model tied this to qi gathered against the realm's cost, which saturated
  * in under an hour: early realms are cheap relative to the rate, so an idle player
  * banked twelve realms' worth of qi overnight and pinned the meter at maximum before
@@ -32,7 +38,7 @@ export const TURMOIL_MAX = 100
  * path's own curve means Sword's sharpened intent and Blade's fresh momentum both
  * cost the same calm for the same output.
  */
-export const TURMOIL_PER_HOUR = 4
+export const TURMOIL_PER_HOUR = 1.5
 /** Settling trades output for quiet: this share of the rate, this much drained per hour. */
 export const SETTLE_RATE = 0.15
 export const SETTLE_DRAIN_PER_HOUR = 180

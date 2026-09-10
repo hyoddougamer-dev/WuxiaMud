@@ -1,6 +1,7 @@
 import { BEASTS, type Beast } from './beasts.ts'
 import { MATERIAL_FOR_RANK, add } from './materials.ts'
-import { originHuntFraction } from './origins.ts'
+import { originHuntDiscount } from './origins.ts'
+import { realm } from './realms.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -9,15 +10,30 @@ import type { PlayerState } from './state.ts'
  * a reason to open the app at a particular moment.
  */
 export const HUNT_COOLDOWN_MS = 25 * 60_000
-/** Paid from stored qi, so hunting competes with breaking through. */
-export const HUNT_COST_FRACTION = 0.2
+
+/**
+ * A hunt costs the qi your realm gathers in five minutes.
+ *
+ * It used to cost a fifth of everything you were holding, which reads well and plays
+ * terribly. A fifth of the *bank* is a compounding tax on the act of saving: a player
+ * who opens the game five times an evening pays it five times a day and loses about
+ * two thirds of their stored qi daily, so the more they play the less they progress.
+ * A simulation of real play found exactly that — every Blade run hunted about two
+ * thousand times and never once accumulated enough surplus to survive the sixth
+ * tribulation. The one active verb in the game must not be a verb you have to stop using.
+ *
+ * Five minutes of gathering is frequency-neutral (you pay per hunt, not per coin held),
+ * realm-neutral as a share of throughput (the cooldown is twenty-five minutes, so a
+ * player hunting flat out spends a fifth of what they make), and sayable in one line.
+ */
+export const HUNT_COST_SECONDS = 300
 
 export function huntCost(s: PlayerState): number {
-  return s.qi * originHuntFraction(s.origin)
+  return Math.ceil(realm(s.realm).rate * HUNT_COST_SECONDS * originHuntDiscount(s.origin))
 }
 
 export function canHunt(s: PlayerState, now: number): boolean {
-  return now >= s.huntReadyAt && quarry(s).length > 0 && s.qi > 0
+  return now >= s.huntReadyAt && quarry(s).length > 0 && s.qi >= huntCost(s)
 }
 
 /** Beasts at or below the cultivator's realm. Nothing above: you would lose. */
@@ -46,7 +62,7 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
   return {
     state: {
       ...s,
-      qi: s.qi - huntCost(s),
+      qi: Math.max(0, s.qi - huntCost(s)),
       insight: s.insight + insight,
       satchel: add(s.satchel, material, amount),
       seenBeasts: firstSighting ? [...s.seenBeasts, beast.id] : s.seenBeasts,
