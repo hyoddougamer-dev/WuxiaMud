@@ -5,8 +5,14 @@ const GIVEN = ['Ke', 'Bai', 'Qiao', 'Lan', 'Yan', 'Zhi', 'Wu', 'Jing',
                'Xun', 'Rui', 'Mo', 'Chen', 'Yi', 'Ning', 'Hua', 'Shan']
 
 /** The seals a cultivator may sign with. One character, chosen once, kept forever. */
-export const SEALS = ['林', '玄', '雲', '劍', '道', '寒', '火', '風', '山', '心', '影', '天'] as const
-export type Seal = (typeof SEALS)[number]
+export const SEAL_MEANING = {
+  '林': 'forest',   '玄': 'profound', '雲': 'cloud',  '劍': 'sword',
+  '道': 'the way',  '寒': 'cold',     '火': 'fire',   '風': 'wind',
+  '山': 'mountain', '心': 'heart',    '影': 'shadow', '天': 'heaven',
+} as const
+
+export const SEALS = Object.keys(SEAL_MEANING) as (keyof typeof SEAL_MEANING)[]
+export type Seal = keyof typeof SEAL_MEANING
 
 export function randomName(roll: () => number): string {
   const s = SURNAMES[Math.floor(roll() * SURNAMES.length)]

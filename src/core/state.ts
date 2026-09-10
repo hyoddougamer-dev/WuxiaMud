@@ -2,13 +2,17 @@ import type { PathId } from './paths.ts'
 import type { Satchel } from './materials.ts'
 import type { PillBag } from './pills.ts'
 import type { Seal } from './names.ts'
+import { origin, type OriginId } from './origins.ts'
+import { realm } from './realms.ts'
 
-export const SAVE_VERSION = 3
+export const SAVE_VERSION = 4
 
 export interface PlayerState {
   readonly version: number
   name: string
   seal: Seal
+  /** Where you were before any of this. Fixed at birth. */
+  origin: OriginId
   /** How many forebears this cultivator stands on. 1 is the first of a line. */
   generation: number
   /** The art received from an ancestor: free to keep, and stronger if off-path. */
@@ -53,6 +57,7 @@ export function newPlayer(
   opts: {
     name?: string
     seal?: Seal
+    origin?: OriginId
     generation?: number
     inherited?: PlayerState['inherited']
     lineBonus?: number
@@ -62,6 +67,7 @@ export function newPlayer(
     version: SAVE_VERSION,
     name: opts.name ?? 'Nameless',
     seal: opts.seal ?? '道',
+    origin: opts.origin ?? 'rogue',
     generation: opts.generation ?? 1,
     inherited: opts.inherited ?? null,
     lineBonus: opts.lineBonus ?? 0,
@@ -87,5 +93,23 @@ export function newPlayer(
     createdAt: now,
     totalBreakthroughs: 0,
     activeSeconds: 0,
+    ...startingKit(opts.origin ?? 'rogue'),
   }
+}
+
+/**
+ * What an origin puts in your hands on the first morning. Separated from the
+ * lasting traits so the two can be read — and balanced — independently.
+ */
+function startingKit(id: OriginId): Partial<PlayerState> {
+  const k = origin(id).starting
+  const out: Partial<PlayerState> = {}
+  if (k.qiOfFirstBreakthrough) out.qi = realm(1).cost * k.qiOfFirstBreakthrough
+  if (k.insight) out.insight = k.insight
+  if (k.turmoil) out.turmoil = k.turmoil
+  if (k.materials) out.satchel = { ...k.materials }
+  if (k.pills) out.pills = { ...k.pills }
+  if (k.learned) out.learned = [...k.learned]
+  if (k.beasts) out.seenBeasts = [...k.beasts]
+  return out
 }

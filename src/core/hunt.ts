@@ -1,5 +1,6 @@
 import { BEASTS, type Beast } from './beasts.ts'
 import { MATERIAL_FOR_RANK, add } from './materials.ts'
+import { originHuntFraction } from './origins.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -12,7 +13,7 @@ export const HUNT_COOLDOWN_MS = 25 * 60_000
 export const HUNT_COST_FRACTION = 0.2
 
 export function huntCost(s: PlayerState): number {
-  return s.qi * HUNT_COST_FRACTION
+  return s.qi * originHuntFraction(s.origin)
 }
 
 export function canHunt(s: PlayerState, now: number): boolean {

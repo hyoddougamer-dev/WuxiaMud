@@ -36,6 +36,7 @@ export class LocalSession implements Session {
     this.state = newPlayer(path, Date.now(), {
       name: opts.name,
       seal: opts.seal as PlayerState['seal'] | undefined,
+      origin: opts.origin as PlayerState['origin'] | undefined,
       generation: generationOf(line),
       lineBonus: lineageBonus(line),
       inherited: from

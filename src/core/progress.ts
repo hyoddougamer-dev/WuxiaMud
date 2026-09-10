@@ -4,6 +4,7 @@ import { TECHNIQUES, technique, upkeepOf, schoolClash } from './techniques.ts'
 import { PILLS, type PillId, held } from './pills.ts'
 import { canPay, pay, type Satchel } from './materials.ts'
 import { inheritedEffect } from './ancestry.ts'
+import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -81,6 +82,10 @@ export function modifiers(s: PlayerState): Modifiers {
   // Fixed at birth rather than read live: your line is what it was when you were
   // born, which is both simpler to reason about and better fiction.
   m.rate += s.lineBonus
+
+  m.rate += originRate(s.origin)
+  m.insight += originInsight(s.origin)
+  m.breakthrough -= originBreakthrough(s.origin)
 
   if (s.flame === 'bonechill') m.noDecay = true
   if (s.flame === 'fallheart') m.breakthrough *= 0.5
@@ -170,7 +175,7 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
   const hours = creditedMs / HOUR_MS
   const turmoil = s.settling
     ? Math.max(0, s.turmoil - SETTLE_DRAIN_PER_HOUR * hours)
-    : Math.min(TURMOIL_MAX, s.turmoil + hours * TURMOIL_PER_HOUR * mult)
+    : Math.min(TURMOIL_MAX, s.turmoil + hours * TURMOIL_PER_HOUR * mult * originTurmoilRate(s.origin))
 
   return {
     state: { ...s, qi: s.qi + qiGained, turmoil, lastSeenAt: now },
@@ -215,12 +220,24 @@ export function toggleSettle(s: PlayerState): PlayerState {
   return { ...s, settling: !s.settling }
 }
 
-export function brew(s: PlayerState, id: PillId): PlayerState {
+/** What a pill actually asks of this cultivator, after their origin. */
+export function pillCost(s: PlayerState, id: PillId): Satchel {
   const p = PILLS.find((x) => x.id === id)
-  if (!p || !canPay(s.satchel, p.cost as Satchel)) return s
+  if (!p) return {}
+  const off = originPillDiscount(s.origin)
+  const out: Satchel = {}
+  for (const [k, v] of Object.entries(p.cost)) {
+    out[k as keyof Satchel] = Math.max(1, (v ?? 0) - off)
+  }
+  return out
+}
+
+export function brew(s: PlayerState, id: PillId): PlayerState {
+  const cost = pillCost(s, id)
+  if (!PILLS.some((x) => x.id === id) || !canPay(s.satchel, cost)) return s
   return {
     ...s,
-    satchel: pay(s.satchel, p.cost as Satchel),
+    satchel: pay(s.satchel, cost),
     pills: { ...s.pills, [id]: held(s.pills, id) + 1 },
   }
 }

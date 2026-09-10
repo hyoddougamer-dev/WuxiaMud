@@ -7,6 +7,7 @@ import type { Ancestor } from '../core/ancestry.ts'
 export interface CreateOptions {
   name?: string
   seal?: string
+  origin?: string
   /** Which forebear's art to carry, if any. */
   inheritFrom?: string
 }
