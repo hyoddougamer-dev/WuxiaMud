@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Sprite } from './ui/art/Sprite.tsx'
 import { Icon } from './ui/art/Icon.tsx'
 import { Cultivate } from './ui/screens/Cultivate.tsx'
@@ -6,16 +6,16 @@ import { Arts } from './ui/screens/Arts.tsx'
 import { Lineage } from './ui/screens/Lineage.tsx'
 import { Sect } from './ui/screens/Sect.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
-import { advance, brew, equip, learn, openSession, takePill, toggleSettle, unequip } from './core/progress.ts'
-import { attempt, type Outcome } from './core/tribulation.ts'
-import { hunt, type Spoils } from './core/hunt.ts'
-import type { PillId } from './core/pills.ts'
-import { newPlayer, type PlayerState } from './core/state.ts'
-import { slotsAt } from './core/techniques.ts'
+import { advance } from './core/progress.ts'
 import { realmColour } from './core/realms.ts'
 import { short, duration } from './core/format.ts'
-import * as store from './core/save.ts'
+import { makeSession, newNonce } from './net/index.ts'
+import type { Action } from './core/actions.ts'
+import type { Outcome } from './core/tribulation.ts'
+import type { Spoils } from './core/hunt.ts'
+import type { PlayerState } from './core/state.ts'
 import type { PathId } from './core/paths.ts'
+import type { PillId } from './core/pills.ts'
 
 type Tab = 'cultivate' | 'lineage' | 'arts' | 'sect'
 
@@ -26,98 +26,109 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'sect', icon: 'u-sect', label: 'Sect' },
 ]
 
-const TICK_MS = 200
-const SAVE_MS = 5000
-/** Anything shorter than this isn't worth interrupting the player for. */
+/** How often the display re-projects. Costs nothing: it is arithmetic, not a request. */
+const PAINT_MS = 200
+/** How often we ask the authority where we really are. */
+const SYNC_MS = 15_000
 const REPORT_FLOOR_SECONDS = 120
 
 interface Welcome { away: number; gained: number; capped: number }
 
-/** One place to draw randomness, so every roll in the game is easy to find and,
- *  when the server takes over, easy to move. */
-const roll = () => Math.random()
-
 export default function App() {
-  const [state, setState] = useState<PlayerState | null>(() => store.load())
+  const session = useMemo(makeSession, [])
+
+  /** What the authority last told us. The only thing ever written anywhere. */
+  const [truth, setTruth] = useState<PlayerState | null>(null)
+  const [booted, setBooted] = useState(false)
   const [tab, setTab] = useState<Tab>('cultivate')
   const [now, setNow] = useState(() => Date.now())
   const [welcome, setWelcome] = useState<Welcome | null>(null)
   const [trial, setTrial] = useState<Outcome | null>(null)
   const [spoils, setSpoils] = useState<Spoils | null>(null)
-  const lastSave = useRef(0)
+  const [failure, setFailure] = useState<string | null>(null)
+  const busy = useRef(false)
 
-  /** Bring the game forward to real time. Runs on mount and whenever the tab wakes. */
-  const resume = useCallback(() => {
-    setState((prev) => {
-      if (!prev) return prev
-      const t = Date.now()
-      const { state: advanced, report } = advance(prev, t)
-      if (report.elapsedSeconds >= REPORT_FLOOR_SECONDS) {
+  /**
+   * What the player sees between syncs: the last authoritative state, projected
+   * forward with the same pure function the authority uses. It is never saved and
+   * never sent anywhere — if the two disagree, the next sync simply overwrites it.
+   */
+  const shown = useMemo(() => (truth ? advance(truth, now).state : null), [truth, now])
+
+  const sync = useCallback(async (announce: boolean) => {
+    if (busy.current) return
+    busy.current = true
+    try {
+      const { state, report } = await session.tick()
+      setTruth(state)
+      if (announce && report.elapsedSeconds >= REPORT_FLOOR_SECONDS) {
         setWelcome({ away: report.elapsedSeconds, gained: report.qiGained, capped: report.cappedBy })
       }
-      return openSession({ ...advanced, lastSeenAt: t }, t)
-    })
-    setNow(Date.now())
-  }, [])
-
-  useEffect(() => { if (state) resume() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
-
-  useEffect(() => {
-    const onVis = () => { if (document.visibilityState === 'visible') resume() }
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('focus', onVis)
-    return () => {
-      document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('focus', onVis)
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : String(e))
+    } finally {
+      busy.current = false
     }
-  }, [resume])
+  }, [session])
 
-  /* The tick only advances the clock; every gain is computed by the same pure
-     `advance` the server will run. Nothing accrues in the render loop. */
-  useEffect(() => {
-    if (!state) return
-    const h = window.setInterval(() => {
-      const t = Date.now()
-      setNow(t)
-      setState((prev) => {
-        if (!prev) return prev
-        const { state: next } = advance(prev, t)
-        return { ...next, activeSeconds: prev.activeSeconds + TICK_MS / 1000 }
-      })
-    }, TICK_MS)
-    return () => window.clearInterval(h)
-  }, [state !== null])
-
-  useEffect(() => {
-    if (!state) return
-    const t = Date.now()
-    if (t - lastSave.current < SAVE_MS) return
-    lastSave.current = t
-    store.save(state)
-  }, [state])
-
-  useEffect(() => {
-    const flush = () => { setState((prev) => { if (prev) store.save(prev); return prev }) }
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flush)
+  const send = useCallback(async (action: Action) => {
+    if (busy.current) return
+    busy.current = true
+    try {
+      const { state, event } = await session.act(action, newNonce())
+      setTruth(state)
+      if (event.tribulation) setTrial(event.tribulation)
+      if (event.spoils) setSpoils(event.spoils)
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : String(e))
+    } finally {
+      busy.current = false
     }
-  }, [])
+  }, [session])
 
-  const start = (path: PathId) => {
-    const fresh = newPlayer(path, Date.now())
-    store.save(fresh)
-    setState(fresh)
+  useEffect(() => {
+    let alive = true
+    session.load().then(async (s) => {
+      if (!alive) return
+      if (s) { await sync(true); await session.act({ type: 'open' }, newNonce()).then(r => setTruth(r.state)) }
+      setBooted(true)
+    }).catch((e) => { setFailure(String(e)); setBooted(true) })
+    return () => { alive = false }
+  }, [session, sync])
+
+  /* Repaint often; ask the authority rarely. */
+  useEffect(() => {
+    if (!truth) return
+    const paint = window.setInterval(() => setNow(Date.now()), PAINT_MS)
+    const s = window.setInterval(() => void sync(false), SYNC_MS)
+    return () => { window.clearInterval(paint); window.clearInterval(s) }
+  }, [truth !== null, sync])
+
+  useEffect(() => {
+    const wake = () => {
+      if (document.visibilityState !== 'visible') return
+      void sync(true).then(() => send({ type: 'open' }))
+    }
+    document.addEventListener('visibilitychange', wake)
+    window.addEventListener('focus', wake)
+    return () => {
+      document.removeEventListener('visibilitychange', wake)
+      window.removeEventListener('focus', wake)
+    }
+  }, [sync, send])
+
+  const start = async (path: PathId) => {
+    try { setTruth(await session.create(path)) }
+    catch (e) { setFailure(e instanceof Error ? e.message : String(e)) }
   }
 
-  if (!state) return (<><Sprite /><div className="app"><Choose onChoose={start} /></div></>)
+  if (!booted) return (<><Sprite /><div className="app" /></>)
+  if (!shown) return (<><Sprite /><div className="app"><Choose onChoose={start} /></div></>)
 
   const ramp = {
-    ['--flame-lo' as string]: realmColour(Math.max(1, state.realm - 2)),
-    ['--flame-mid' as string]: realmColour(state.realm),
-    ['--flame-hi' as string]: realmColour(Math.min(9, state.realm + 2)),
+    ['--flame-lo' as string]: realmColour(Math.max(1, shown.realm - 2)),
+    ['--flame-mid' as string]: realmColour(shown.realm),
+    ['--flame-hi' as string]: realmColour(Math.min(9, shown.realm + 2)),
   }
 
   return (
@@ -126,41 +137,28 @@ export default function App() {
       <div className="app" style={ramp}>
         {tab === 'cultivate' && (
           <Cultivate
-            state={state}
-            now={now}
-            onSettle={() => setState((s) => (s ? toggleSettle(s) : s))}
-            onAttempt={() => setState((s) => {
-              if (!s) return s
-              const out = attempt(s, Date.now(), roll())
-              if (out.state !== s) setTrial(out)
-              return out.state
-            })}
+            state={shown} now={now}
+            onSettle={() => void send({ type: 'settle' })}
+            onAttempt={() => void send({ type: 'attempt' })}
           />
         )}
-        {tab === 'lineage' && <Lineage state={state} />}
+        {tab === 'lineage' && <Lineage state={shown} />}
         {tab === 'arts' && (
           <Arts
-            state={state}
-            onLearn={(id) => setState((s) => (s ? learn(s, id) : s))}
-            onEquip={(id) => setState((s) => (s ? equip(s, id, slotsAt(s.realm)) : s))}
-            onUnequip={(id) => setState((s) => (s ? unequip(s, id) : s))}
+            state={shown}
+            onLearn={(id) => void send({ type: 'learn', id })}
+            onEquip={(id) => void send({ type: 'equip', id })}
+            onUnequip={(id) => void send({ type: 'unequip', id })}
           />
         )}
         {tab === 'sect' && (
           <Sect
-            state={state}
-            now={now}
-            onHunt={() => setState((s) => {
-              if (!s) return s
-              const got = hunt(s, Date.now(), roll())
-              if (!got) return s
-              setSpoils(got)
-              return got.state
-            })}
-            onBrew={(id: PillId) => setState((s) => (s ? brew(s, id) : s))}
-            onTakePill={(id: PillId) => setState((s) => (s ? takePill(s, id, Date.now()) : s))}
-            onPickFlame={(id) => setState((s) => (s ? { ...s, flame: id } : s))}
-            onWipe={() => { store.wipe(); setState(null); setTab('cultivate') }}
+            state={shown} now={now}
+            onHunt={() => void send({ type: 'hunt' })}
+            onBrew={(id: PillId) => void send({ type: 'brew', id })}
+            onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
+            onPickFlame={(id) => void send({ type: 'flame', id })}
+            onWipe={() => void session.abandon().then(() => { setTruth(null); setTab('cultivate') })}
           />
         )}
 
@@ -177,16 +175,12 @@ export default function App() {
           <div className="scrim" role="dialog" aria-modal="true" aria-label="Tribulation">
             <div className={`modal${trial.succeeded ? '' : ' failed'}`}>
               <h2>{trial.succeeded ? 'The tribulation passes.' : 'The tribulation breaks you.'}</h2>
-              <p>
-                {trial.chance < 1
-                  ? `You went in at ${Math.round(trial.chance * 100)}%.`
-                  : 'The early realms give way without a fight.'}
-              </p>
-              <p>
-                {trial.succeeded
-                  ? 'The heart quiets on the far side of it, and the next realm opens.'
-                  : 'You keep the realm you had, lose almost half your stored qi, and cultivate at little more than half speed for two hours.'}
-              </p>
+              <p>{trial.chance < 1
+                ? `You went in at ${Math.round(trial.chance * 100)}%.`
+                : 'The early realms give way without a fight.'}</p>
+              <p>{trial.succeeded
+                ? 'The heart quiets on the far side of it, and the next realm opens.'
+                : 'You keep the realm you had, lose almost half your stored qi, and cultivate at little more than half speed for two hours.'}</p>
               <button className="cta" onClick={() => setTrial(null)}>
                 {trial.succeeded ? 'Continue' : 'Endure it'}
               </button>
@@ -197,13 +191,11 @@ export default function App() {
         {spoils && (
           <div className="scrim" role="dialog" aria-modal="true" aria-label="The hunt">
             <div className="modal">
-              <h2>{spoils.firstSighting ? `A ${spoils.beast.name}` : spoils.beast.name}</h2>
+              <h2>{spoils.beast.name}</h2>
               <p>{spoils.beast.note}</p>
-              <p>
-                Taken: <strong>{spoils.material.amount}× {spoils.material.id}</strong>, and{' '}
+              <p>Taken: <strong>{spoils.material.amount}× {spoils.material.id}</strong>, and{' '}
                 <strong>{spoils.insight}</strong> insight.
-                {spoils.firstSighting && ' Recorded in the bestiary.'}
-              </p>
+                {spoils.firstSighting && ' Recorded in the bestiary.'}</p>
               <button className="cta" onClick={() => setSpoils(null)}>Continue</button>
             </div>
           </div>
@@ -213,17 +205,25 @@ export default function App() {
           <div className="scrim" role="dialog" aria-modal="true" aria-label="While you were away">
             <div className="modal">
               <h2>While you were away</h2>
-              <p>
-                You cultivated for <strong>{duration(Math.min(welcome.away, welcome.away - welcome.capped))}</strong> and
-                gathered <strong>{short(welcome.gained)}</strong> qi.
-              </p>
+              <p>You cultivated for{' '}
+                <strong>{duration(welcome.away - welcome.capped)}</strong> and gathered{' '}
+                <strong>{short(welcome.gained)}</strong> qi.</p>
               {welcome.capped > 60 && (
-                <p>
-                  You were gone {duration(welcome.away)}. Offline cultivation is capped, so{' '}
-                  {duration(welcome.capped)} of that went unused — Cloud Step and Void Step raise the cap.
-                </p>
+                <p>You were gone {duration(welcome.away)}. Offline cultivation is capped, so{' '}
+                  {duration(welcome.capped)} of that went unused — Cloud Step and Void Step raise the cap.</p>
               )}
               <button className="cta" onClick={() => setWelcome(null)}>Continue</button>
+            </div>
+          </div>
+        )}
+
+        {failure && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="Something went wrong">
+            <div className="modal failed">
+              <h2>The connection broke</h2>
+              <p>{failure}</p>
+              <p>Your progress is safe — nothing is written here, only asked for.</p>
+              <button className="cta" onClick={() => { setFailure(null); void sync(false) }}>Try again</button>
             </div>
           </div>
         )}

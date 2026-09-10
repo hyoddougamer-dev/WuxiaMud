@@ -48,6 +48,49 @@ quiet the heart, or **hunt** for materials and brew a pill. Each costs something
 others want — time, output, or the same stored qi. Fail and you keep the realm but lose
 half your qi and two hours to injury. Pass and the heart quiets on the other side.
 
+## Where the truth lives
+
+The game runs against a `Session` — an interface with two implementations that
+nothing above them can tell apart.
+
+| | `LocalSession` | `RemoteSession` |
+|---|---|---|
+| Truth | this browser | Postgres |
+| Clock | the phone's | the server's |
+| Dice | `Math.random()` | `crypto.getRandomValues` on the server |
+| Chosen when | no Supabase keys | `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set |
+
+There is deliberately **no third mode**. "Local but syncing" is where correctness goes
+to die: two clocks, two copies, and a merge nobody can reason about.
+
+Between syncs the client *projects* — it runs the same pure `advance()` forward from
+the last authoritative state so the numbers keep moving. That projection is never
+saved and never sent. If it drifts, the next sync overwrites it.
+
+### Deploying the server half
+
+```bash
+supabase db push                      # runs supabase/schema.sql
+supabase functions deploy tick act cultivator
+```
+
+Then set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` and rebuild. That is the
+whole switch.
+
+The edge functions import `src/core/**` directly — the same modules the phone runs,
+not a copy. Nothing in `core/` changed to make the server possible, which was the
+point of writing it pure from the first commit.
+
+### The two security properties
+
+1. **A player can read their cultivator and can never write it.** There is no
+   insert/update/delete policy for authenticated users on `cultivators`; every
+   mutation goes through a function holding the service role.
+2. **A retry can never be paid twice.** Each action carries a nonce, and the function
+   claims it with a primary-key insert *before* doing anything. A duplicate loses that
+   race and is answered with the current state instead of hunting the same beast into
+   two piles of loot.
+
 ## How it is arranged
 
 ```
