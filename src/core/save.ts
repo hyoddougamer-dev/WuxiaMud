@@ -1,3 +1,4 @@
+import type { Ancestor } from './ancestry.ts'
 import { SAVE_VERSION, type PlayerState } from './state.ts'
 
 const KEY = 'lineage.save.v1'
@@ -27,4 +28,27 @@ export function wipe(): void {
   try {
     localStorage.removeItem(KEY)
   } catch { /* ignore */ }
+}
+
+const LINE_KEY = 'ninefold.line.v1'
+
+/**
+ * The line outlives the cultivator, so it is stored apart from the save and is not
+ * touched by abandoning a character. Losing it should take a deliberate act.
+ */
+export function loadLine(): Ancestor[] {
+  try {
+    const raw = localStorage.getItem(LINE_KEY)
+    return raw ? (JSON.parse(raw) as Ancestor[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveLine(line: Ancestor[]): void {
+  try { localStorage.setItem(LINE_KEY, JSON.stringify(line)) } catch { /* ignore */ }
+}
+
+export function wipeLine(): void {
+  try { localStorage.removeItem(LINE_KEY) } catch { /* ignore */ }
 }

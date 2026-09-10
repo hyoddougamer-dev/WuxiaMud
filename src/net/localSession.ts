@@ -4,7 +4,9 @@ import { slotsAt } from '../core/techniques.ts'
 import { newPlayer, type PlayerState } from '../core/state.ts'
 import * as store from '../core/save.ts'
 import type { PathId } from '../core/paths.ts'
-import type { Session } from './session.ts'
+import type { CreateOptions, Session } from './session.ts'
+import { generationOf, lineageBonus, type Ancestor } from '../core/ancestry.ts'
+import { endsLife } from '../core/actions.ts'
 
 /**
  * The truth lives in this browser. Good enough while nothing a player does can reach
@@ -15,14 +17,31 @@ export class LocalSession implements Session {
   readonly kind = 'local' as const
   private state: PlayerState | null = null
   private seen = new Set<string>()
+  private ancestors: Ancestor[] = store.loadLine()
 
   async load(): Promise<PlayerState | null> {
     this.state = store.load()
     return this.state
   }
 
-  async create(path: PathId): Promise<PlayerState> {
-    this.state = newPlayer(path, Date.now())
+  async line(): Promise<Ancestor[]> {
+    this.ancestors = store.loadLine()
+    return this.ancestors
+  }
+
+  async create(path: PathId, opts: CreateOptions = {}): Promise<PlayerState> {
+    const line = store.loadLine()
+    this.ancestors = line
+    const from = opts.inheritFrom ? line.find((a) => a.id === opts.inheritFrom) : undefined
+    this.state = newPlayer(path, Date.now(), {
+      name: opts.name,
+      seal: opts.seal as PlayerState['seal'] | undefined,
+      generation: generationOf(line),
+      lineBonus: lineageBonus(line),
+      inherited: from
+        ? { techniqueId: from.techniqueId, from: from.name, fromPath: from.path, artName: from.artName }
+        : null,
+    })
     store.save(this.state)
     return this.state
   }
@@ -44,9 +63,21 @@ export class LocalSession implements Session {
 
     const { state } = advance(this.state, Date.now())
     const roll = needsRoll(action) ? Math.random() : 0
-    const out = apply(state, action, Date.now(), roll, slotsAt(state.realm))
+    const out = apply(state, action, Date.now(), roll, slotsAt(state.realm),
+                      this.ancestors, () => crypto.randomUUID())
 
     this.seen.add(nonce)
+
+    if (endsLife(action) && out.event.ascended) {
+      // The line is written first and separately: a crash between these two must
+      // leave a forebear recorded, never a cultivator erased for nothing.
+      this.ancestors = [...this.ancestors, out.event.ascended]
+      store.saveLine(this.ancestors)
+      store.wipe()
+      this.state = null
+      return { state: out.state, event: out.event }
+    }
+
     this.state = out.state
     store.save(out.state)
     return { state: out.state, event: out.event }

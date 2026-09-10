@@ -1,11 +1,20 @@
 import type { PathId } from './paths.ts'
 import type { Satchel } from './materials.ts'
 import type { PillBag } from './pills.ts'
+import type { Seal } from './names.ts'
 
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 export interface PlayerState {
   readonly version: number
+  name: string
+  seal: Seal
+  /** How many forebears this cultivator stands on. 1 is the first of a line. */
+  generation: number
+  /** The art received from an ancestor: free to keep, and stronger if off-path. */
+  inherited: { techniqueId: string; from: string; fromPath: PathId; artName: string } | null
+  /** What the line was worth on the day this cultivator was born. */
+  lineBonus: number
   /** Chosen once at the start; switching costs a realm (not implemented in the slice). */
   path: PathId
   realm: number
@@ -38,9 +47,24 @@ export interface PlayerState {
   activeSeconds: number
 }
 
-export function newPlayer(path: PathId, now: number): PlayerState {
+export function newPlayer(
+  path: PathId,
+  now: number,
+  opts: {
+    name?: string
+    seal?: Seal
+    generation?: number
+    inherited?: PlayerState['inherited']
+    lineBonus?: number
+  } = {},
+): PlayerState {
   return {
     version: SAVE_VERSION,
+    name: opts.name ?? 'Nameless',
+    seal: opts.seal ?? '道',
+    generation: opts.generation ?? 1,
+    inherited: opts.inherited ?? null,
+    lineBonus: opts.lineBonus ?? 0,
     path,
     realm: 1,
     qi: 0,

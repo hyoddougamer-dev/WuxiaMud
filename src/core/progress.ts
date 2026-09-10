@@ -1,8 +1,9 @@
 import { PATHS, meanRate } from './paths.ts'
 import { realm, V1_CEILING } from './realms.ts'
-import { TECHNIQUES, technique, upkeepOf } from './techniques.ts'
+import { TECHNIQUES, technique, upkeepOf, schoolClash } from './techniques.ts'
 import { PILLS, type PillId, held } from './pills.ts'
 import { canPay, pay, type Satchel } from './materials.ts'
+import { inheritedEffect } from './ancestry.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -46,6 +47,7 @@ export interface Modifiers {
   upkeep: number
 }
 
+/** Everything the arts, the flame, the inherited art and the line do to the numbers. */
 export function modifiers(s: PlayerState): Modifiers {
   const m: Modifiers = {
     rate: 1,
@@ -64,6 +66,22 @@ export function modifiers(s: PlayerState): Modifiers {
     else if (t.kind === 'offlineCap') m.offlineCapHours += t.value
     m.upkeep += upkeepOf(t)
   }
+  // The inherited art is carried by the ancestor, not by you: full effect, no upkeep,
+  // and worth more when it comes from a path that is not your own.
+  if (s.inherited) {
+    const t = technique(s.inherited.techniqueId)
+    if (t) {
+      const v = inheritedEffect(t, s.inherited.fromPath, s.path)
+      if (t.kind === 'rate') m.rate += v
+      else if (t.kind === 'breakthrough') m.breakthrough -= v
+      else if (t.kind === 'insight') m.insight += v
+      else if (t.kind === 'offlineCap') m.offlineCapHours += v
+    }
+  }
+  // Fixed at birth rather than read live: your line is what it was when you were
+  // born, which is both simpler to reason about and better fiction.
+  m.rate += s.lineBonus
+
   if (s.flame === 'bonechill') m.noDecay = true
   if (s.flame === 'fallheart') m.breakthrough *= 0.5
   if (s.flame === 'seaheart') m.insight *= 2
@@ -177,7 +195,9 @@ export function learn(s: PlayerState, id: string): PlayerState {
 }
 
 export function equip(s: PlayerState, id: string, slots: number): PlayerState {
-  if (!s.learned.includes(id) || s.equipped.includes(id) || s.equipped.length >= slots) return s
+  const t = technique(id)
+  if (!t || !s.learned.includes(id) || s.equipped.includes(id) || s.equipped.length >= slots) return s
+  if (schoolClash(s.equipped, t)) return s
   return { ...s, equipped: [...s.equipped, id] }
 }
 

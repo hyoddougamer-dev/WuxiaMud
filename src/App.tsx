@@ -16,6 +16,9 @@ import type { Spoils } from './core/hunt.ts'
 import type { PlayerState } from './core/state.ts'
 import type { PathId } from './core/paths.ts'
 import type { PillId } from './core/pills.ts'
+import type { Ancestor } from './core/ancestry.ts'
+import { AscendModal } from './ui/screens/Ascend.tsx'
+import type { CreateOptions } from './net/session.ts'
 
 type Tab = 'cultivate' | 'lineage' | 'arts' | 'sect'
 
@@ -46,6 +49,9 @@ export default function App() {
   const [trial, setTrial] = useState<Outcome | null>(null)
   const [spoils, setSpoils] = useState<Spoils | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const [line, setLine] = useState<Ancestor[]>([])
+  const [sealing, setSealing] = useState(false)
+  const [ascended, setAscended] = useState<Ancestor | null>(null)
   const busy = useRef(false)
 
   /**
@@ -79,6 +85,12 @@ export default function App() {
       setTruth(state)
       if (event.tribulation) setTrial(event.tribulation)
       if (event.spoils) setSpoils(event.spoils)
+      if (event.ascended) {
+        setAscended(event.ascended)
+        setSealing(false)
+        setTruth(null)
+        setLine(await session.line())
+      }
     } catch (e) {
       setFailure(e instanceof Error ? e.message : String(e))
     } finally {
@@ -88,11 +100,22 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    session.load().then(async (s) => {
-      if (!alive) return
-      if (s) { await sync(true); await session.act({ type: 'open' }, newNonce()).then(r => setTruth(r.state)) }
-      setBooted(true)
-    }).catch((e) => { setFailure(String(e)); setBooted(true) })
+    ;(async () => {
+      try {
+        const [s, l] = await Promise.all([session.load(), session.line()])
+        if (!alive) return
+        setLine(l)
+        if (s) {
+          await sync(true)
+          const r = await session.act({ type: 'open' }, newNonce())
+          setTruth(r.state)
+        }
+      } catch (e) {
+        setFailure(e instanceof Error ? e.message : String(e))
+      } finally {
+        if (alive) setBooted(true)
+      }
+    })()
     return () => { alive = false }
   }, [session, sync])
 
@@ -117,13 +140,35 @@ export default function App() {
     }
   }, [sync, send])
 
-  const start = async (path: PathId) => {
-    try { setTruth(await session.create(path)) }
-    catch (e) { setFailure(e instanceof Error ? e.message : String(e)) }
+  const start = async (path: PathId, opts: CreateOptions) => {
+    try {
+      setAscended(null)
+      setTruth(await session.create(path, opts))
+    } catch (e) { setFailure(e instanceof Error ? e.message : String(e)) }
   }
 
   if (!booted) return (<><Sprite /><div className="app" /></>)
-  if (!shown) return (<><Sprite /><div className="app"><Choose onChoose={start} /></div></>)
+  if (!shown) return (
+    <>
+      <Sprite />
+      <div className="app">
+        <Choose line={line} onChoose={start} />
+        {ascended && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="Ascended">
+            <div className="modal gold">
+              <h2>{ascended.name} ascends.</h2>
+              <p>
+                They left <strong>{ascended.artName}</strong>, sealed{' '}
+                <span className="sealsm han">{ascended.seal}</span>. Whoever takes up the line
+                may carry it.
+              </p>
+              <button className="cta" onClick={() => setAscended(null)}>Continue</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
 
   const ramp = {
     ['--flame-lo' as string]: realmColour(Math.max(1, shown.realm - 2)),
@@ -140,9 +185,10 @@ export default function App() {
             state={shown} now={now}
             onSettle={() => void send({ type: 'settle' })}
             onAttempt={() => void send({ type: 'attempt' })}
+            onAscend={() => setSealing(true)}
           />
         )}
-        {tab === 'lineage' && <Lineage state={shown} />}
+        {tab === 'lineage' && <Lineage state={shown} line={line} />}
         {tab === 'arts' && (
           <Arts
             state={shown}
@@ -170,6 +216,14 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        {sealing && (
+          <AscendModal
+            state={shown}
+            onCancel={() => setSealing(false)}
+            onSeal={(artName, techniqueId) => void send({ type: 'ascend', artName, techniqueId })}
+          />
+        )}
 
         {trial && (
           <div className="scrim" role="dialog" aria-modal="true" aria-label="Tribulation">

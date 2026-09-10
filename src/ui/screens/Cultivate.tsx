@@ -6,14 +6,19 @@ import {
   ratePerSecond, turmoilFactor, TURMOIL_FREE, TURMOIL_MAX,
 } from '../../core/progress.ts'
 import { odds } from '../../core/tribulation.ts'
+import { canAscend } from '../../core/ancestry.ts'
 import { short, duration } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
-export function Cultivate({ state, now, onAttempt, onSettle }: {
+const pc = (v: number) => `${Math.round(v * 100)}%`
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`
+
+export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
   state: PlayerState
   now: number
   onAttempt: () => void
   onSettle: () => void
+  onAscend: () => void
 }) {
   const r = realm(state.realm)
   const cost = breakthroughCost(state)
@@ -104,22 +109,48 @@ export function Cultivate({ state, now, onAttempt, onSettle }: {
       </div>
 
       {atCeiling ? (
-        <div className="notice">
-          You have reached <strong>{r.name}</strong>, the ceiling of release one. Great Vehicle and
-          Tribulation exist above you and are not yet reachable — deliberate, not a bug.
-        </div>
+        <>
+          <div className="notice">
+            You have reached <strong>{r.name}</strong>, as far as a single life goes. Great
+            Vehicle and Tribulation are above you and no one has climbed them — that is what
+            a line is for.
+          </div>
+          <button className="cta gold" onClick={onAscend} disabled={!canAscend(state)}>
+            {canAscend(state) ? 'Seal an art and ascend' : 'Learn an art first'}
+          </button>
+        </>
       ) : (
         <>
+          {ready && o.needed && (
+            <div className="panel">
+              <p className="label">The heavens are asking</p>
+              <div className="ledger">
+                <div className="lr"><span>Base at {r.name}</span><b>{pc(o.base)}</b></div>
+                <div className="lr">
+                  <span>Surplus qi · {(state.qi / cost).toFixed(1)}× the cost</span>
+                  <b className={o.surplus > 0 ? 'up' : ''}>{signed(o.surplus)}</b>
+                </div>
+                <div className="lr">
+                  <span>Heart demon at {Math.floor(state.turmoil)}</span>
+                  <b className={o.turmoil < 0 ? 'dn' : ''}>{signed(o.turmoil)}</b>
+                </div>
+                {state.pillPrimed && (
+                  <div className="lr"><span>Tribulation Pill</span><b className="up">{signed(o.pill)}</b></div>
+                )}
+                <div className="lr tot"><span>Your odds</span><b>{pc(o.total)}</b></div>
+              </div>
+            </div>
+          )}
           <button className="cta" onClick={onAttempt} disabled={!ready}>
             {!ready
               ? `Needs ${short(cost - state.qi)} more qi`
               : o.needed
-                ? `Face the tribulation · ${Math.round(o.total * 100)}%`
+                ? 'Face it'
                 : `Break through to ${realm(state.realm + 1).name}`}
           </button>
           {ready && o.needed && (
             <p className="hint centered">
-              Waiting past {short(cost)} raises the odds. Quieting the heart raises them more.
+              Waiting raises the second line. Settling removes the third.
             </p>
           )}
         </>

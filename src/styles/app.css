@@ -202,3 +202,51 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 .modal.failed { border-color: rgba(224, 62, 45, .5); }
 .modal.failed h2 { color: var(--crimson); }
+
+/* ---------- line, seals, ascension ---------- */
+.namerow { display: flex; gap: 8px; align-items: center; }
+.nameinput {
+  flex: 1; min-width: 0; background: var(--sunken); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; color: var(--text);
+  font-family: var(--font-display); font-size: 16px;
+}
+.nameinput.gold { color: var(--t9); border-color: #5B4A22; background: rgba(252,226,170,.05); text-align: center; }
+.nameinput:focus { outline: none; border-color: var(--flame-mid); }
+
+.seals { display: flex; flex-wrap: wrap; gap: 6px; }
+.sealbtn {
+  width: 34px; height: 34px; border-radius: 5px; border: 1px solid var(--line);
+  color: var(--text-soft); font-size: 16px; display: flex; align-items: center; justify-content: center;
+}
+.sealbtn.on { background: var(--crimson); border-color: var(--crimson); color: var(--bg); }
+.sealsm {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 3px; background: var(--crimson);
+  color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+
+.curvekey {
+  display: block; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint); margin-top: 2px;
+}
+
+.whoami { display: flex; gap: 12px; align-items: center; }
+.whoami .who { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.whoami .wn { font-family: var(--font-display); font-size: 17px; display: flex; align-items: center; gap: 7px; }
+.whoami .wd { font-size: 12px; color: var(--text-soft); }
+
+.ledger { display: flex; flex-direction: column; gap: 5px; }
+.ledger .lr { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 12.5px; color: var(--text-soft); }
+.ledger .lr b { font-family: var(--font-mono); font-weight: 400; color: var(--text-soft); }
+.ledger .lr b.up { color: var(--jade); }
+.ledger .lr b.dn { color: var(--crimson); }
+.ledger .tot { border-top: 1px solid var(--line); padding-top: 7px; margin-top: 3px;
+  color: var(--text); font-size: 14px; }
+.ledger .tot b { color: var(--flame-hi); font-size: 17px; }
+
+.cta.gold { border-color: var(--t9); color: var(--t9);
+  background: linear-gradient(180deg, rgba(252,226,170,.16), rgba(192,106,30,.06)); }
+.modal.gold { border-color: #5B4A22; }
+.modal.gold h2 { color: var(--t9); }
+.modal.tall { max-height: 88vh; overflow-y: auto; }
+.list.scrolly { max-height: 170px; overflow-y: auto; }

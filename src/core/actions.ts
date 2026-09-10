@@ -2,6 +2,7 @@ import { equip, learn, unequip, toggleSettle, brew, takePill, openSession } from
 import { attempt, type Outcome } from './tribulation.ts'
 import { hunt, type Spoils } from './hunt.ts'
 import type { PillId } from './pills.ts'
+import { ascend, canAscend, type Ancestor, type Line } from './ancestry.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -22,11 +23,14 @@ export type Action =
   | { type: 'attempt' }
   | { type: 'hunt' }
   | { type: 'open' }
+  | { type: 'ascend'; artName: string; techniqueId: string }
 
 /** Anything an action wants the caller to show once, over and above the new state. */
 export interface ActionEvent {
   tribulation?: Outcome
   spoils?: Spoils
+  /** The forebear this action just created, if any. */
+  ascended?: Ancestor
 }
 
 export interface ActionResult {
@@ -46,6 +50,8 @@ export function apply(
   now: number,
   roll: number,
   slots: number,
+  line: Line = [],
+  newId: () => string = () => String(now),
 ): ActionResult {
   const same = (s: PlayerState): ActionResult => ({ state: s, event: {}, applied: s !== state })
 
@@ -69,6 +75,15 @@ export function apply(
       return { state: out.state, event: { tribulation: out }, applied: true }
     }
 
+    case 'ascend': {
+      if (!canAscend(state)) return { state, event: {}, applied: false }
+      const out = ascend(state, line, action.artName, action.techniqueId, now, newId())
+      if (!out) return { state, event: {}, applied: false }
+      // The cultivator is spent. The caller starts the next one, which is why the
+      // state is returned untouched: ascension ends a life, it does not edit one.
+      return { state, event: { ascended: out.ancestor }, applied: true }
+    }
+
     case 'hunt': {
       const got = hunt(state, now, roll)
       if (!got) return { state, event: {}, applied: false }
@@ -80,4 +95,9 @@ export function apply(
 /** True when the action consumes randomness, so the server knows to draw a roll. */
 export function needsRoll(action: Action): boolean {
   return action.type === 'attempt' || action.type === 'hunt'
+}
+
+/** Ascension ends the character, so the caller has to do something after it. */
+export function endsLife(action: Action): boolean {
+  return action.type === 'ascend'
 }

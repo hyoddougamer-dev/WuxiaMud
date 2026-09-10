@@ -2,6 +2,14 @@ import type { Action, ActionEvent } from '../core/actions.ts'
 import type { ElapsedReport } from '../core/progress.ts'
 import type { PathId } from '../core/paths.ts'
 import type { PlayerState } from '../core/state.ts'
+import type { Ancestor } from '../core/ancestry.ts'
+
+export interface CreateOptions {
+  name?: string
+  seal?: string
+  /** Which forebear's art to carry, if any. */
+  inheritFrom?: string
+}
 
 /**
  * The seam between the game and wherever its truth lives.
@@ -14,7 +22,9 @@ export interface Session {
   readonly kind: 'local' | 'remote'
   /** Null when there is no cultivator yet. */
   load(): Promise<PlayerState | null>
-  create(path: PathId): Promise<PlayerState>
+  create(path: PathId, opts?: CreateOptions): Promise<PlayerState>
+  /** The forebears. Outlives any single cultivator. */
+  line(): Promise<Ancestor[]>
   /** Bring the world up to the present. Safe to call as often as you like. */
   tick(): Promise<{ state: PlayerState; report: ElapsedReport }>
   /**

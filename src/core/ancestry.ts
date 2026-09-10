@@ -1,0 +1,101 @@
+import { technique, type Technique } from './techniques.ts'
+import { realm } from './realms.ts'
+import type { PathId } from './paths.ts'
+import type { Seal } from './names.ts'
+import type { PlayerState } from './state.ts'
+
+/**
+ * 傳承. A single life is not long enough to climb nine realms, so a cultivator who
+ * reaches their limit seals one art with their name and gives it to whoever comes
+ * next. Locally that "whoever" is your own next character; when the server exists it
+ * becomes somebody else's.
+ *
+ * The mechanic is identical either way, which is why it is worth building now.
+ */
+export interface Ancestor {
+  readonly id: string
+  readonly name: string
+  readonly seal: Seal
+  readonly path: PathId
+  readonly realm: number
+  readonly generation: number
+  /** The art they sealed, and what they chose to call it. */
+  readonly techniqueId: string
+  readonly artName: string
+  readonly ascendedAt: number
+}
+
+export type Line = Ancestor[]
+
+/** Each forebear leaves the ground a little warmer. Capped so a long line is a
+ *  head start, never a substitute for playing. */
+export const ANCESTOR_BONUS = 0.04
+export const ANCESTOR_BONUS_CAP = 0.4
+
+export function lineageBonus(line: Line): number {
+  return Math.min(ANCESTOR_BONUS_CAP, line.length * ANCESTOR_BONUS)
+}
+
+export function generationOf(line: Line): number {
+  return line.length + 1
+}
+
+/** An inherited art costs no upkeep — the ancestor is carrying it, not you. */
+export function inheritedUpkeep(): number {
+  return 0
+}
+
+/**
+ * Inheriting across paths is the interesting case: your master was not chosen by you,
+ * so the art rarely matches your own way of fighting. The mismatch is rewarded rather
+ * than punished, because that is where builds nobody designed come from.
+ */
+export const OFF_PATH_BONUS = 0.15
+
+export function inheritedEffect(t: Technique, ancestorPath: PathId, own: PathId): number {
+  return t.value * (ancestorPath === own ? 1 : 1 + OFF_PATH_BONUS)
+}
+
+export interface Ascension {
+  ancestor: Ancestor
+  line: Line
+}
+
+/**
+ * Seal an art and step off the road. Pure, like everything else: the id and the
+ * instant come from the caller.
+ */
+export function ascend(
+  s: PlayerState,
+  line: Line,
+  artName: string,
+  techniqueId: string,
+  now: number,
+  id: string,
+): Ascension | null {
+  if (!canAscend(s)) return null
+  if (!technique(techniqueId) || !s.learned.includes(techniqueId)) return null
+  const ancestor: Ancestor = {
+    id,
+    name: s.name,
+    seal: s.seal,
+    path: s.path,
+    realm: s.realm,
+    generation: s.generation,
+    techniqueId,
+    artName: artName.trim().slice(0, 32) || technique(techniqueId)!.name,
+    ascendedAt: now,
+  }
+  return { ancestor, line: [...line, ancestor] }
+}
+
+/** Only at the top of what this release allows, and only with something to leave. */
+export function canAscend(s: PlayerState): boolean {
+  return s.realm >= ASCEND_REALM && s.learned.length > 0
+}
+
+export const ASCEND_REALM = 7
+
+export function ascensionSummary(s: PlayerState): string {
+  return `${s.name} · ${realm(s.realm).name}`
+}

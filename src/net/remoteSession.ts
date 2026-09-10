@@ -2,7 +2,8 @@ import type { Action, ActionEvent } from '../core/actions.ts'
 import type { ElapsedReport } from '../core/progress.ts'
 import type { PathId } from '../core/paths.ts'
 import type { PlayerState } from '../core/state.ts'
-import type { Session } from './session.ts'
+import type { CreateOptions, Session } from './session.ts'
+import type { Ancestor } from '../core/ancestry.ts'
 
 /**
  * The truth lives on the server. This class knows how to ask and nothing else — it
@@ -36,9 +37,14 @@ export class RemoteSession implements Session {
     return r.state
   }
 
-  async create(path: PathId): Promise<PlayerState> {
-    const r = await this.call<{ state: PlayerState }>('cultivator', { create: path })
+  async create(path: PathId, opts: CreateOptions = {}): Promise<PlayerState> {
+    const r = await this.call<{ state: PlayerState }>('cultivator', { create: path, ...opts })
     return r.state
+  }
+
+  async line(): Promise<Ancestor[]> {
+    const r = await this.call<{ line: Ancestor[] }>('cultivator', { line: true })
+    return r.line ?? []
   }
 
   async tick(): Promise<{ state: PlayerState; report: ElapsedReport }> {
