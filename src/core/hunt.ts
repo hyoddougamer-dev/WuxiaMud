@@ -2,6 +2,7 @@ import { BEASTS, type Beast } from './beasts.ts'
 import { MATERIAL_FOR_RANK, add } from './materials.ts'
 import { originHuntDiscount } from './origins.ts'
 import { realm } from './realms.ts'
+import { modifiers } from './progress.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -9,7 +10,35 @@ import type { PlayerState } from './state.ts'
  * bar with a theme; a single deliberate action on a cooldown is what gives a player
  * a reason to open the app at a particular moment.
  */
-export const HUNT_COOLDOWN_MS = 25 * 60_000
+/**
+ * Hunting runs on charges, not a cooldown.
+ *
+ * A bare twenty-five-minute cooldown quietly decided who could play: the Blade Path
+ * opens the game five times an evening and got five hunts, the Sword Path opens it
+ * once and got one. Once meridians made insight and beast materials the currency of
+ * permanent power, that gap stopped being a flavour difference and became a wall —
+ * the Sword Path could not afford the eleven meridians the last gate asks for.
+ *
+ * Charges accrue whether the app is open or not and stop at four, so both paths get
+ * about the same number of hunts a day and neither is rewarded for compulsive
+ * checking. The cap is the part that matters: it is what stops a player who vanishes
+ * for a week from returning to fifty free hunts.
+ */
+export const HUNT_CHARGE_MS = 3 * 3_600_000
+export const HUNT_MAX_CHARGES = 4
+
+/** Whole charge periods banked at `now`, capped. The Girdling of the hunt. */
+export function huntCharges(s: PlayerState, now: number): number {
+  const per = HUNT_CHARGE_MS * modifiers(s).huntSpeed
+  return Math.max(0, Math.min(HUNT_MAX_CHARGES, Math.floor((now - s.huntAnchorAt) / per)))
+}
+
+/** Epoch ms at which the next charge lands, or 0 when already full. */
+export function nextChargeAt(s: PlayerState, now: number): number {
+  if (huntCharges(s, now) >= HUNT_MAX_CHARGES) return 0
+  const per = HUNT_CHARGE_MS * modifiers(s).huntSpeed
+  return s.huntAnchorAt + (huntCharges(s, now) + 1) * per
+}
 
 /**
  * A hunt costs the qi your realm gathers in five minutes.
@@ -33,7 +62,7 @@ export function huntCost(s: PlayerState): number {
 }
 
 export function canHunt(s: PlayerState, now: number): boolean {
-  return now >= s.huntReadyAt && quarry(s).length > 0 && s.qi >= huntCost(s)
+  return huntCharges(s, now) > 0 && quarry(s).length > 0 && s.qi >= huntCost(s)
 }
 
 /** Beasts at or below the cultivator's realm. Nothing above: you would lose. */
@@ -56,7 +85,10 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
   const beast = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))]
   const material = MATERIAL_FOR_RANK[beast.rank]
   const amount = 1 + Math.floor(roll * 3)
-  const insight = beast.rank * 2
+  // Insight scales with the realm as well as the quarry: meridians cost hundreds by
+  // the end, and a game where the only way to afford them is to hunt a hare four
+  // thousand times is a spreadsheet, not a climb.
+  const insight = Math.round(beast.rank * (2 + s.realm) * modifiers(s).insight)
   const firstSighting = !s.seenBeasts.includes(beast.id)
 
   return {
@@ -66,7 +98,9 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
       insight: s.insight + insight,
       satchel: add(s.satchel, material, amount),
       seenBeasts: firstSighting ? [...s.seenBeasts, beast.id] : s.seenBeasts,
-      huntReadyAt: now + HUNT_COOLDOWN_MS,
+      // Move the anchor forward by one period rather than resetting it, so the
+      // charges you did not spend are still there afterwards.
+      huntAnchorAt: now - (huntCharges(s, now) - 1) * HUNT_CHARGE_MS * modifiers(s).huntSpeed,
     },
     beast,
     material: { id: material, amount },

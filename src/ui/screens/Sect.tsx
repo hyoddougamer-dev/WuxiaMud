@@ -7,7 +7,7 @@ import { PATHS } from '../../core/paths.ts'
 import { MATERIALS, count } from '../../core/materials.ts'
 import { PILLS, brewable, held } from '../../core/pills.ts'
 import type { PillId } from '../../core/pills.ts'
-import { canHunt, huntCost } from '../../core/hunt.ts'
+import { canHunt, huntCost, huntCharges, nextChargeAt, HUNT_MAX_CHARGES } from '../../core/hunt.ts'
 import { duration, short } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
@@ -29,7 +29,10 @@ export function Sect({ state, now, onHunt, onBrew, onTakePill, onPickFlame, onWi
 }) {
   const path = PATHS[state.path]
   const huntReady = canHunt(state, now)
-  const waiting = Math.max(0, state.huntReadyAt - now) / 1000
+  const charges = huntCharges(state, now)
+  const nextAt = nextChargeAt(state, now)
+  const waiting = nextAt ? Math.max(0, nextAt - now) / 1000 : 0
+  const broke = charges > 0 && state.qi < huntCost(state)
 
   return (
     <div className="screen">
@@ -40,12 +43,31 @@ export function Sect({ state, now, onHunt, onBrew, onTakePill, onPickFlame, onWi
           made of, and the insight every art is bought with.
         </p>
         <div className="row">
+          <span className="k">Hunts held</span>
+          <span className="v num">{charges} of {HUNT_MAX_CHARGES}</span>
+        </div>
+        <div className="bar"><i style={{ width: `${(charges / HUNT_MAX_CHARGES) * 100}%` }} /></div>
+        <div className="row">
           <span className="k">Cost</span>
           <span className="v num">{short(huntCost(state))} qi · five minutes of gathering</span>
         </div>
+        {waiting > 0 && (
+          <div className="row">
+            <span className="k">Next hunt returns in</span>
+            <span className="v num dim">{duration(waiting)}</span>
+          </div>
+        )}
         <button className="cta" onClick={onHunt} disabled={!huntReady}>
-          {huntReady ? 'Hunt' : waiting > 0 ? `Ready in ${duration(waiting)}` : 'Nothing to hunt yet'}
+          {huntReady ? 'Hunt'
+            : broke ? `Needs ${short(huntCost(state))} qi`
+            : waiting > 0 ? `No hunts held · next in ${duration(waiting)}`
+            : 'Nothing to hunt yet'}
         </button>
+        <p className="hint">
+          Hunts return on their own whether the app is open or not, and stop at{' '}
+          {HUNT_MAX_CHARGES}. Checking in five times an evening earns no more than checking
+          in once — which is the only reason both paths can afford the same meridians.
+        </p>
       </div>
 
       <p className="label">Satchel</p>
@@ -93,7 +115,7 @@ export function Sect({ state, now, onHunt, onBrew, onTakePill, onPickFlame, onWi
       <div className="panel">
         <div className="ladder">
           {REALMS.map((r) => {
-            const locked = r.id > V1_CEILING
+            const locked = r.id > V1_CEILING || r.id > state.realm + 1
             const here = r.id === state.realm
             return (
               <div className={`rung${locked ? ' off' : ''}`} key={r.id}>
@@ -107,7 +129,11 @@ export function Sect({ state, now, onHunt, onBrew, onTakePill, onPickFlame, onWi
             )
           })}
         </div>
-        <p className="hint">Realms 8 and 9 arrive in update one. The ceiling is meant to be visible.</p>
+        <p className="hint">
+          All nine are climbable. The last two are most of the game — a Great Vehicle
+          tribulation opens at 52%, and nothing but surplus qi, a quiet heart and the
+          extraordinary vessels moves that number.
+        </p>
       </div>
 
       <p className="label">Heavenly flames</p>

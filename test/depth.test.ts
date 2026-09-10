@@ -6,7 +6,7 @@ import {
   takePill, toggleSettle, turmoilFactor, TURMOIL_FREE, TURMOIL_MAX, INJURY_RATE,
 } from '../src/core/progress.ts'
 import { attempt, odds, FIRST_TRIBULATION_REALM } from '../src/core/tribulation.ts'
-import { hunt, canHunt, HUNT_COOLDOWN_MS } from '../src/core/hunt.ts'
+import { hunt, canHunt, huntCharges, HUNT_CHARGE_MS, HUNT_MAX_CHARGES } from '../src/core/hunt.ts'
 import { count } from '../src/core/materials.ts'
 import { held } from '../src/core/pills.ts'
 import { realm } from '../src/core/realms.ts'
@@ -109,7 +109,9 @@ test('surplus qi, a quiet heart and a pill each raise the odds', () => {
 })
 
 test('a failed tribulation costs qi and time but never the realm', () => {
-  const s = { ...newPlayer('sword', T0), realm: 4, qi: realm(4).cost * 1.0, turmoil: 30 }
+  // gates: the fourth realm's 瓶頸 is broken — this test is about the tribulation, and
+  // since the gate check moved into attempt() a fixture without it never gets that far.
+  const s = { ...newPlayer('sword', T0), realm: 4, gates: [4], qi: realm(4).cost * 1.0, turmoil: 30 }
   const out = attempt(s, T0, 0.999)
   assert.equal(out.succeeded, false)
   assert.equal(out.state.realm, 4, 'the realm is kept')
@@ -120,7 +122,7 @@ test('a failed tribulation costs qi and time but never the realm', () => {
 })
 
 test('a passed tribulation quiets the heart', () => {
-  const s = { ...newPlayer('sword', T0), realm: 4, qi: realm(4).cost * 3, turmoil: 60 }
+  const s = { ...newPlayer('sword', T0), realm: 4, gates: [4], qi: realm(4).cost * 3, turmoil: 60 }
   const out = attempt(s, T0, 0.0)
   assert.equal(out.succeeded, true)
   assert.ok(out.state.turmoil < s.turmoil)
@@ -138,22 +140,33 @@ test('injury only slows the hours it actually covers', () => {
 
 /* ---------------- hunting and pills ---------------- */
 
-test('hunting costs qi, yields materials and sets a cooldown', () => {
+test('hunting costs qi, yields materials and spends one charge of four', () => {
   const s = { ...newPlayer('sword', T0), qi: 1000 }
+  assert.equal(huntCharges(s, T0), HUNT_MAX_CHARGES, 'a new cultivator starts fully charged')
   const got = hunt(s, T0, 0.1)
   assert.ok(got)
   assert.ok(got!.state.qi < 1000)
   assert.ok(got!.state.insight > 0)
   assert.equal(got!.state.seenBeasts.length, 1)
-  assert.equal(got!.state.huntReadyAt, T0 + HUNT_COOLDOWN_MS)
-  assert.equal(canHunt(got!.state, T0), false)
-  assert.equal(canHunt(got!.state, T0 + HUNT_COOLDOWN_MS), true)
+  assert.equal(huntCharges(got!.state, T0), HUNT_MAX_CHARGES - 1, 'one spent, the rest kept')
+  assert.equal(canHunt(got!.state, T0), true, 'and the next is available immediately')
+})
+
+test('charges accrue on their own and stop at the cap', () => {
+  // The cap is the whole point: a player who disappears for a week must not come
+  // back to fifty free hunts, and a player who checks in five times an evening must
+  // not out-earn one who checks in once.
+  const spent = { ...newPlayer('sword', T0), qi: 1e9, huntAnchorAt: T0 }
+  assert.equal(huntCharges(spent, T0), 0)
+  assert.equal(huntCharges(spent, T0 + HUNT_CHARGE_MS), 1)
+  assert.equal(huntCharges(spent, T0 + 3 * HUNT_CHARGE_MS), 3)
+  assert.equal(huntCharges(spent, T0 + 40 * HUNT_CHARGE_MS), HUNT_MAX_CHARGES)
 })
 
 test('a beast is only recorded once', () => {
   const s = { ...newPlayer('sword', T0), qi: 1000 }
   const first = hunt(s, T0, 0.1)!
-  const again = hunt({ ...first.state, huntReadyAt: 0 }, T0, 0.1)!
+  const again = hunt({ ...first.state, huntAnchorAt: 0 }, T0, 0.1)!
   assert.equal(again.firstSighting, false)
   assert.equal(again.state.seenBeasts.length, 1)
 })

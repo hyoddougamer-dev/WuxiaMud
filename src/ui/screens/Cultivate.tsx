@@ -6,6 +6,7 @@ import {
   ratePerSecond, turmoilFactor, TURMOIL_FREE, TURMOIL_MAX,
 } from '../../core/progress.ts'
 import { odds } from '../../core/tribulation.ts'
+import { bottleneckAt, checklist, canBreakGate, gateOpen } from '../../core/bottlenecks.ts'
 import { canAscend } from '../../core/ancestry.ts'
 import { short, duration } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
@@ -13,12 +14,13 @@ import type { PlayerState } from '../../core/state.ts'
 const pc = (v: number) => `${Math.round(v * 100)}%`
 const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`
 
-export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
+export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGate }: {
   state: PlayerState
   now: number
   onAttempt: () => void
   onSettle: () => void
   onAscend: () => void
+  onBreakGate: () => void
 }) {
   const r = realm(state.realm)
   const cost = breakthroughCost(state)
@@ -34,6 +36,9 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
   const o = odds(state)
   const injured = now < state.injuredUntil
   const strained = state.turmoil > TURMOIL_FREE
+  const gate = bottleneckAt(state.realm)
+  const gateDone = gateOpen(state)
+  const rows = gate && !gateDone ? checklist(state, gate) : []
 
   return (
     <div className="screen lit">
@@ -82,7 +87,7 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
           </span>
           <span className="v num">{duration(hours * 3600)}</span>
         </div>
-        {!ready && !atCeiling && !state.settling && (
+        {!ready && !atCeiling && !state.settling && state.qi < cost && (
           <div className="row">
             <span className="k">Ready in</span>
             <span className="v num">{duration(remaining)}</span>
@@ -108,12 +113,33 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
         </button>
       </div>
 
+      {gate && !gateDone && (
+        <div className="panel">
+          <p className="label">Bottleneck <span className="han">{gate.zh}</span></p>
+          <p className="ask" style={{ fontSize: 17 }}>{gate.name}</p>
+          <p className="hint">{gate.text}</p>
+          <div className="ledger">
+            {rows.map((row) => (
+              <div className="lr" key={row.label}>
+                <span>{row.label}</span>
+                <b className={row.ok ? 'up' : 'dn'}>
+                  {row.have} / {row.atMost ? 'max ' : ''}{row.need}{row.ok ? ' ✓' : ''}
+                </b>
+              </div>
+            ))}
+          </div>
+          <button className="cta" onClick={onBreakGate} disabled={!canBreakGate(state)}>
+            {canBreakGate(state) ? `Break ${gate.name}` : 'Not yet'}
+          </button>
+        </div>
+      )}
+
       {atCeiling ? (
         <>
           <div className="notice">
-            You have reached <strong>{r.name}</strong>, as far as a single life goes. Great
-            Vehicle and Tribulation are above you and no one has climbed them — that is what
-            a line is for.
+            You have reached <strong>{r.name}</strong>, the ninth realm, and no further —
+            a life ends here. Seal one art with your name and the next of your line begins
+            with it, and with a third of every meridian you opened.
           </div>
           <button className="cta gold" onClick={onAscend} disabled={!canAscend(state)}>
             {canAscend(state) ? 'Seal an art and ascend' : 'Learn an art first'}
@@ -137,13 +163,18 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend }: {
                 {state.pillPrimed && (
                   <div className="lr"><span>Tribulation Pill</span><b className="up">{signed(o.pill)}</b></div>
                 )}
+                {o.vessel > 0 && (
+                  <div className="lr"><span>Extraordinary vessels</span><b className="up">{signed(o.vessel)}</b></div>
+                )}
                 <div className="lr tot"><span>Your odds</span><b>{pc(o.total)}</b></div>
               </div>
             </div>
           )}
           <button className="cta" onClick={onAttempt} disabled={!ready}>
-            {!ready
+            {state.qi < cost
               ? `Needs ${short(cost - state.qi)} more qi`
+              : !gateDone
+                ? `${gate?.name ?? 'The gate'} bars the way`
               : o.needed
                 ? 'Face it'
                 : `Break through to ${realm(state.realm + 1).name}`}

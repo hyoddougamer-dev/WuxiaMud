@@ -5,7 +5,7 @@ import type { Seal } from './names.ts'
 import { origin, type OriginId } from './origins.ts'
 import { realm } from './realms.ts'
 
-export const SAVE_VERSION = 4
+export const SAVE_VERSION = 5
 
 export interface PlayerState {
   readonly version: number
@@ -38,8 +38,18 @@ export interface PlayerState {
   pillPrimed: boolean
   /** Epoch ms until which a failed tribulation still slows you. */
   injuredUntil: number
-  /** Epoch ms the next hunt becomes available. */
-  huntReadyAt: number
+  /**
+   * Hunting runs on charges rather than a bare cooldown, and this one number holds
+   * all of it: charges available are the whole three-hour periods since this instant,
+   * capped. Spending one moves the anchor forward instead of resetting it, so a
+   * player who checks in once a day and one who checks in five times get the same
+   * four hunts — which is the only way the Sword Path could afford a meridian.
+   */
+  huntAnchorAt: number
+  /** 經脈 opened, permanently. The active player's power curve. */
+  meridians: string[]
+  /** Realms whose 瓶頸 has been broken. A gate stays open once passed. */
+  gates: number[]
   failedTribulations: number
   /** Epoch ms. All three clocks are server-owned in production. */
   lastSeenAt: number
@@ -61,6 +71,8 @@ export function newPlayer(
     generation?: number
     inherited?: PlayerState['inherited']
     lineBonus?: number
+    /** Meridians the line remembers — opened before this cultivator drew breath. */
+    meridians?: string[]
   } = {},
 ): PlayerState {
   return {
@@ -71,6 +83,7 @@ export function newPlayer(
     generation: opts.generation ?? 1,
     inherited: opts.inherited ?? null,
     lineBonus: opts.lineBonus ?? 0,
+    meridians: opts.meridians ? [...opts.meridians] : [],
     path,
     realm: 1,
     qi: 0,
@@ -85,7 +98,10 @@ export function newPlayer(
     pills: {},
     pillPrimed: false,
     injuredUntil: 0,
-    huntReadyAt: 0,
+    // Epoch zero: charged since before the world, so a new cultivator opens the game
+    // with a full set of hunts rather than a locked screen.
+    huntAnchorAt: 0,
+    gates: [],
     failedTribulations: 0,
     lastSeenAt: now,
     lastOpenedAt: now,

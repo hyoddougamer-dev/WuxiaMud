@@ -1,4 +1,4 @@
-/** The nine realms. Release one lets the player reach realm 7; 8 and 9 are visible and locked. */
+/** The nine realms. All nine are climbable; the ninth is where a life ends and a line begins. */
 export interface Realm {
   readonly id: number
   readonly name: string
@@ -9,29 +9,39 @@ export interface Realm {
   readonly rate: number
 }
 
-export const V1_CEILING = 7
+/**
+ * The top of the ladder. Was 7 while realms 8 and 9 were drawn but locked, which cut
+ * the game off two rungs from its own ending and was most of why a measured climb
+ * lasted seventeen days instead of a season.
+ */
+export const V1_CEILING = 9
 
 /**
  * Cost is derived, not invented: cost = (seconds this realm should take) × (its rate).
  *
  * The first table was written by eye and a simulation of real play found the whole
- * climb lasted between two and eight days — costs grew about 7× per realm while the
- * rate grew 3.3×, so the two nearly cancelled and the game ended in an afternoon.
- * These are built from the times below, which escalate about 5× per realm: three
- * minutes to the first breakthrough, roughly a month to the last.
+ * climb lasted an afternoon — costs grew about 7× per realm while the rate grew 3.3×,
+ * so the two nearly cancelled. The second was honest but short: seventeen measured
+ * days, because the ladder stopped at seven. These are the times for all nine rungs,
+ * and the shape is deliberate — the first four realms are a tutorial that fits in an
+ * evening, and the last two are most of the game.
  *
- *   realm   1     2      3       4      5       6        7
- *   time    3m    15m    1.25h   6h     1.3d    6.4d     30d
+ *   realm   1     2      3     4     5      6     7      8
+ *   time    3m    15m    1h    5h    1.2d   4d    12d    45d
+ *
+ * That is about sixty-two days of gathering at a bare multiplier of one. Arts,
+ * meridians and a line pull it well under that; bottlenecks push it back out. The
+ * only number that means anything is what `npm run measure` reports.
  */
 export const REALMS: readonly Realm[] = [
-  { id: 1, name: 'Qi Refining',     zh: '練氣', cost: 1.8e2, rate: 1 },
-  { id: 2, name: 'Foundation',      zh: '築基', cost: 2.9e3, rate: 3.2 },
-  { id: 3, name: 'Golden Core',     zh: '金丹', cost: 4.5e4, rate: 10 },
-  { id: 4, name: 'Nascent Soul',    zh: '元嬰', cost: 7.3e5, rate: 33 },
-  { id: 5, name: 'Spirit Severing', zh: '化神', cost: 1.2e7, rate: 108 },
-  { id: 6, name: 'Void Refining',   zh: '煉虛', cost: 1.9e8, rate: 350 },
-  { id: 7, name: 'Unity',           zh: '合體', cost: 3.0e9, rate: 1150 },
-  { id: 8, name: 'Great Vehicle',   zh: '大乘', cost: 5.0e10, rate: 3800 },
+  { id: 1, name: 'Qi Refining',     zh: '練氣', cost: 1.8e2,  rate: 1 },
+  { id: 2, name: 'Foundation',      zh: '築基', cost: 2.9e3,  rate: 3.2 },
+  { id: 3, name: 'Golden Core',     zh: '金丹', cost: 3.6e4,  rate: 10 },
+  { id: 4, name: 'Nascent Soul',    zh: '元嬰', cost: 5.9e5,  rate: 33 },
+  { id: 5, name: 'Spirit Severing', zh: '化神', cost: 1.12e7, rate: 108 },
+  { id: 6, name: 'Void Refining',   zh: '煉虛', cost: 1.21e8, rate: 350 },
+  { id: 7, name: 'Unity',           zh: '合體', cost: 1.19e9, rate: 1150 },
+  { id: 8, name: 'Great Vehicle',   zh: '大乘', cost: 1.48e10, rate: 3800 },
   { id: 9, name: 'Tribulation',     zh: '渡劫', cost: Infinity, rate: 12500 },
 ]
 

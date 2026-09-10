@@ -1,5 +1,6 @@
 import { technique, type Technique } from './techniques.ts'
-import { realm } from './realms.ts'
+import { realm, V1_CEILING } from './realms.ts'
+import { MERIDIANS } from './meridians.ts'
 import type { PathId } from './paths.ts'
 import type { Seal } from './names.ts'
 import type { PlayerState } from './state.ts'
@@ -22,6 +23,8 @@ export interface Ancestor {
   /** The art they sealed, and what they chose to call it. */
   readonly techniqueId: string
   readonly artName: string
+  /** How many meridians they got open before they stopped. The line remembers. */
+  readonly meridians: number
   readonly ascendedAt: number
 }
 
@@ -38,6 +41,25 @@ export function lineageBonus(line: Line): number {
 
 export function generationOf(line: Line): number {
   return line.length + 1
+}
+
+/**
+ * A third of the best set of meridians any forebear ever opened, granted at birth.
+ *
+ * The line needed to be worth more than a few percent of generation. Meridians are
+ * the right currency for it: they are the slowest thing in the game to earn, they are
+ * permanent, and inheriting them means a second cultivator starts where the first
+ * spent a fortnight getting to. A third rather than all of them, so the climb is
+ * shortened and never skipped.
+ */
+export const INHERITED_MERIDIAN_SHARE = 3
+
+/** Cheapest first — which, checked against the courses, is always a legal order. */
+const BY_PRICE = [...MERIDIANS].sort((a, b) => a.insight - b.insight)
+
+export function inheritedMeridians(line: Line): string[] {
+  const best = line.reduce((n, a) => Math.max(n, a.meridians ?? 0), 0)
+  return BY_PRICE.slice(0, Math.floor(best / INHERITED_MERIDIAN_SHARE)).map((m) => m.id)
 }
 
 /** An inherited art costs no upkeep — the ancestor is carrying it, not you. */
@@ -84,6 +106,7 @@ export function ascend(
     generation: s.generation,
     techniqueId,
     artName: artName.trim().slice(0, 32) || technique(techniqueId)!.name,
+    meridians: s.meridians.length,
     ascendedAt: now,
   }
   return { ancestor, line: [...line, ancestor] }
@@ -94,7 +117,8 @@ export function canAscend(s: PlayerState): boolean {
   return s.realm >= ASCEND_REALM && s.learned.length > 0
 }
 
-export const ASCEND_REALM = 7
+/** The top of the ladder. A life ends where the ninth realm begins. */
+export const ASCEND_REALM = V1_CEILING
 
 export function ascensionSummary(s: PlayerState): string {
   return `${s.name} · ${realm(s.realm).name}`

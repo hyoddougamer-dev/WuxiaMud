@@ -4,6 +4,8 @@ import { TECHNIQUES, technique, upkeepOf, schoolClash } from './techniques.ts'
 import { PILLS, type PillId, held } from './pills.ts'
 import { canPay, pay, type Satchel } from './materials.ts'
 import { inheritedEffect } from './ancestry.ts'
+import { MERIDIANS, meridian, unlocked } from './meridians.ts'
+import { gateOpen } from './bottlenecks.ts'
 import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
 import type { PlayerState } from './state.ts'
 
@@ -52,6 +54,14 @@ export interface Modifiers {
   noDecay: boolean
   /** Absolute qi/second consumed by equipped arts. */
   upkeep: number
+  /** Multiplier on how fast the heart stirs. Below one is calmer. */
+  turmoilRate: number
+  /** Multiplier on how fast settling drains. Above one is faster. */
+  settleDrain: number
+  /** Multiplier on how long a hunt charge takes to return. Below one is faster. */
+  huntSpeed: number
+  /** Flat addition to every tribulation's chance, from the extraordinary vessels. */
+  odds: number
 }
 
 /** Everything the arts, the flame, the inherited art and the line do to the numbers. */
@@ -63,7 +73,28 @@ export function modifiers(s: PlayerState): Modifiers {
     offlineCapHours: DEFAULT_OFFLINE_CAP_HOURS,
     noDecay: false,
     upkeep: 0,
+    turmoilRate: 1,
+    settleDrain: 1,
+    huntSpeed: 1,
+    odds: 0,
   }
+
+  // Meridians first: they are permanent, have no upkeep and cannot clash, so they
+  // form the floor everything else is measured against.
+  for (const id of s.meridians) {
+    const v = meridian(id)
+    if (!v) continue
+    if (v.kind === 'rate') m.rate += v.value
+    else if (v.kind === 'insight') m.insight += v.value
+    else if (v.kind === 'breakthrough') m.breakthrough -= v.value
+    else if (v.kind === 'offlineCap') m.offlineCapHours += v.value
+    else if (v.kind === 'turmoil') m.turmoilRate -= v.value
+    else if (v.kind === 'settle') m.settleDrain += v.value
+    else if (v.kind === 'hunt') m.huntSpeed -= v.value
+    else if (v.kind === 'odds') m.odds += v.value
+  }
+  m.turmoilRate = Math.max(0.2, m.turmoilRate)
+  m.huntSpeed = Math.max(0.3, m.huntSpeed)
   for (const id of s.equipped) {
     const t = technique(id)
     if (!t) continue
@@ -136,8 +167,53 @@ export function breakthroughCost(s: PlayerState): number {
   return Math.ceil(realm(s.realm).cost * modifiers(s).breakthrough)
 }
 
+/**
+ * Qi alone stopped being enough at the third realm. `gateOpen` is the 瓶頸 check, and
+ * it is deliberately part of this function rather than bolted onto the UI: the server
+ * will run the same call, and a client that forgets a gate would otherwise be able to
+ * skip one.
+ */
 export function canBreakThrough(s: PlayerState): boolean {
-  return s.realm < V1_CEILING && s.qi >= breakthroughCost(s)
+  return s.realm < V1_CEILING && s.qi >= breakthroughCost(s) && gateOpen(s)
+}
+
+/** True when the only thing missing is the gate — worth saying differently in the UI. */
+export function heldAtGate(s: PlayerState): boolean {
+  return s.realm < V1_CEILING && s.qi >= breakthroughCost(s) && !gateOpen(s)
+}
+
+/**
+ * Open a meridian. Costs insight and materials, needs the realm, and needs the
+ * meridian before it in its own course. Permanent and unequippable — the one kind of
+ * progress in the game that cannot be undone by a bad decision later.
+ */
+export function openMeridian(s: PlayerState, id: string): PlayerState {
+  const v = meridian(id)
+  if (!v || s.meridians.includes(id)) return s
+  if (s.realm < v.realm || s.insight < v.insight) return s
+  if (!unlocked(s.meridians, v)) return s
+  if (!canPay(s.satchel, v.mats)) return s
+  return {
+    ...s,
+    insight: s.insight - v.insight,
+    satchel: pay(s.satchel, v.mats),
+    meridians: [...s.meridians, id],
+  }
+}
+
+export function canOpenMeridian(s: PlayerState, id: string): boolean {
+  return openMeridian(s, id) !== s
+}
+
+/** Everything a meridian asks for, so the UI can grey the right line. */
+export function meridiansAt(s: PlayerState) {
+  return MERIDIANS.map((v) => ({
+    meridian: v,
+    open: s.meridians.includes(v.id),
+    reachable: unlocked(s.meridians, v),
+    affordable: s.insight >= v.insight && canPay(s.satchel, v.mats),
+    realmReady: s.realm >= v.realm,
+  }))
 }
 
 export interface ElapsedReport {
@@ -180,8 +256,9 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
 
   const hours = creditedMs / HOUR_MS
   const turmoil = s.settling
-    ? Math.max(0, s.turmoil - SETTLE_DRAIN_PER_HOUR * hours)
-    : Math.min(TURMOIL_MAX, s.turmoil + hours * TURMOIL_PER_HOUR * mult * originTurmoilRate(s.origin))
+    ? Math.max(0, s.turmoil - SETTLE_DRAIN_PER_HOUR * m.settleDrain * hours)
+    : Math.min(TURMOIL_MAX,
+        s.turmoil + hours * TURMOIL_PER_HOUR * mult * originTurmoilRate(s.origin) * m.turmoilRate)
 
   return {
     state: { ...s, qi: s.qi + qiGained, turmoil, lastSeenAt: now },

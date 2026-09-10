@@ -33,7 +33,7 @@ test('only tribulation and hunting consume randomness', () => {
 })
 
 test('the roll decides the tribulation, and the caller supplies it', () => {
-  const ready = { ...newPlayer('sword', T0), realm: 4, qi: realm(4).cost * 2 }
+  const ready = { ...newPlayer('sword', T0), realm: 4, gates: [4], qi: realm(4).cost * 2 }
   const lucky = apply(ready, { type: 'attempt' }, T0, 0.01, 6)
   const unlucky = apply(ready, { type: 'attempt' }, T0, 0.999, 6)
   assert.equal(lucky.event.tribulation?.succeeded, true)

@@ -5,6 +5,7 @@ import { Cultivate } from './ui/screens/Cultivate.tsx'
 import { Arts } from './ui/screens/Arts.tsx'
 import { Lineage } from './ui/screens/Lineage.tsx'
 import { Sect } from './ui/screens/Sect.tsx'
+import { Meridians } from './ui/screens/Meridians.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
 import { advance } from './core/progress.ts'
 import { realmColour } from './core/realms.ts'
@@ -20,13 +21,14 @@ import type { Ancestor } from './core/ancestry.ts'
 import { AscendModal } from './ui/screens/Ascend.tsx'
 import type { CreateOptions } from './net/session.ts'
 
-type Tab = 'cultivate' | 'lineage' | 'arts' | 'sect'
+type Tab = 'cultivate' | 'body' | 'arts' | 'sect' | 'lineage'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'cultivate', icon: 'u-cultivate', label: 'Cultivate' },
-  { id: 'lineage', icon: 'u-lineage', label: 'Lineage' },
+  { id: 'body', icon: 'u-meridians', label: 'Body' },
   { id: 'arts', icon: 'u-techniques', label: 'Arts' },
   { id: 'sect', icon: 'u-sect', label: 'Sect' },
+  { id: 'lineage', icon: 'u-lineage', label: 'Lineage' },
 ]
 
 /** How often the display re-projects. Costs nothing: it is arithmetic, not a request. */
@@ -186,7 +188,11 @@ export default function App() {
             onSettle={() => void send({ type: 'settle' })}
             onAttempt={() => void send({ type: 'attempt' })}
             onAscend={() => setSealing(true)}
+            onBreakGate={() => void send({ type: 'gate' })}
           />
+        )}
+        {tab === 'body' && (
+          <Meridians state={shown} onOpen={(id) => void send({ type: 'meridian', id })} />
         )}
         {tab === 'lineage' && <Lineage state={shown} line={line} />}
         {tab === 'arts' && (

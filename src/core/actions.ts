@@ -1,4 +1,5 @@
-import { equip, learn, unequip, toggleSettle, brew, takePill, openSession } from './progress.ts'
+import { equip, learn, unequip, toggleSettle, brew, takePill, openSession, openMeridian } from './progress.ts'
+import { breakGate } from './bottlenecks.ts'
 import { attempt, type Outcome } from './tribulation.ts'
 import { hunt, type Spoils } from './hunt.ts'
 import type { PillId } from './pills.ts'
@@ -22,6 +23,8 @@ export type Action =
   | { type: 'takePill'; id: PillId }
   | { type: 'attempt' }
   | { type: 'hunt' }
+  | { type: 'meridian'; id: string }
+  | { type: 'gate' }
   | { type: 'open' }
   | { type: 'ascend'; artName: string; techniqueId: string }
 
@@ -62,6 +65,8 @@ export function apply(
     case 'unequip':  return same(unequip(state, action.id))
     case 'brew':     return same(brew(state, action.id))
     case 'takePill': return same(takePill(state, action.id, now))
+    case 'meridian': return same(openMeridian(state, action.id))
+    case 'gate':     return same(breakGate(state))
     case 'open':     return same(openSession(state, now))
 
     case 'flame': {

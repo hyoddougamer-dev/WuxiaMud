@@ -1,5 +1,5 @@
-import { realm, V1_CEILING } from './realms.ts'
-import { breakthroughCost, modifiers, TURMOIL_MAX } from './progress.ts'
+import { realm } from './realms.ts'
+import { breakthroughCost, canBreakThrough, modifiers, TURMOIL_MAX } from './progress.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -14,7 +14,14 @@ import type { PlayerState } from './state.ts'
 /** Realms one and two break through cleanly, so the player learns the loop first. */
 export const FIRST_TRIBULATION_REALM = 3
 
-const BASE_ODDS: Record<number, number> = { 3: 0.92, 4: 0.86, 5: 0.78, 6: 0.70, 7: 0.60 }
+/**
+ * The last two rungs are the game, so they are the two that can actually kill a run:
+ * a Great Vehicle tribulation at 52% is a decision, not a formality. Nothing here is
+ * hidden — `odds()` hands back every term separately so the UI can show the sum.
+ */
+const BASE_ODDS: Record<number, number> = {
+  3: 0.92, 4: 0.86, 5: 0.78, 6: 0.72, 7: 0.64, 8: 0.52,
+}
 export const SURPLUS_CAP = 0.25
 export const TURMOIL_WEIGHT = 0.35
 export const PILL_BONUS = 0.2
@@ -27,20 +34,23 @@ export interface Odds {
   surplus: number
   turmoil: number
   pill: number
+  /** The Conception and Girdling vessels, if they are open. */
+  vessel: number
   total: number
 }
 
 export function odds(s: PlayerState): Odds {
   const cost = breakthroughCost(s)
   if (s.realm < FIRST_TRIBULATION_REALM) {
-    return { needed: false, base: 1, surplus: 0, turmoil: 0, pill: 0, total: 1 }
+    return { needed: false, base: 1, surplus: 0, turmoil: 0, pill: 0, vessel: 0, total: 1 }
   }
   const base = BASE_ODDS[s.realm] ?? 0.55
   const surplus = Math.min(SURPLUS_CAP, Math.max(0, s.qi / cost - 1) * SURPLUS_CAP)
   const turmoil = -(Math.min(s.turmoil, TURMOIL_MAX) / TURMOIL_MAX) * TURMOIL_WEIGHT
   const pill = s.pillPrimed ? PILL_BONUS : 0
-  const total = Math.min(CEILING, Math.max(FLOOR, base + surplus + turmoil + pill))
-  return { needed: true, base, surplus, turmoil, pill, total }
+  const vessel = modifiers(s).odds
+  const total = Math.min(CEILING, Math.max(FLOOR, base + surplus + turmoil + pill + vessel))
+  return { needed: true, base, surplus, turmoil, pill, vessel, total }
 }
 
 export interface Outcome {
@@ -57,7 +67,11 @@ export interface Outcome {
  */
 export function attempt(s: PlayerState, now: number, roll: number): Outcome {
   const cost = breakthroughCost(s)
-  if (s.realm >= V1_CEILING || s.qi < cost) {
+  // Asks the same question the button asks, rather than re-deriving half of it. The
+  // first version repeated only the qi check, so the engine would happily run a
+  // tribulation whose 瓶頸 was still unbroken — a test caught it, and on the server
+  // that would have been a client able to skip every gate in the game.
+  if (!canBreakThrough(s)) {
     return { state: s, succeeded: false, roll, chance: 0 }
   }
   const chance = odds(s).total

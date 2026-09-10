@@ -5,7 +5,7 @@ import { newPlayer, type PlayerState } from '../core/state.ts'
 import * as store from '../core/save.ts'
 import type { PathId } from '../core/paths.ts'
 import type { CreateOptions, Session } from './session.ts'
-import { generationOf, lineageBonus, type Ancestor } from '../core/ancestry.ts'
+import { generationOf, inheritedMeridians, lineageBonus, type Ancestor } from '../core/ancestry.ts'
 import { endsLife } from '../core/actions.ts'
 
 /**
@@ -39,6 +39,7 @@ export class LocalSession implements Session {
       origin: opts.origin as PlayerState['origin'] | undefined,
       generation: generationOf(line),
       lineBonus: lineageBonus(line),
+      meridians: inheritedMeridians(line),
       inherited: from
         ? { techniqueId: from.techniqueId, from: from.name, fromPath: from.path, artName: from.artName }
         : null,
