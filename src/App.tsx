@@ -221,6 +221,7 @@ export default function App() {
           <Hunt
             state={shown} now={now}
             onHunt={() => void send({ type: 'hunt' })}
+            onTravel={(id) => void send({ type: 'travel', id })}
             onBrew={(id: PillId) => void send({ type: 'brew', id })}
             onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
           />
@@ -268,6 +269,9 @@ export default function App() {
               <p>Taken: <strong>{spoils.material.amount}× {spoils.material.id}</strong>, and{' '}
                 <strong>{spoils.insight}</strong> insight.
                 {spoils.firstSighting && ' Recorded in the bestiary.'}</p>
+              {spoils.danger > 0 && (
+                <p>The ground took <strong>{spoils.danger}</strong> of your calm for it.</p>
+              )}
               <button className="cta" onClick={() => setSpoils(null)}>Continue</button>
             </div>
           </div>

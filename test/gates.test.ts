@@ -7,6 +7,7 @@ import { attempt } from '../src/core/tribulation.ts'
 import { MERIDIANS } from '../src/core/meridians.ts'
 import { TECHNIQUES } from '../src/core/techniques.ts'
 import { BEASTS } from '../src/core/beasts.ts'
+import { GROUNDS, quarryOf } from '../src/core/grounds.ts'
 import { count, MATERIAL_FOR_RANK, type MaterialId } from '../src/core/materials.ts'
 import { V1_CEILING } from '../src/core/realms.ts'
 
@@ -115,7 +116,8 @@ test('no gate or meridian asks for a material the realm cannot yet drop', () => 
   // for one True Essence and the only beasts that dropped any were locked behind the
   // seventh realm. A circular requirement is unwinnable and invisible in the UI.
   const droppedBy = (realmId: number) =>
-    new Set(BEASTS.filter((b) => b.realm <= realmId).map((b) => MATERIAL_FOR_RANK[b.rank]))
+    new Set(GROUNDS.filter((g) => g.realm <= realmId)
+      .flatMap((g) => quarryOf(g).map((b) => MATERIAL_FOR_RANK[b.rank])))
 
   for (const b of BOTTLENECKS) {
     for (const k of Object.keys(b.offering)) {

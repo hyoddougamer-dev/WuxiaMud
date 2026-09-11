@@ -12,13 +12,15 @@ import { advance, breakthroughCost, canBreakThrough, learn, equip, brew, takePil
          toggleSettle, ratePerSecond, modifiers, clockHours, openMeridian,
          pillCost, TURMOIL_FREE } from '../src/core/progress.ts'
 import { attempt, odds, SURPLUS_CAP } from '../src/core/tribulation.ts'
-import { hunt, canHunt, huntCharges } from '../src/core/hunt.ts'
+import { hunt, canHunt, huntCharges, travel } from '../src/core/hunt.ts'
+import { GROUNDS, ground, openAt, quarryOf } from '../src/core/grounds.ts'
 import { bottleneckAt, canBreakGate, breakGate, checklist, gateOpen } from '../src/core/bottlenecks.ts'
 import { MERIDIANS, unlocked } from '../src/core/meridians.ts'
 import { newPlayer, type PlayerState } from '../src/core/state.ts'
 import { TECHNIQUES, slotsAt, schoolClash, technique, upkeepOf } from '../src/core/techniques.ts'
+import { BEASTS } from '../src/core/beasts.ts'
 import { V1_CEILING } from '../src/core/realms.ts'
-import { canPay } from '../src/core/materials.ts'
+import { canPay, MATERIAL_FOR_RANK, count, type MaterialId } from '../src/core/materials.ts'
 import { held } from '../src/core/pills.ts'
 import { PATHS, type PathId } from '../src/core/paths.ts'
 import type { OriginId } from '../src/core/origins.ts'
@@ -34,6 +36,8 @@ function rng(seed: number) {
 interface Run {
   path: PathId
   origin: OriginId
+  travels: number
+  beastsSeen: number
   days: number
   sessions: number
   breakthroughs: number
@@ -64,7 +68,7 @@ const SESSION_SECONDS = 100
  */
 function attemptTarget(s: PlayerState): number {
   const o = odds(s)
-  return Math.min(0.85, o.base + SURPLUS_CAP + modifiers(s).odds - 0.03)
+  return Math.min(0.82, o.base + SURPLUS_CAP + modifiers(s).odds - 0.04)
 }
 
 /**
@@ -86,9 +90,66 @@ function wantsQuiet(s: PlayerState): number | null {
   return null
 }
 
+/**
+ * The material the next thing you want is short of, or null when nothing is blocked.
+ *
+ * This is what makes the ground picker a decision rather than a ladder: the deepest
+ * open ground is not always the useful one, because the Lung Channel wants hides and
+ * the Ash Slopes are the only place that drops nothing else.
+ */
+function shortOf(s: PlayerState): MaterialId | null {
+  const b = bottleneckAt(s.realm)
+  if (b && !gateOpen(s)) {
+    for (const [k, v] of Object.entries(b.offering)) {
+      if (count(s.satchel, k as MaterialId) < (v ?? 0)) return k as MaterialId
+    }
+  }
+  const next = [...MERIDIANS].sort((a, x) => a.insight - x.insight)
+    .find((m) => !s.meridians.includes(m.id) && unlocked(s.meridians, m) && s.realm >= m.realm)
+  if (next) {
+    for (const [k, v] of Object.entries(next.mats)) {
+      if (count(s.satchel, k as MaterialId) < (v ?? 0)) return k as MaterialId
+    }
+  }
+  return null
+}
+
+/**
+ * Where a competent player goes. Deepest ground they can pay for in calm — unless
+ * something they need only drops somewhere shallower, in which case they go there.
+ */
+function chooseGround(s: PlayerState): string {
+  const open = GROUNDS.filter((g) => openAt(g, s.realm))
+  if (!open.length) return s.ground
+
+  // Four hunts a day is the cap, so four trips is the honest unit of a budget. When a
+  // tribulation or a quiet gate is waiting, the budget is nothing at all.
+  const budget = wantsQuiet(s) !== null ? 0 : Math.max(0, (TURMOIL_FREE - s.turmoil) / 4)
+  const affordable = open.filter((g) => g.danger <= budget)
+  const pool = affordable.length ? affordable : [open[0]]
+
+  // What you need beats what is comfortable. When a gate or the next meridian is
+  // short of a material, go to the *shallowest* ground that drops it — even over
+  // budget, because turmoil can be settled and a missing essence cannot be waited out.
+  const need = shortOf(s)
+  if (need) {
+    const drops = open.filter((g) => quarryOf(g).some((b) => MATERIAL_FOR_RANK[b.rank] === need))
+    if (drops.length) return drops[0].id
+  }
+  return pool[pool.length - 1].id
+}
+
 /** What a competent player does with a minute and a half, in priority order. */
 function play(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
   const slots = slotsAt(s.realm)
+
+  // 0. The heavens first, while the heart is still quiet from the night.
+  s = faceIt(s, now, roll, tally)
+  if (s.settling && wantsQuiet(s) === null) s = toggleSettle(s)
+
+  // Then decide where to stand before deciding whether to hunt.
+  const where = chooseGround(s)
+  if (where !== s.ground) { s = travel(s, where); tally.travels++ }
 
   // 1. Hunt out the charges first. Insight and materials are what everything below
   //    spends, and a hunt now costs five minutes of gathering rather than a fifth of
@@ -98,6 +159,8 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
     if (!got) break
     s = got.state
     tally.hunts++
+    // Standing still while the heart fills is how a run ends at 74% odds.
+    if (wantsQuiet(s) !== null) break
   }
 
   // 2. Open every meridian the purse stretches to, cheapest first. Permanent, no
@@ -151,27 +214,35 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   const after = wantsQuiet(s)
   if (after !== null && s.turmoil > after && !s.settling) { s = toggleSettle(s); tally.settles++ }
 
-  // 7. Break through when the odds stop improving.
-  //
-  //    The threshold is read off the realm rather than fixed. A flat 0.75 gate looks
-  //    reasonable and is unreachable: Great Vehicle opens at 52% and surplus caps at
-  //    +25%. What a competent player does is bank toward the cap, quiet the heart,
-  //    swallow the pill on the rungs that can actually kill them, and go.
-  if (canBreakThrough(s)) {
-    const o = odds(s)
-    const target = attemptTarget(s)
-    const plateaued = s.qi >= breakthroughCost(s) * 2 && s.turmoil <= 12 && !s.settling
-    if (!o.needed || o.total >= target || plateaued) {
-      if (o.needed && !s.pillPrimed && o.total < 0.9 && held(s.pills, 'tribulation') > 0) {
-        s = takePill(s, 'tribulation', now)
-      }
-      const out = attempt(s, now, roll())
-      s = out.state
-      if (out.succeeded) tally.breakthroughs++
-      else tally.failures++
-    }
+  // 7. And once more, because breaking a gate can open a tribulation that was not
+  //    available when this session started.
+  return faceIt(s, now, roll, tally)
+}
+
+/**
+ * Face the tribulation if the odds have stopped improving.
+ *
+ * This runs *before* the hunt as well as after the gate, and the order is the whole
+ * point. With it only at the end, every Sword run parked at Great Vehicle forever:
+ * each session opened with clear odds of 89%, spent four charges in The Scar, came
+ * back with twelve turmoil, watched the odds fall under the threshold, sat down to
+ * settle, and did it again the next day. Nobody would play like that. You face the
+ * heavens while your heart is quiet, and then you go hunting.
+ */
+function faceIt(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
+  if (!canBreakThrough(s)) return s
+  const o = odds(s)
+  const target = attemptTarget(s)
+  const plateaued = s.qi >= breakthroughCost(s) * 2 && s.turmoil <= 12 && !s.settling
+  if (!(!o.needed || o.total >= target || plateaued)) return s
+
+  if (o.needed && !s.pillPrimed && o.total < 0.9 && held(s.pills, 'tribulation') > 0) {
+    s = takePill(s, 'tribulation', now)
   }
-  return s
+  const out = attempt(s, now, roll())
+  if (out.succeeded) tally.breakthroughs++
+  else tally.failures++
+  return out.state
 }
 
 function simulate(path: PathId, origin: OriginId, seed: number): Run {
@@ -181,7 +252,7 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
   const tally: Run = {
     path, origin, days: 0, sessions: 0, breakthroughs: 0, failures: 0,
     hunts: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
-    activeMinutes: 0, reachedCeiling: false,
+    travels: 0, beastsSeen: 0, activeMinutes: 0, reachedCeiling: false,
   }
 
   // Sword is played once a day; Blade five times. Session times are computed from
@@ -203,6 +274,7 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
     s = { ...s, activeSeconds: s.activeSeconds + SESSION_SECONDS }
     tally.days = Math.ceil(i / perDay)
   }
+  tally.beastsSeen = s.seenBeasts.length
   tally.reachedCeiling = s.realm >= V1_CEILING
   if (!tally.reachedCeiling) {
     const o = odds(s)
@@ -215,7 +287,8 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
       ` (base ${(o.base * 100).toFixed(0)} surplus +${(o.surplus * 100).toFixed(0)}` +
       ` turmoil ${(o.turmoil * 100).toFixed(0)} vessels +${(o.vessel * 100).toFixed(0)})` +
       `\n         gate: ${missing}` +
-      `\n         meridians ${s.meridians.length}/12 · arts ${s.learned.length} · beasts ${s.seenBeasts.length}` +
+      `\n         ground ${ground(s.ground).name} · meridians ${s.meridians.length}/12` +
+      ` · arts ${s.learned.length} · beasts ${s.seenBeasts.length}/${BEASTS.length}` +
       ` · insight ${s.insight} · hide/core/essence ${s.satchel.hide ?? 0}/${s.satchel.core ?? 0}/${s.satchel.essence ?? 0}` +
       `\n         rate ${ratePerSecond(s, now).toFixed(0)}/s · upkeep ${modifiers(s).upkeep.toFixed(0)}/s` +
       ` · settling ${s.settling} · pathMult ${PATHS[s.path].rateAt(clockHours(s, now)).toFixed(2)}` +
@@ -233,13 +306,14 @@ for (const path of ['sword', 'blade'] as PathId[]) {
 
 const pad = (v: string | number, n: number) => String(v).padStart(n)
 console.log(`\nNinefold · measured content length to realm ${V1_CEILING}\n`)
-console.log('path   origin      days  sessions  active  breaks  failed  hunts  arts  merid  gates  reached')
+console.log('path   origin      days  sessions  active  breaks  hunts  moves  beasts  merid  gates  reached')
 console.log('─'.repeat(94))
 for (const r of rows) {
   console.log(
     r.path.padEnd(7) + r.origin.padEnd(12) +
     pad(r.days, 4) + pad(r.sessions, 10) + pad(`${(r.activeMinutes / 60).toFixed(1)}h`, 8) +
-    pad(r.breakthroughs, 7) + pad(r.failures, 8) + pad(r.hunts, 7) + pad(r.artsLearned, 6) +
+    pad(r.breakthroughs, 7) + pad(r.hunts, 7) + pad(r.travels, 7) +
+    pad(`${r.beastsSeen}/${BEASTS.length}`, 8) +
     pad(r.meridians, 7) + pad(r.gates, 7) + pad(r.reachedCeiling ? 'yes' : 'NO', 9),
   )
 }

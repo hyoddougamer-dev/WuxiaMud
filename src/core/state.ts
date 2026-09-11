@@ -4,8 +4,9 @@ import type { PillBag } from './pills.ts'
 import type { Seal } from './names.ts'
 import { origin, type OriginId } from './origins.ts'
 import { realm } from './realms.ts'
+import { FIRST_GROUND } from './grounds.ts'
 
-export const SAVE_VERSION = 5
+export const SAVE_VERSION = 6
 
 export interface PlayerState {
   readonly version: number
@@ -46,6 +47,8 @@ export interface PlayerState {
    * four hunts — which is the only way the Sword Path could afford a meridian.
    */
   huntAnchorAt: number
+  /** 洞天 you are standing in. Decides what a hunt can find and what it costs in calm. */
+  ground: string
   /** 經脈 opened, permanently. The active player's power curve. */
   meridians: string[]
   /** Realms whose 瓶頸 has been broken. A gate stays open once passed. */
@@ -101,6 +104,7 @@ export function newPlayer(
     // Epoch zero: charged since before the world, so a new cultivator opens the game
     // with a full set of hunts rather than a locked screen.
     huntAnchorAt: 0,
+    ground: FIRST_GROUND,
     gates: [],
     failedTribulations: 0,
     lastSeenAt: now,

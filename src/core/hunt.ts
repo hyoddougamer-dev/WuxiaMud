@@ -1,8 +1,9 @@
-import { BEASTS, type Beast } from './beasts.ts'
+import { type Beast } from './beasts.ts'
+import { ground, openAt, quarryOf } from './grounds.ts'
 import { MATERIAL_FOR_RANK, add } from './materials.ts'
 import { originHuntDiscount } from './origins.ts'
 import { realm } from './realms.ts'
-import { modifiers } from './progress.ts'
+import { modifiers, TURMOIL_MAX } from './progress.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -65,14 +66,24 @@ export function canHunt(s: PlayerState, now: number): boolean {
   return huntCharges(s, now) > 0 && quarry(s).length > 0 && s.qi >= huntCost(s)
 }
 
-/** Beasts at or below the cultivator's realm. Nothing above: you would lose. */
+/** The three beasts of the ground you are standing in, or none if it is shut to you. */
 export function quarry(s: PlayerState): Beast[] {
-  return BEASTS.filter((b) => b.realm <= s.realm)
+  const g = ground(s.ground)
+  return openAt(g, s.realm) ? quarryOf(g) : []
+}
+
+/** Move to a ground. Refused if the realm does not open it. */
+export function travel(s: PlayerState, id: string): PlayerState {
+  const g = ground(id)
+  if (g.id === s.ground || !openAt(g, s.realm)) return s
+  return { ...s, ground: g.id }
 }
 
 export interface Spoils {
   state: PlayerState
   beast: Beast
+  /** Turmoil this trip cost, so the caller can say so rather than hide it. */
+  danger: number
   material: { id: string; amount: number }
   insight: number
   firstSighting: boolean
@@ -83,8 +94,9 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
   if (!canHunt(s, now)) return null
   const pool = quarry(s)
   const beast = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))]
+  const g = ground(s.ground)
   const material = MATERIAL_FOR_RANK[beast.rank]
-  const amount = 1 + Math.floor(roll * 3)
+  const amount = 1 + Math.floor(roll * 3) + g.bonus
   // Insight scales with the realm as well as the quarry: meridians cost hundreds by
   // the end, and a game where the only way to afford them is to hunt a hare four
   // thousand times is a spreadsheet, not a climb.
@@ -98,11 +110,15 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
       insight: s.insight + insight,
       satchel: add(s.satchel, material, amount),
       seenBeasts: firstSighting ? [...s.seenBeasts, beast.id] : s.seenBeasts,
+      // The price of a deep ground is paid in calm, not in qi: the satchel comes back
+      // fuller and the tribulation you were saving for comes back thinner.
+      turmoil: Math.min(TURMOIL_MAX, s.turmoil + g.danger),
       // Move the anchor forward by one period rather than resetting it, so the
       // charges you did not spend are still there afterwards.
       huntAnchorAt: now - (huntCharges(s, now) - 1) * HUNT_CHARGE_MS * modifiers(s).huntSpeed,
     },
     beast,
+    danger: g.danger,
     material: { id: material, amount },
     insight,
     firstSighting,

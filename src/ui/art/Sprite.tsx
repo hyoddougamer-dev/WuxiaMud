@@ -231,6 +231,95 @@ export function Sprite() {
     <path d="M48 24L34 21L48 18Z"/>
     <path d="M62 18L66 6L69 19Z"/>
   </symbol>
+      <symbol id="s-shrike" viewBox="0 0 100 100">
+    <path opacity=".5" d="M18 96L26 52L31 53L24 97Z"/>
+    <path opacity=".5" d="M26 64L14 58L25 58ZM28 52L18 44L28 47Z"/>
+    <path d="M40 34C50 34 58 42 58 54C58 66 52 74 44 74C36 74 31 66 31 54C31 42 32 34 40 34Z"/>
+    <path opacity=".55" d="M50 42C60 48 64 58 62 68C56 62 52 54 48 46Z"/>
+    <path d="M46 72L64 96L56 97L38 76Z"/>
+    <path fillRule="evenodd" d="M42 38C34 38 29 32 29 25C29 17 35 12 43 12C51 12 56 17 56 25C56 32 50 38 43 38ZM36.4 23a2.3 2.3 0 1 0 4.6 0a2.3 2.3 0 1 0-4.6 0Z"/>
+    <path d="M29 22L12 25L28 30L23 26Z"/>
+    <path d="M38 74L36 88L32 88L34 74ZM46 74L48 86L44 86L42 74Z"/>
+  </symbol>
+      <symbol id="s-toad" viewBox="0 0 100 100">
+    <path fillRule="evenodd" d="M10 70C10 48 28 34 50 34C72 34 90 48 90 70C90 82 82 88 68 88L32 88C18 88 10 82 10 70ZM26 44C22 44 19 41 19 37C19 32 23 29 28 29C33 29 36 32 36 37C36 41 32 44 28 44ZM72 44C68 44 65 41 65 37C65 32 69 29 74 29C79 29 82 32 82 37C82 41 78 44 74 44ZM24 37a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0ZM70 37a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+          d="M28 60C36 68 64 68 72 60"/>
+    <path d="M8 84L0 92L16 90ZM92 84L100 92L84 90Z"/>
+    <path opacity=".4" d="M50 12C58 12 63 17 63 23C63 29 58 33 50 33C42 33 37 29 37 23C37 17 42 12 50 12Z"/>
+    <path opacity=".3" d="M42 54C46 50 54 50 58 54C52 52 48 52 42 54Z"/>
+  </symbol>
+      <symbol id="s-moth" viewBox="0 0 100 100">
+    {/* A moth is broad wings and a fat body. The first draft gave it four thin blades
+        and it read as a dragonfly, or worse, a sprig of something. */}
+    <path d="M46 32C46 26 48 22 50 22C52 22 54 26 54 32L54 66C54 74 52 78 50 78C48 78 46 74 46 66Z"/>
+    <path d="M46 34C40 16 24 8 10 14C8 30 22 46 45 52Z"/>
+    <path d="M54 34C60 16 76 8 90 14C92 30 78 46 55 52Z"/>
+    <path opacity=".5" d="M46 54C38 52 24 56 18 68C30 72 42 66 46 60Z"/>
+    <path opacity=".5" d="M54 54C62 52 76 56 82 68C70 72 58 66 54 60Z"/>
+    <path opacity=".3" d="M22 22C30 26 38 34 43 42C34 38 26 32 20 26Z"/>
+    <path opacity=".3" d="M78 22C70 26 62 34 57 42C66 38 74 32 80 26Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"
+          d="M48 22C44 16 38 10 30 8M52 22C56 16 62 10 70 8"/>
+    <path opacity=".7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+          d="M34 10L30 5M36 12L32 7M64 12L68 7M66 10L70 5"/>
+    <circle cx="46.6" cy="28" r="2" />
+    <circle cx="53.4" cy="28" r="2" />
+  </symbol>
+      <symbol id="s-boar" viewBox="0 0 100 100">
+    <path d="M30 44C44 32 68 34 78 46C86 56 86 66 80 70L36 70C28 68 24 54 30 44Z"/>
+    <path opacity=".35" d="M46 34C50 24 60 22 68 28C58 26 50 29 46 36Z"/>
+    <path fillRule="evenodd" d="M30 48C20 48 12 56 12 66C12 76 19 82 28 80C36 78 40 70 38 60C36 52 34 48 30 48ZM20 64a2.3 2.3 0 1 0 4.6 0a2.3 2.3 0 1 0-4.6 0Z"/>
+    <path d="M12 74L2 80L14 82Z"/>
+    <path d="M16 76C10 74 6 68 8 62C8 70 12 73 17 73Z"/>
+    <path d="M26 82C22 86 22 92 26 95C24 89 25 86 28 84Z"/>
+    <path opacity=".6" d="M32 44L26 30L42 40Z"/>
+    <path d="M42 68L46 90L38 90ZM62 68L66 90L58 90ZM74 68L78 88L70 88Z"/>
+    <path opacity=".5" d="M80 56L94 48L86 62Z"/>
+  </symbol>
+      <symbol id="s-lynx" viewBox="0 0 100 100">
+    <path d="M28 54C28 46 36 42 48 42L62 42C70 42 75 47 75 54C75 60 71 64 63 64L38 64C31 64 28 60 28 54Z"/>
+    <path fillRule="evenodd" d="M72 52C64 52 58 46 58 39C58 31 65 26 73 26C81 26 87 31 87 39C87 46 81 52 74 52ZM65 37a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0ZM76 37a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0Z"/>
+    <path d="M61 29L56 10L69 24Z"/>
+    <path d="M84 28L92 9L90 30Z"/>
+    <path opacity=".55" d="M58 44L50 38L62 40Z"/>
+    <path d="M36 62L39 90L32 90L30 62ZM52 62L55 88L48 88L46 62ZM66 62L68 86L61 86L60 62Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round"
+          d="M29 56C18 56 10 46 12 32"/>
+    <path opacity=".45" d="M12 34L6 20L20 30Z"/>
+  </symbol>
+      <symbol id="s-turtle" viewBox="0 0 100 100">
+    <path d="M14 66C14 46 30 32 50 32C70 32 86 46 86 66C86 72 82 74 74 74L26 74C18 74 14 72 14 66Z"/>
+    <path opacity=".45" d="M50 34C44 42 42 54 42 72L58 72C58 54 56 42 50 34Z"/>
+    <path opacity=".45" d="M22 58C30 50 38 44 46 40L44 72L26 72Z"/>
+    <path opacity=".45" d="M78 58C70 50 62 44 54 40L56 72L74 72Z"/>
+    <path fillRule="evenodd" d="M86 70C80 70 76 66 76 60C76 53 82 48 89 48C96 48 100 53 100 60C100 66 95 70 89 70ZM84 58a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0Z"/>
+    <path d="M20 74L16 88L26 88ZM72 74L78 88L66 88Z"/>
+    <path opacity=".55" d="M14 68L2 76L14 78Z"/>
+    <path opacity=".6" d="M44 22L50 8L56 22L50 18Z"/>
+  </symbol>
+      <symbol id="s-drake" viewBox="0 0 100 100">
+    <path fill="none" stroke="currentColor" strokeWidth="11" strokeLinecap="round"
+          d="M12 90C30 90 34 70 30 56C26 42 38 30 54 32"/>
+    <path fillRule="evenodd" d="M60 46C51 46 44 40 44 31C44 21 52 15 62 15C72 15 79 21 79 31C79 40 72 46 63 46ZM55 28a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0Z"/>
+    <path d="M76 22L94 12L82 30Z"/>
+    <path d="M52 16L46 2L60 12ZM66 14L70 0L76 16Z"/>
+    <path opacity=".55" d="M32 52L14 44L34 62Z"/>
+    <path opacity=".55" d="M28 74L10 70L30 84Z"/>
+    <path opacity=".4" d="M44 34L54 50L40 46Z"/>
+  </symbol>
+      <symbol id="s-hydra" viewBox="0 0 100 100">
+    {/* Eight heads asleep, one awake. The asleep ones are the half-opacity fans; the
+        awake one is the only shape with an eye, which is the whole joke of the note. */}
+    <path d="M24 94C24 76 34 66 50 62C66 58 74 50 74 40L86 40C86 58 74 70 56 74C42 77 36 84 36 94Z"/>
+    <path opacity=".45" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round"
+          d="M40 66C30 56 26 44 30 34M50 62C44 48 44 36 50 26M60 60C60 46 64 36 72 30M68 54C72 42 80 36 88 34"/>
+    <path opacity=".45" d="M26 36C22 36 19 33 19 29C19 25 23 22 28 22C33 22 36 25 36 29C36 33 32 36 28 36Z"/>
+    <path opacity=".45" d="M48 28C44 28 41 25 41 21C41 17 45 14 50 14C55 14 58 17 58 21C58 25 54 28 50 28Z"/>
+    <path opacity=".45" d="M72 32C68 32 65 29 65 25C65 21 69 18 74 18C79 18 82 21 82 25C82 29 78 32 74 32Z"/>
+    <path opacity=".45" d="M88 36C84 36 81 33 81 29C81 25 85 22 90 22C95 22 98 25 98 29C98 33 94 36 90 36Z"/>
+    <path fillRule="evenodd" d="M84 48C76 48 70 43 70 36C70 28 77 23 86 23C95 23 100 28 100 36C100 43 94 48 86 48ZM78 34a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0-4.8 0Z"/>
+  </symbol>
       <symbol id="s-hare" viewBox="0 0 100 100">
     <path d="M32 66C32 55 41 48 54 48C68 48 78 56 78 68C78 78 71 84 60 84L42 84C35 84 32 78 32 66Z"/>
     <path d="M36 46L28 20L46 42Z"/>

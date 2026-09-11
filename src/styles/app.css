@@ -376,3 +376,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .sheet-id p, .whoami .who p { margin: 0; }
 .sheet-top { align-items: flex-start; }
 .sheet-top .t9 { display: flex; align-items: center; }
+
+/* A hint that is a warning, not a footnote. */
+.hint.warnline { color: #e07a6e; }

@@ -1,4 +1,5 @@
 import type { Ancestor } from './ancestry.ts'
+import { FIRST_GROUND } from './grounds.ts'
 import { SAVE_VERSION, type PlayerState } from './state.ts'
 
 const KEY = 'lineage.save.v1'
@@ -6,25 +7,30 @@ const KEY = 'lineage.save.v1'
 /**
  * Bring an older save forward, or return null if it is older than we can carry.
  *
- * Version four had no meridians, no gates and a bare hunt cooldown. All three have
- * sane empty values, so there is no reason to make someone who has been playing for a
- * fortnight start again — refusing to migrate is the lazy option, not the safe one.
- * Gates start empty on purpose: a gate only bars the realm you are standing in, so an
- * old cultivator meets their first bottleneck where they are and no earlier.
+ * Version four had no meridians, no gates and a bare hunt cooldown; version five had
+ * no hunting ground. All of them have sane empty values, so there is no reason to make
+ * someone who has been playing for a fortnight start again — refusing to migrate is
+ * the lazy option, not the safe one. Gates start empty on purpose: a gate only bars
+ * the realm you are standing in, so an old cultivator meets their first bottleneck
+ * where they are and no earlier. The defaults are spread *before* the old fields so a
+ * version-five save keeps the meridians it had rather than having them wiped.
  */
 function migrate(raw: Record<string, unknown>): PlayerState | null {
   const v = typeof raw.version === 'number' ? raw.version : 0
   if (v === SAVE_VERSION) return raw as unknown as PlayerState
-  if (v === 4) {
+  if (v === 4 || v === 5) {
     const { huntReadyAt: _drop, ...rest } = raw as Record<string, unknown> & { huntReadyAt?: number }
     return {
-      ...rest,
-      version: SAVE_VERSION,
       meridians: [],
       gates: [],
       // Epoch zero: charged since before the world, so the first thing an upgraded
       // save sees is a full set of hunts rather than a locked screen.
       huntAnchorAt: 0,
+      ...rest,
+      // Version six put the cultivator in a hunting ground. Everyone starts back on
+      // the Ash Slopes, which is open at every realm and costs no calm to walk.
+      ground: FIRST_GROUND,
+      version: SAVE_VERSION,
     } as unknown as PlayerState
   }
   return null
