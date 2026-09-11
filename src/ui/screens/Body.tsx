@@ -2,6 +2,7 @@ import { Glyph } from '../art/Glyph.tsx'
 import { COURSE_NAME, courseOf, type Course, type Meridian } from '../../core/meridians.ts'
 import { meridiansAt } from '../../core/progress.ts'
 import { MATERIALS, count } from '../../core/materials.ts'
+import { FLAMES } from '../../core/flames.ts'
 import type { MaterialId } from '../../core/materials.ts'
 import type { PlayerState } from '../../core/state.ts'
 
@@ -14,13 +15,18 @@ function price(m: Meridian): string {
 }
 
 /**
- * The permanent half of the game. Kept on its own screen rather than folded into Arts
- * because the two are opposites: an art is a loadout decision you revisit every realm,
- * a meridian is a purchase you make once and never think about again.
+ * 身 The body: what is permanently open inside it, and what burns there.
+ *
+ * Meridians and heavenly flames sit together because they are the same kind of thing
+ * — changes to the cultivator rather than to the loadout. An art is a decision you
+ * revisit every realm; these two you make once. The flames used to live on the Sect
+ * screen next to the bestiary and the delete button, which told the player nothing
+ * about what they were.
  */
-export function Meridians({ state, onOpen }: {
+export function Body({ state, onOpen, onPickFlame }: {
   state: PlayerState
   onOpen: (id: string) => void
+  onPickFlame: (id: string | null) => void
 }) {
   const rows = meridiansAt(state)
   const at = (id: string) => rows.find((r) => r.meridian.id === id)!
@@ -104,9 +110,33 @@ export function Meridians({ state, onOpen }: {
         )
       })}
 
-      <p className="hint centered">
-        {COURSE_NAME.hand.note} {COURSE_NAME.foot.note} {COURSE_NAME.extra.note}
+      <p className="label">Heavenly flames <span className="han">異火</span></p>
+      <p className="hint">
+        A flame changes a rule rather than a number, and you hold one at a time. Taking
+        a different one costs nothing but the one you had.
       </p>
+      <div className="list">
+        {FLAMES.map((f) => {
+          const eligible = state.realm >= f.realm
+          const on = state.flame === f.id
+          return (
+            <button
+              key={f.id}
+              className={`card${on ? ' on' : ''}${eligible ? '' : ' locked'}`}
+              disabled={!eligible}
+              onClick={() => onPickFlame(on ? null : f.id)}
+            >
+              <span className="cb">
+                <span className="cn">{f.name} <span className="han dim-han">{f.zh}</span></span>
+                <span className="cd">{f.rule}</span>
+              </span>
+              <span className={`cx${eligible ? '' : ' dim'}`}>
+                {on ? 'held' : eligible ? 'take' : `realm ${f.realm}`}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

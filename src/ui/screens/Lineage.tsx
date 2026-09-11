@@ -3,6 +3,7 @@ import { realm, realmColour } from '../../core/realms.ts'
 import { technique } from '../../core/techniques.ts'
 import { PATHS } from '../../core/paths.ts'
 import { OFF_PATH_BONUS, lineageBonus, ANCESTOR_BONUS_CAP, type Ancestor } from '../../core/ancestry.ts'
+import { duration } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
 /**
@@ -10,7 +11,11 @@ import type { PlayerState } from '../../core/state.ts'
  * art each of them left. Locally this is your own line; the mechanic does not change
  * when it becomes other people's.
  */
-export function Lineage({ state, line }: { state: PlayerState; line: Ancestor[] }) {
+export function Lineage({ state, line, onWipe }: {
+  state: PlayerState
+  line: Ancestor[]
+  onWipe: () => void
+}) {
   const r = realm(state.realm)
   const bonus = lineageBonus(line)
   const inh = state.inherited ? technique(state.inherited.techniqueId) : null
@@ -67,9 +72,9 @@ export function Lineage({ state, line }: { state: PlayerState; line: Ancestor[] 
 
       {line.length === 0 ? (
         <div className="notice">
-          Nobody has finished a life yet. Reach <strong>Unity</strong>, seal one art with your
-          name, and this hall starts filling — each forebear leaving the ground a little
-          warmer for whoever comes next.
+          Nobody has finished a life yet. Reach the ninth realm, seal one art with your
+          name, and this hall starts filling — each forebear leaving the ground warmer
+          for whoever comes next, and a third of every meridian already open.
         </div>
       ) : (
         <div className="list">
@@ -99,6 +104,30 @@ export function Lineage({ state, line }: { state: PlayerState; line: Ancestor[] 
         other people's — a master you did not choose, and an art from a path that is not
         yours. Nothing about the mechanic changes; only who the names belong to.
       </div>
+
+      <p className="label">This cultivator's record</p>
+      <div className="panel">
+        <div className="row"><span className="k">Path</span>
+          <span className="v">{PATHS[state.path].name} <span className="han">{PATHS[state.path].zh}</span></span></div>
+        <div className="row"><span className="k">Breakthroughs</span>
+          <span className="v num">{state.totalBreakthroughs}</span></div>
+        {state.failedTribulations > 0 && (
+          <div className="row"><span className="k">Tribulations failed</span>
+            <span className="v num crimson">{state.failedTribulations}</span></div>
+        )}
+        <div className="row"><span className="k">Meridians opened</span>
+          <span className="v num">{state.meridians.length} of 12</span></div>
+        <div className="row"><span className="k">Time at the cushion</span>
+          <span className="v num">{duration(state.activeSeconds)}</span></div>
+        <div className="row"><span className="k">Cultivating since</span>
+          <span className="v num">{new Date(state.createdAt).toLocaleDateString()}</span></div>
+      </div>
+
+      <button className="cta ghost danger" onClick={onWipe}>Abandon this cultivator</button>
+      <p className="hint centered">
+        Abandoning ends this life without sealing anything. The hall keeps whoever is
+        already in it; this one simply leaves no art behind.
+      </p>
     </div>
   )
 }

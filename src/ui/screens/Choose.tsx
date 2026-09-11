@@ -4,8 +4,9 @@ import { PATH_LIST, PATHS } from '../../core/paths.ts'
 import { ORIGINS, origin } from '../../core/origins.ts'
 import { SEALS, SEAL_MEANING, randomName, cleanName, type Seal } from '../../core/names.ts'
 import { technique } from '../../core/techniques.ts'
-import { realm } from '../../core/realms.ts'
-import { OFF_PATH_BONUS, lineageBonus, type Ancestor } from '../../core/ancestry.ts'
+import { newPlayer } from '../../core/state.ts'
+import { firstMorning, whatNeverLeaves, whereThisEnds, SEAL_VOW } from '../../core/story.ts'
+import { OFF_PATH_BONUS, inheritedMeridians, lineageBonus, type Ancestor } from '../../core/ancestry.ts'
 import type { OriginId } from '../../core/origins.ts'
 import type { PathId } from '../../core/paths.ts'
 import type { CreateOptions } from '../../net/session.ts'
@@ -52,6 +53,23 @@ export function Choose({ line, onChoose }: {
      cultivator ends, before the freshly written line arrives as a prop. */
   const effectiveHeir = heir === undefined ? (line.length ? line[line.length - 1].id : null) : heir
   const carried = line.find((a) => a.id === effectiveHeir)
+
+  /* The confirmation screen shows the real opening state, built by the same function
+     that will build the cultivator a second later. Anything it reports — the satchel,
+     the hunts held, the cost of the first breakthrough after the origin's discount —
+     is therefore what actually happens, rather than a sentence describing it. */
+  const now = Date.now()
+  const preview = useMemo(() => (path && orig ? newPlayer(path, now, {
+    name: cleanName(name) || 'Nameless',
+    seal,
+    origin: orig,
+    generation: line.length + 1,
+    lineBonus: lineageBonus(line),
+    meridians: inheritedMeridians(line),
+    inherited: carried
+      ? { techniqueId: carried.techniqueId, from: carried.name, fromPath: carried.path, artName: carried.artName }
+      : null,
+  }) : null), [path, orig, seal, name, carried, line, now])
 
   const steps: Step[] = line.length
     ? ['path', 'origin', 'self', 'line', 'confirm']
@@ -151,6 +169,7 @@ export function Choose({ line, onChoose }: {
                         onClick={() => setSeal(s)}>{s}</button>
               ))}
             </div>
+            <p className="vow">{SEAL_VOW[seal]}</p>
           </div>
         </>
       )}
@@ -195,38 +214,50 @@ export function Choose({ line, onChoose }: {
       )}
 
       {/* ------------------------------------------------------- 5 · CONFIRM */}
-      {step === 'confirm' && path && orig && (
+      {step === 'confirm' && path && orig && preview && (
         <>
           <p className="ask">This is who you are.</p>
+
           <div className="panel sheet">
             <div className="sheet-top">
-              <div className="t9"><Figure symbol={PATH_ART[path]} size={86} flames motes={8} /></div>
+              <div className="t9"><Figure symbol={PATH_ART[path]} size={78} flames motes={8} /></div>
               <div className="sheet-id">
-                <p className="sn">{cleanName(name)} <span className="sealsm han">{seal}</span></p>
-                <p className="sd">{PATHS[path].name} · {origin(orig).name} <span className="han">{origin(orig).zh}</span></p>
+                <p className="sn">{cleanName(name) || 'Nameless'}</p>
+                <p className="sd">
+                  {PATHS[path].name} <span className="han">{PATHS[path].zh}</span>
+                  {' · '}{origin(orig).name} <span className="han">{origin(orig).zh}</span>
+                </p>
                 <p className="sd">Generation {line.length + 1}</p>
               </div>
+              <span className="sealbig han" aria-label={`Seal: ${seal}, ${SEAL_MEANING[seal]}`}>{seal}</span>
             </div>
-            <div className="row"><span className="k">You open the game</span>
-              <span className="v">{path === 'sword' ? 'once a day' : 'often'}</span></div>
-            <div className="row"><span className="k">You start with</span>
-              <span className="v">{origin(orig).kit === 'Nothing at all.' ? 'nothing' : origin(orig).kit.replace(/\.$/, '')}</span></div>
-            <div className="row"><span className="k">You always have</span>
-              <span className="v">{origin(orig).trait.replace(/\.$/, '')}</span></div>
-            {carried && (
-              <div className="row"><span className="k">You carry</span>
-                <span className="v jade">{carried.artName}</span></div>
-            )}
-            {line.length > 0 && (
-              <div className="row"><span className="k">Your line gives</span>
-                <span className="v jade">+{Math.round(lineageBonus(line) * 100)}% generation</span></div>
-            )}
-            <div className="row"><span className="k">First breakthrough at</span>
-              <span className="v num">{realm(1).cost} qi</span></div>
+            <p className="quote">{origin(orig).story}</p>
           </div>
+
+          <p className="label">The first morning</p>
+          <div className="panel">
+            <div className="ledger">
+              {firstMorning(preview, now).map((l) => (
+                <div className="lr" key={l.k}><span>{l.k}</span><b>{l.v}</b></div>
+              ))}
+            </div>
+          </div>
+
+          <p className="label">What never leaves you</p>
+          <div className="panel">
+            {whatNeverLeaves(preview).map((l) => (
+              <p className={`keep${l.keeps ? '' : ' minor'}`} key={l.k}>
+                <b>{l.k}</b>{l.v}
+              </p>
+            ))}
+          </div>
+
+          <p className="label">Where this ends</p>
+          <div className="notice">{whereThisEnds(preview)}</div>
+
           <p className="hint centered">
-            The path can be changed later at the cost of a realm. The origin and the seal
-            cannot — they are who you were.
+            The path, the origin and the seal are fixed from here. They are who you were
+            before the first breath, and nothing in nine realms undoes that.
           </p>
         </>
       )}

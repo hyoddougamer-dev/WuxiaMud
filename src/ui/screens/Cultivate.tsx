@@ -1,5 +1,5 @@
 import { Figure } from '../art/Figure.tsx'
-import { realm, V1_CEILING } from '../../core/realms.ts'
+import { REALMS, realm, realmColour, V1_CEILING } from '../../core/realms.ts'
 import { PATHS } from '../../core/paths.ts'
 import {
   breakthroughCost, canBreakThrough, clockHours, grossPerSecond, modifiers,
@@ -53,9 +53,21 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGa
       </div>
 
       <div className="realm-line">
-        <p className="label">Realm {state.realm} · {path.name}</p>
+        <p className="label">Realm {state.realm} of {REALMS.length} · {path.name}</p>
         <p className="name h-display">{r.name}</p>
         <p className="zh han">{r.zh}</p>
+      </div>
+
+      {/* The road, in one strip. It was buried on the Sect screen between the pills
+          and the bestiary, where it answered a question nobody was asking there. */}
+      <div className="road" role="img"
+           aria-label={`Realm ${state.realm} of ${REALMS.length}: ${r.name}`}>
+        {REALMS.map((x) => (
+          <span key={x.id}
+                className={`rd${x.id === state.realm ? ' here' : ''}${x.id < state.realm ? ' past' : ''}`}
+                style={x.id <= state.realm ? { background: realmColour(x.id) } : undefined}
+                title={x.name} />
+        ))}
       </div>
 
       {injured && (

@@ -191,6 +191,12 @@ export function Sprite() {
       <symbol id="u-lineage" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.8">
     <path strokeLinecap="round" d="M12 6V12M12 12H7V17M12 12H17V17"/>
     <circle cx="12" cy="4" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></g></symbol>
+      <symbol id="u-hunt" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.7">
+    <ellipse cx="12" cy="16.6" rx="4.9" ry="4"/>
+    <ellipse cx="6.2" cy="10.8" rx="2.1" ry="2.7" transform="rotate(-20 6.2 10.8)"/>
+    <ellipse cx="10" cy="7.3" rx="2" ry="2.8"/>
+    <ellipse cx="14.4" cy="7.5" rx="2" ry="2.8"/>
+    <ellipse cx="17.9" cy="11.1" rx="2.1" ry="2.7" transform="rotate(20 17.9 11.1)"/></g></symbol>
       <symbol id="u-meridians" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
     <path d="M12 4V20"/><path d="M12 8C9.2 9 7.6 11.2 7.2 14.2"/><path d="M12 8C14.8 9 16.4 11.2 16.8 14.2"/></g>
     <g fill="currentColor"><circle cx="12" cy="4" r="1.7"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="20" r="1.7"/>

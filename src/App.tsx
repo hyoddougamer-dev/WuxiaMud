@@ -4,8 +4,8 @@ import { Icon } from './ui/art/Icon.tsx'
 import { Cultivate } from './ui/screens/Cultivate.tsx'
 import { Arts } from './ui/screens/Arts.tsx'
 import { Lineage } from './ui/screens/Lineage.tsx'
-import { Sect } from './ui/screens/Sect.tsx'
-import { Meridians } from './ui/screens/Meridians.tsx'
+import { Hunt } from './ui/screens/Hunt.tsx'
+import { Body } from './ui/screens/Body.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
 import { advance } from './core/progress.ts'
 import { realmColour } from './core/realms.ts'
@@ -21,13 +21,18 @@ import type { Ancestor } from './core/ancestry.ts'
 import { AscendModal } from './ui/screens/Ascend.tsx'
 import type { CreateOptions } from './net/session.ts'
 
-type Tab = 'cultivate' | 'body' | 'arts' | 'sect' | 'lineage'
+/**
+ * Five tabs, each answering exactly one question: where am I, what is open inside me,
+ * what am I carrying, what do I go out and get, and who came before. The previous
+ * "Sect" tab answered five of those at once and the screenshot of it was unreadable.
+ */
+type Tab = 'cultivate' | 'body' | 'arts' | 'hunt' | 'lineage'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'cultivate', icon: 'u-cultivate', label: 'Cultivate' },
   { id: 'body', icon: 'u-meridians', label: 'Body' },
   { id: 'arts', icon: 'u-techniques', label: 'Arts' },
-  { id: 'sect', icon: 'u-sect', label: 'Sect' },
+  { id: 'hunt', icon: 'u-hunt', label: 'Hunt' },
   { id: 'lineage', icon: 'u-lineage', label: 'Lineage' },
 ]
 
@@ -192,9 +197,18 @@ export default function App() {
           />
         )}
         {tab === 'body' && (
-          <Meridians state={shown} onOpen={(id) => void send({ type: 'meridian', id })} />
+          <Body
+            state={shown}
+            onOpen={(id) => void send({ type: 'meridian', id })}
+            onPickFlame={(id) => void send({ type: 'flame', id })}
+          />
         )}
-        {tab === 'lineage' && <Lineage state={shown} line={line} />}
+        {tab === 'lineage' && (
+          <Lineage
+            state={shown} line={line}
+            onWipe={() => void session.abandon().then(() => { setTruth(null); setTab('cultivate') })}
+          />
+        )}
         {tab === 'arts' && (
           <Arts
             state={shown}
@@ -203,14 +217,12 @@ export default function App() {
             onUnequip={(id) => void send({ type: 'unequip', id })}
           />
         )}
-        {tab === 'sect' && (
-          <Sect
+        {tab === 'hunt' && (
+          <Hunt
             state={shown} now={now}
             onHunt={() => void send({ type: 'hunt' })}
             onBrew={(id: PillId) => void send({ type: 'brew', id })}
             onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
-            onPickFlame={(id) => void send({ type: 'flame', id })}
-            onWipe={() => void session.abandon().then(() => { setTruth(null); setTab('cultivate') })}
           />
         )}
 
