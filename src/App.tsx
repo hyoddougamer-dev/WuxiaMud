@@ -237,6 +237,8 @@ export default function App() {
             state={shown}
             onOpen={(id) => void send({ type: 'meridian', id })}
             onPickFlame={(id) => void send({ type: 'flame', id })}
+            onBrew={(id: PillId) => void send({ type: 'brew', id })}
+            onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
           />
         )}
         {tab === 'lineage' && (
@@ -259,8 +261,6 @@ export default function App() {
             state={shown}
             onWear={(id, slot) => void send({ type: 'wear', id, slot })}
             onTemper={(id) => void send({ type: 'temper', id })}
-            onBrew={(id: PillId) => void send({ type: 'brew', id })}
-            onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
           />
         )}
         {tab === 'hunt' && (

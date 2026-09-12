@@ -432,17 +432,22 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .slot {
   border: 1px dashed var(--line); border-radius: 10px; background: var(--panel);
-  padding: 11px 6px 9px; display: flex; flex-direction: column;
-  align-items: center; gap: 4px; min-height: 96px; justify-content: center;
+  padding: 10px 6px 9px; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; min-height: 104px; justify-content: flex-start;
+  font: inherit; color: inherit; text-align: center;
 }
-.slot.filled { border-style: solid; border-color: var(--jade);
-  background: linear-gradient(180deg, rgba(78,207,163,.09), transparent); }
-.slot .sk {
-  font-size: 11px; color: var(--text-faint); letter-spacing: .14em;
-}
-.slot.filled .sk { color: var(--jade); }
-.slot .sn { font-size: 10.5px; color: var(--text-soft); text-align: center; line-height: 1.25; }
-.slot .empty { font-family: var(--font-mono); font-size: 20px; color: var(--stone); line-height: 26px; }
+.slot.filled { border-style: solid; }
+/* Selected is the loud state, not filled: the slot you are editing is the question the
+   drawer below is answering, and it has to be obvious which one that is. */
+.slot.sel { border-style: solid; border-color: var(--jade);
+  background: linear-gradient(180deg, rgba(78,207,163,.11), transparent); }
+.slot .sk { font-family: var(--font-han); font-size: 14px; color: var(--text-faint); letter-spacing: .1em; }
+.slot.sel .sk, .slot.filled .sk { color: var(--jade); }
+.slot .sn { font-family: var(--font-display); font-size: 11px; line-height: 1.2; }
+.slot.empty .sn { color: var(--text-faint); }
+.slot .se { font-size: 9.5px; color: var(--flame-hi); line-height: 1.25; }
+.slot .sz { font-family: var(--font-mono); font-size: 8.5px; color: var(--text-faint); margin-top: auto; }
+.slot .empty { font-family: var(--font-mono); font-size: 18px; color: var(--stone); line-height: 24px; }
 
 /* A warden gets the one heavy treatment on the screen: a portrait, a gold rule
    and its own ledger. Everything around it stays a plain panel on purpose. */
@@ -557,3 +562,116 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .track .node.next { border-color: var(--flame-hi); box-shadow: 0 0 0 3px rgba(255,255,255,.05); }
 .track .span { flex: 1 1 auto; height: 1.5px; background: var(--line); }
 .track .span.open { background: var(--flame-mid); }
+
+/* ---------- 洞天 the descent ----------
+   A list cannot say "deeper". The rail can: it runs down the left, fills as grounds
+   open, and names how far down each one is. Everything else on the row is the place
+   itself — its own drawn horizon, lit by the phase of the realm that opens it. */
+.route { display: flex; flex-direction: column; }
+.stop { display: grid; grid-template-columns: 24px 1fr; }
+.rail { display: flex; flex-direction: column; align-items: center; }
+.rail .ln { flex: 1; width: 1.5px; background: var(--line); }
+.rail .ln.done { background: var(--jade-deep); }
+.rail .pin {
+  width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; margin: 4px 0;
+  border: 1.5px solid var(--line); background: var(--panel);
+}
+.rail .pin.open { background: var(--jade); border-color: var(--jade); }
+.rail .pin.here { box-shadow: 0 0 0 3px rgba(78,207,163,.22); }
+.rail .depth {
+  font-family: var(--font-mono); font-size: 7px; color: var(--text-faint);
+  writing-mode: vertical-rl; letter-spacing: .12em; padding: 3px 0;
+}
+
+.place {
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  background: var(--panel); margin-bottom: 10px; min-width: 0;
+}
+.place.here { border-color: var(--jade); }
+.vign {
+  position: relative; display: block; width: 100%; padding: 0;
+  font: inherit; color: inherit; text-align: left;
+}
+.vign:disabled { cursor: default; }
+.scene { display: block; width: 100%; height: 136px; }
+/* The title sits over the sky — the one part of a landscape carrying no information —
+   so the foreground, which is where every composition puts its subject, is never
+   covered. Laid over the bottom it lost the crane, the scrub and the front reeds. */
+.cap {
+  position: absolute; left: 0; right: 0; top: 0; padding: 9px 12px 20px;
+  display: flex; align-items: baseline; gap: 6px;
+  background: linear-gradient(180deg, rgba(5,16,13,.74), rgba(5,16,13,.3) 55%, transparent);
+}
+.cap .pn { font-family: var(--font-display); font-weight: 600; font-size: 15.5px; }
+.place.shut .cap .pn { color: var(--text-soft); }
+.cap .go { margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; color: var(--jade); }
+.place.shut .cap .go { color: var(--text-faint); }
+/* The picture meets the card without a seam. */
+.vign::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 22px;
+  background: linear-gradient(180deg, transparent, var(--panel)); pointer-events: none;
+}
+.pbody { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.upnow { margin: 0; font-size: 11.5px; color: var(--text-soft); }
+.upnow b { color: var(--gold); font-weight: 600; font-family: var(--font-display); }
+.pdetail { display: flex; flex-direction: column; gap: 9px; padding-top: 3px; }
+
+.quarry { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.quarry .q {
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 4px 8px;
+  background: var(--panel-2); display: flex; flex-direction: column;
+  align-items: center; gap: 2px; text-align: center; min-width: 0;
+}
+.quarry .q.up { border-color: var(--gold); background: rgba(212,168,67,.08); }
+.quarry .q b { font-family: var(--font-display); font-size: 10.5px; font-weight: 600; line-height: 1.15; }
+.quarry .q span { font-family: var(--font-mono); font-size: 8px; color: var(--text-faint); }
+.quarry .q.seen span { color: var(--jade); }
+
+/* A warden you cannot reach from here is one line. The full ledger only unrolls in the
+   ground you are standing in, which is the only ground whose warden you can face. */
+.bossrow {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid rgba(224,83,60,.45); border-radius: 9px; background: rgba(224,83,60,.06);
+}
+.bossrow.shut { border-color: var(--line); background: none; }
+.bossrow .bb { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bossrow .bn { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; color: var(--crimson); }
+.bossrow.shut .bn { color: var(--text-soft); }
+.bossrow .bd { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); }
+.bosspanel {
+  border: 1px solid #5b4a22; border-radius: 10px; padding: 12px;
+  display: flex; flex-direction: column; gap: 11px;
+  background: linear-gradient(180deg, rgba(212,168,67,.05), transparent);
+}
+
+/* ---------- 身上 the drawer ----------
+   One slot's worth of options, forged and found in the same list, because that is the
+   comparison the screen exists for and it used to be two section headings apart. */
+.drawer { border: 1px solid var(--jade); border-radius: 11px; background: var(--panel); }
+.drawer .dh {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.drawer .dh .han { font-size: 14px; color: var(--jade); }
+.drawer .dh b { font-family: var(--font-display); font-size: 13px; font-weight: 600; }
+.drawer .dh .cnt { margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-faint); }
+.opt { display: flex; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); align-items: flex-start; }
+.opt:last-of-type { border-bottom: 0; }
+.opt.worn { background: linear-gradient(90deg, rgba(78,207,163,.08), transparent); }
+.opt .oi {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 7px; margin-top: 1px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.opt.worn .oi { border-color: var(--jade); }
+.opt .ob { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.opt .on { font-family: var(--font-display); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.opt .ceff { font-size: 12px; }
+.opt .cnum { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.opt .cnum b { color: var(--gold); font-weight: 500; }
+.acts { flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; align-items: stretch; }
+.notyet {
+  margin: 0; padding: 9px 12px; font-size: 10.5px; line-height: 1.5;
+  color: var(--text-faint); border-top: 1px solid var(--line-soft);
+}
+.notyet .dim { color: var(--stone); }

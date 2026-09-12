@@ -3,6 +3,7 @@ import { COURSE_NAME, courseOf, type Course, type Meridian } from '../../core/me
 import { meridiansAt } from '../../core/progress.ts'
 import { MATERIALS, count } from '../../core/materials.ts'
 import { FLAMES } from '../../core/flames.ts'
+import { PILLS, brewable, held, type PillId } from '../../core/pills.ts'
 import type { MaterialId } from '../../core/materials.ts'
 import type { PlayerState } from '../../core/state.ts'
 
@@ -23,10 +24,12 @@ function price(m: Meridian): string {
  * screen next to the bestiary and the delete button, which told the player nothing
  * about what they were.
  */
-export function Body({ state, onOpen, onPickFlame }: {
+export function Body({ state, onOpen, onPickFlame, onBrew, onTakePill }: {
   state: PlayerState
   onOpen: (id: string) => void
   onPickFlame: (id: string | null) => void
+  onBrew: (id: PillId) => void
+  onTakePill: (id: PillId) => void
 }) {
   const rows = meridiansAt(state)
   const at = (id: string) => rows.find((r) => r.meridian.id === id)!
@@ -121,6 +124,38 @@ export function Body({ state, onOpen, onPickFlame }: {
           </div>
         )
       })}
+
+      {/* 丹 The cauldron came here from the Gear tab. A pill is something you swallow —
+          a temporary change to the cultivator — so it belongs beside the meridians and
+          the flame rather than beside the things you wear. Gear was carrying twenty-eight
+          cards across six sections, and three of them were these. */}
+      <p className="label">The cauldron <span className="han">丹</span></p>
+      <p className="hint">Brewed from the satchel the meridians spend. Brewing one you will not swallow is a channel you do not open.</p>
+      <div className="list">
+        {PILLS.map((p) => {
+          const have = held(state.pills, p.id)
+          const can = brewable(state.satchel, p)
+          const costText = Object.entries(p.cost).map(([k, v]) => `${v}× ${k}`).join(' + ')
+          return (
+            <div className="card" key={p.id}>
+              <span className="cb">
+                <span className="cn">{p.name} <span className="han dim-han">{p.zh}</span></span>
+                <span className="ceff">{p.text}</span>
+                <span className="cnum">{costText}</span>
+              </span>
+              <span className="acts">
+                {have > 0 && (
+                  <button className="mini on" onClick={() => onTakePill(p.id)}
+                          disabled={p.id === 'tribulation' && state.pillPrimed}>
+                    {p.id === 'tribulation' && state.pillPrimed ? 'primed' : `take (${have})`}
+                  </button>
+                )}
+                <button className="mini" onClick={() => onBrew(p.id)} disabled={!can}>brew</button>
+              </span>
+            </div>
+          )
+        })}
+      </div>
 
       <p className="label">Heavenly flames <span className="han">異火</span></p>
       <p className="hint">
