@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useBackButton } from './ui/useBackButton.ts'
 import { Sprite } from './ui/art/Sprite.tsx'
 import { Figure } from './ui/art/Figure.tsx'
 import { Icon } from './ui/art/Icon.tsx'
@@ -143,6 +144,26 @@ export default function App() {
     const s = window.setInterval(() => void sync(false), SYNC_MS)
     return () => { window.clearInterval(paint); window.clearInterval(s) }
   }, [truth !== null, sync])
+
+  /**
+   * Back closes what is on top, then returns to Cultivate, then leaves. Everything
+   * dismissable is listed here in the order it sits on the screen — an unanswered
+   * 奇遇 is deliberately absent, because it is the one thing that is not dismissable:
+   * it must be answered, and the options include walking away for free.
+   */
+  const onBack = useCallback(() => {
+    if (failure) { setFailure(null); return true }
+    if (welcome) { setWelcome(null); return true }
+    if (answered) { setAnswered(null); return true }
+    if (kill) { setKill(null); return true }
+    if (spoils) { setSpoils(null); return true }
+    if (trial) { setTrial(null); return true }
+    if (ascended) { setAscended(null); return true }
+    if (sealing) { setSealing(false); return true }
+    if (tab !== 'cultivate') { setTab('cultivate'); return true }
+    return false
+  }, [failure, welcome, answered, kill, spoils, trial, ascended, sealing, tab])
+  useBackButton(onBack)
 
   useEffect(() => {
     const wake = () => {

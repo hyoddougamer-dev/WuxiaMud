@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Ninefold \u2014 an idle cultivation game where a path is a schedule, not a power level.",
+  "description": "Ninefold — an idle cultivation game where a path is a schedule, not a power level.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@types/react": "^19.2.5",
