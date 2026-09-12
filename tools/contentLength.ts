@@ -12,13 +12,15 @@ import { advance, breakthroughCost, canBreakThrough, learn, equip, brew, takePil
          toggleSettle, ratePerSecond, modifiers, clockHours, openMeridian,
          pillCost, TURMOIL_FREE } from '../src/core/progress.ts'
 import { attempt, odds, SURPLUS_CAP } from '../src/core/tribulation.ts'
-import { hunt, canHunt, huntCharges, travel } from '../src/core/hunt.ts'
+import { hunt, canHunt, huntCharges, maxCharges, travel, trailAt, TRAIL_MS } from '../src/core/hunt.ts'
 import { openSession } from '../src/core/progress.ts'
 import { choose, encounter } from '../src/core/encounters.ts'
 import { refine, canRefine, refineCost, levelOf, MASTERY_MAX } from '../src/core/mastery.ts'
 import { GROUNDS, ground, openAt, quarryOf } from '../src/core/grounds.ts'
 import { WARDENS, wardenOf, odds as wardenOdds, fight, canChallenge, WARDEN_CHARGES } from '../src/core/wardens.ts'
 import { RELICS, SLOTS, owns, wear, type Slot } from '../src/core/relics.ts'
+import { PATTERNS, TEMPER_MAX, canTemper, levelOf as forgeLevel, pattern,
+         temper, temperCost } from '../src/core/forge.ts'
 import { bottleneckAt, canBreakGate, breakGate, checklist, gateOpen } from '../src/core/bottlenecks.ts'
 import { MERIDIANS, unlocked } from '../src/core/meridians.ts'
 import { newPlayer, type PlayerState } from '../src/core/state.ts'
@@ -48,6 +50,10 @@ interface Run {
   wardensBeaten: number
   wardenTries: number
   relicsWorn: number
+  /** Levels poured into forge patterns, and what was left in the satchel at the end. */
+  tempers: number
+  forgeTotal: number
+  matsLeft: string
   masteryTotal: number
   insightLeft: number
   days: number
@@ -55,10 +61,15 @@ interface Run {
   breakthroughs: number
   failures: number
   hunts: number
+  /** Rank points brought home. Attention buys better picks, so this is what it buys. */
+  rankTaken: number
   settles: number
   artsLearned: number
   meridians: number
   gates: number
+  /** Where the cultivator actually was when the clock ran out. */
+  endRealm: number
+  endRate: number
   /** Minutes of foreground time, at a measured 100s per session. */
   activeMinutes: number
   reachedCeiling: boolean
@@ -127,10 +138,18 @@ function shortOf(s: PlayerState): MaterialId | null {
 }
 
 /**
- * Where a competent player goes. Deepest ground they can pay for in calm — unless
- * something they need only drops somewhere shallower, in which case they go there.
+ * Where a competent player goes, now that where is the decision.
+ *
+ * With the trail deterministic, a ground is not a place with a probability distribution
+ * in it — it is a place with one named beast in it for the next three hours. So the
+ * question a player actually asks on opening the app is "of the grounds I can afford
+ * today, which one has something worth a charge standing in it", and this is that
+ * question written down.
+ *
+ * The turmoil budget still binds, and the material a gate is short of still outranks
+ * comfort: a missing essence cannot be waited out, while turmoil can be settled.
  */
-function chooseGround(s: PlayerState): string {
+function chooseGround(s: PlayerState, now: number): string {
   const open = GROUNDS.filter((g) => openAt(g, s.realm))
   if (!open.length) return s.ground
 
@@ -145,15 +164,58 @@ function chooseGround(s: PlayerState): string {
   const affordable = open.filter((g) => g.danger <= budget)
   const pool = affordable.length ? affordable : [open[0]]
 
-  // What you need beats what is comfortable. When a gate or the next meridian is
-  // short of a material, go to the *shallowest* ground that drops it — even over
-  // budget, because turmoil can be settled and a missing essence cannot be waited out.
   const need = shortOf(s)
   if (need) {
-    const drops = open.filter((g) => quarryOf(g).some((b) => MATERIAL_FOR_RANK[b.rank] === need))
-    if (drops.length) return drops[0].id
+    // Somewhere affordable with the right thing standing in it right now beats
+    // anywhere else, and beats waiting: the charge is spent today either way.
+    const upNow = pool.filter((g) => MATERIAL_FOR_RANK[trailAt(g.id, now)!.rank] === need)
+    if (upNow.length) return upNow[upNow.length - 1].id
+    // Otherwise go where that material is densest and take what the ground offers.
+    const dense = open
+      .map((g) => [g, quarryOf(g).filter((b) => MATERIAL_FOR_RANK[b.rank] === need).length] as const)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].realm - b[0].realm)
+    if (dense.length) return dense[0][0].id
   }
-  return pool[pool.length - 1].id
+
+  // Nothing is short, so take the best thing standing anywhere you can afford to go.
+  return [...pool]
+    .sort((a, b) => trailAt(a.id, now)!.rank - trailAt(b.id, now)!.rank || a.realm - b.realm)
+    .pop()!.id
+}
+
+/**
+ * Whether to spend a charge on what is standing here, or keep it and come back.
+ *
+ * This is where attention turns into something measurable, and it took a measurement to
+ * find it. More check-ins do not mean better picks on their own: whoever opens the app
+ * picks the best of the grounds open to them, and the best of six is the best of six
+ * whether you look once a day or four times. What more looks actually buy is the right
+ * to *decline* — to see a hare standing in the marsh, keep the charge, and come back in
+ * three hours when something with a core in it has moved in.
+ *
+ * A player who opens the game once a day cannot decline. They arrive to four banked
+ * charges and one trail, and charges do not accrue past four, so holding out costs them
+ * the charge outright. They spend all four on whatever is there and still climb — which
+ * is the promise the trail has to keep — but they never get to choose their moment.
+ *
+ * So the bar below is only enforced while there is genuinely room to wait: below the
+ * cap, and with the next session close enough that the charge will still be there.
+ */
+function worthACharge(s: PlayerState, now: number, backIn: number): boolean {
+  const here = trailAt(s.ground, now)
+  if (!here) return false
+  // At the cap the next charge to arrive is thrown away, so anything beats nothing.
+  if (huntCharges(s, now) >= maxCharges(s)) return true
+  // Holding a charge is only a choice if you will be back before the trail turns over
+  // and before the cap eats what accrues. Someone who opens the game once a day is not
+  // declining anything by waiting — they are simply losing the charge — so they spend.
+  if (backIn > TRAIL_MS) return true
+  // What a gate or the next meridian is short of is always worth the charge.
+  const need = shortOf(s)
+  if (need && MATERIAL_FOR_RANK[here.rank] === need) return true
+  // Otherwise hold out for something better than the commonest thing in the world.
+  return here.rank >= 2
 }
 
 /**
@@ -205,9 +267,91 @@ const WEAR_ORDER: Record<Slot, string[]> = {
   charm: ['pendant', 'cord', 'mirror'],
 }
 
+/**
+ * Which pattern a competent player builds in each slot, best first.
+ *
+ * Tiered by material, so the list is also a schedule: the Riverstone Ring is what you
+ * make on the first afternoon, the Stormcore Seal is what replaces it once the Cinder
+ * Wood opens, and the Skyiron Blade is the last two weeks. Only the first entry whose
+ * realm is open is ever worked on — a player pouring hide into a ring they are about
+ * to stop wearing is not a competent player, and measuring one would flatter the curve.
+ */
+const FORGE_ORDER: Record<Slot, string[]> = {
+  implement: ['skyiron', 'seal', 'ring'],
+  robe: ['corefire', 'vest'],
+  charm: ['foxcharm', 'bonecharm'],
+}
+
+function forgeTarget(s: PlayerState, slot: Slot) {
+  return FORGE_ORDER[slot].map(pattern).find((p) => p && s.realm >= p.realm)
+}
+
+/**
+ * Materials a competent player will not spend on the forge.
+ *
+ * The gate in front of them and the next meridian are both paid in materials, and both
+ * are worth more than a level: a gate is a realm and a meridian is permanent. Without
+ * this the simulated player tempered their way past the Bone Gate's three spirit cores
+ * and then sat at Nascent Soul for a fortnight, which is a bug in the policy and would
+ * have read as a bug in the game.
+ */
+function matReserve(s: PlayerState): Partial<Record<MaterialId, number>> {
+  const out: Partial<Record<MaterialId, number>> = {}
+  const b = bottleneckAt(s.realm)
+  if (b && !gateOpen(s)) {
+    for (const [k, v] of Object.entries(b.offering)) out[k as MaterialId] = (out[k as MaterialId] ?? 0) + (v ?? 0)
+  }
+  const next = [...MERIDIANS].sort((a, x) => a.insight - x.insight)
+    .find((m) => !s.meridians.includes(m.id) && unlocked(s.meridians, m) && s.realm >= m.realm)
+  if (next) {
+    for (const [k, v] of Object.entries(next.mats)) out[k as MaterialId] = (out[k as MaterialId] ?? 0) + (v ?? 0)
+  }
+  return out
+}
+
+/** Pour everything the gate does not need into the three patterns being built. */
+function forgeUp(s: PlayerState, tally: Run): PlayerState {
+  for (;;) {
+    const reserve = matReserve(s)
+    // Every pattern, not only the three being worn. A player sitting on hundreds of
+    // spare hides tempers the vest whether or not it is in a slot today, and measuring
+    // only the three in use left the satchel overflowing at the end of every run.
+    const pick = PATTERNS
+      .filter((p) => s.realm >= p.realm && forgeLevel(s.forged, p.id) < TEMPER_MAX)
+      .sort((a, b) => {
+        const ta = SLOTS.some((sl) => forgeTarget(s, sl)?.id === a.id) ? 0 : 1
+        const tb = SLOTS.some((sl) => forgeTarget(s, sl)?.id === b.id) ? 0 : 1
+        return ta - tb
+      })
+      .map((p) => [p, temperCost(p, forgeLevel(s.forged, p.id))[p.mat] ?? 0] as const)
+      .filter(([p, c]) => canTemper(s, p.id) && count(s.satchel, p.mat) - c >= (reserve[p.mat] ?? 0))
+      .sort((a, b) => a[1] - b[1])[0]
+    if (!pick) break
+    const before = s.forged[pick[0].id] ?? 0
+    s = temper(s, pick[0].id)
+    if ((s.forged[pick[0].id] ?? 0) === before) break
+    tally.tempers++
+  }
+  return s
+}
+
+/**
+ * What to wear, of the two kinds that share the three slots.
+ *
+ * The rule is crude on purpose and stated rather than tuned: a forged item wins its
+ * slot once it is past level three, because by then it is worth more than any relic's
+ * rule-bending, and below that the relic is free power the player already owns. It is
+ * a heuristic, not an optimum — what is being measured is how long the content lasts
+ * for someone playing sensibly, not how short it gets for someone playing perfectly.
+ */
+const FORGE_BEATS_RELIC_AT = 3
+
 function dress(s: PlayerState): PlayerState {
   for (const slot of SLOTS) {
-    const pick = WEAR_ORDER[slot].find((id) => owns(s, id))
+    const f = forgeTarget(s, slot)
+    const lv = f ? forgeLevel(s.forged, f.id) : 0
+    const rel = WEAR_ORDER[slot].find((id) => owns(s, id))
+    const pick = f && lv >= FORGE_BEATS_RELIC_AT ? f.id : (rel ?? (lv > 0 ? f!.id : undefined))
     if (pick && s.wearing[slot] !== pick) s = wear(s, pick, slot)
   }
   return s
@@ -251,7 +395,7 @@ function bankingForWarden(s: PlayerState, now: number): boolean {
 }
 
 /** What a competent player does with a minute and a half, in priority order. */
-function play(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
+function play(s: PlayerState, now: number, roll: () => number, tally: Run, backIn: number): PlayerState {
   const slots = slotsAt(s.realm)
 
   // 0. Whatever happened while you were away is answered before anything else — the
@@ -268,7 +412,7 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   if (s.settling && wantsQuiet(s) === null) s = toggleSettle(s)
 
   // Then decide where to stand before deciding whether to hunt.
-  const where = chooseGround(s)
+  const where = chooseGround(s, now)
   if (where !== s.ground) { s = travel(s, where); tally.travels++ }
 
   // 1. Hunt out the charges first. Insight and materials are what everything below
@@ -294,11 +438,12 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   //    Sword Path: one session a day meant one hunt a day, and mastery became a
   //    system only the Blade Path could afford to use.
   if (!bankingForWarden(s, now) && (wantsQuiet(s) === null || ground(s.ground).danger === 0)) {
-    while (canHunt(s, now) && huntCharges(s, now) > 0) {
+    while (canHunt(s, now) && huntCharges(s, now) > 0 && worthACharge(s, now, backIn)) {
       const got = hunt(s, now, roll())
       if (!got) break
       s = got.state
       tally.hunts++
+      tally.rankTaken += got.beast.rank
     }
   }
 
@@ -313,6 +458,12 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
     s = openMeridian(s, next.id)
     tally.meridians++
   }
+
+  // 2b. The satchel. Everything the gate and the next meridian do not need goes into
+  //     the forge — it is the only sink materials have that scales, and leaving a
+  //     thousand hides in a bag at the end of a climb was the whole complaint.
+  s = forgeUp(s, tally)
+  s = dress(s)
 
   // 3. The heart. A gate that asks for quiet is the one thing worth settling for even
   //    when the meter is nowhere near the free threshold.
@@ -404,39 +555,44 @@ function faceIt(s: PlayerState, now: number, roll: () => number, tally: Run): Pl
   return out.state
 }
 
-function simulate(path: PathId, origin: OriginId, seed: number): Run {
+function simulate(path: PathId, origin: OriginId, seed: number,
+                  opts: { perDay?: number; stopAfterDays?: number } = {}): Run {
   const start = 1_700_000_000_000
   let s = newPlayer(path, start, { origin, name: 'Sim', seal: '道' })
   const roll = rng(seed)
   const tally: Run = {
     path, origin, days: 0, sessions: 0, breakthroughs: 0, failures: 0,
-    hunts: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
+    hunts: 0, rankTaken: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
     travels: 0, beastsSeen: 0, encounters: 0, refines: 0, masteryTotal: 0,
-    wardensBeaten: 0, wardenTries: 0, relicsWorn: 0,
-    insightLeft: 0, activeMinutes: 0, reachedCeiling: false,
+    wardensBeaten: 0, wardenTries: 0, relicsWorn: 0, tempers: 0, forgeTotal: 0, matsLeft: '',
+    insightLeft: 0, endRealm: 1, endRate: 0, activeMinutes: 0, reachedCeiling: false,
   }
 
   // Sword is played once a day; Blade five times. Session times are computed from
   // the index rather than accumulated, so an off-by-one cannot stop the clock —
   // which is exactly what the first version of this did, and it made Sword look
   // unfinishable when the simulator was the thing that was broken.
-  const perDay = path === 'sword' ? 1 : 5
+  const perDay = opts.perDay ?? (path === 'sword' ? 1 : 5)
   const step = (24 * H) / perDay
 
-  const MAX_DAYS = 400
+  const MAX_DAYS = opts.stopAfterDays ?? 400
   const maxSessions = MAX_DAYS * perDay
   let now = start
-  for (let i = 1; i <= maxSessions && s.realm < V1_CEILING; i++) {
+  for (let i = 1; i <= maxSessions && (opts.stopAfterDays ? true : s.realm < V1_CEILING); i++) {
     now = start + i * step
     s = advance(s, now).state
     s = openSession(s, now, roll())
-    s = play(s, now, roll, tally)
+    s = play(s, now, roll, tally, step)
     tally.sessions++
     s = { ...s, activeSeconds: s.activeSeconds + SESSION_SECONDS }
     tally.days = Math.ceil(i / perDay)
   }
+  tally.endRealm = s.realm
+  tally.endRate = ratePerSecond(s, now)
   tally.beastsSeen = s.seenBeasts.length
   tally.masteryTotal = Object.values(s.mastery).reduce((a: number, b) => a + (b as number), 0)
+  tally.forgeTotal = PATTERNS.reduce((a, p) => a + forgeLevel(s.forged, p.id), 0)
+  tally.matsLeft = `${s.satchel.hide ?? 0}/${s.satchel.core ?? 0}/${s.satchel.essence ?? 0}`
   tally.insightLeft = Math.round(s.insight)
   tally.reachedCeiling = s.realm >= V1_CEILING
   if (!tally.reachedCeiling) {
@@ -469,23 +625,23 @@ for (const path of ['sword', 'blade'] as PathId[]) {
 
 const pad = (v: string | number, n: number) => String(v).padStart(n)
 console.log(`\nNinefold · measured content length to realm ${V1_CEILING}\n`)
-console.log('path   origin      days  sessions  active  hunts  beasts  merid  mastery  events  wardens  relics  done')
-console.log('─'.repeat(100))
+console.log('path   origin      days  sessions  active  hunts  beasts  merid  mastery  forge  events  wardens  left h/c/e  insight  done')
+console.log('─'.repeat(126))
 for (const r of rows) {
   console.log(
     r.path.padEnd(7) + r.origin.padEnd(12) +
     pad(r.days, 4) + pad(r.sessions, 10) + pad(`${(r.activeMinutes / 60).toFixed(1)}h`, 8) +
     pad(r.hunts, 7) + pad(`${r.beastsSeen}/${BEASTS.length}`, 8) +
-    pad(r.meridians, 7) + pad(r.masteryTotal, 9) + pad(r.encounters, 8) +
-    pad(`${r.wardensBeaten}/${WARDENS.length}`, 9) +
-    pad(`${r.relicsWorn}/${SLOTS.length}`, 8) + pad(r.reachedCeiling ? 'yes' : 'NO', 6),
+    pad(r.meridians, 7) + pad(r.masteryTotal, 9) + pad(`${r.forgeTotal}/${PATTERNS.length * TEMPER_MAX}`, 7) +
+    pad(r.encounters, 8) + pad(`${r.wardensBeaten}/${WARDENS.length}`, 9) +
+    pad(r.matsLeft, 12) + pad(r.insightLeft, 9) + pad(r.reachedCeiling ? 'yes' : 'NO', 6),
   )
 }
 
 const done = rows.filter((r) => r.reachedCeiling)
 const avgDays = done.reduce((a, r) => a + r.days, 0) / Math.max(1, done.length)
 const avgHours = done.reduce((a, r) => a + r.activeMinutes, 0) / Math.max(1, done.length) / 60
-console.log('─'.repeat(94))
+console.log('─'.repeat(126))
 for (const r of rows) if (r.stall) console.log(`\n  STALL  ${r.path}/${r.origin}: ${r.stall}`)
 console.log(`\n${done.length}/${rows.length} runs reached the ceiling.`)
 if (done.length) {
@@ -493,6 +649,35 @@ if (done.length) {
   console.log(`Days:   ${days[0]}–${days[days.length - 1]}, average ${avgDays.toFixed(0)}.`)
   console.log(`Active: ${avgHours.toFixed(1)}h average of foreground time.`)
 }
+/**
+ * Does playing more actually pay?
+ *
+ * The honest way to ask is to hold everything else still: same path, same origin, same
+ * seed, same thirty days, and change only how often the app is opened. Charges cap at
+ * four a day whether you look once or five times, so none of the difference below comes
+ * from more hunting. It comes from the trail — a ground turns over every three hours,
+ * and someone who looks is choosing which beast they spend a charge on.
+ */
+const DAYS = 30
+console.log(`\nThe same thirty days, opened once a day against four times a day\n`)
+console.log('path   origin      opens/day  realm  hunts  avg rank  forge  mastery  insight  h/c/e left')
+console.log('─'.repeat(96))
+for (const path of ['sword', 'blade'] as PathId[]) {
+  for (const o of ['rogue', 'hunter'] as OriginId[]) {
+    for (const perDay of [1, 4]) {
+      const r = simulate(path, o, 1234 + o.length, { perDay, stopAfterDays: DAYS })
+      console.log(
+        path.padEnd(7) + o.padEnd(12) + pad(perDay, 9) + pad(r.endRealm, 7) +
+        pad(r.hunts, 7) + pad((r.rankTaken / Math.max(1, r.hunts)).toFixed(2), 10) +
+        pad(`${r.forgeTotal}/${PATTERNS.length * TEMPER_MAX}`, 7) + pad(r.masteryTotal, 9) +
+        pad(r.insightLeft, 9) + pad(r.matsLeft, 12),
+      )
+    }
+  }
+}
+console.log('─'.repeat(96))
+console.log('Charges cap at four a day either way, so the gap is the trail, not more hunting.')
+
 console.log(`\nA day of Sword is one session; a day of Blade is five. Active time assumes`)
 console.log(`${SESSION_SECONDS}s per session, which is what the loop actually asks for.\n`)
 if (done.length < rows.length) {

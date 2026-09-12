@@ -435,3 +435,49 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-left: 2px solid var(--t9); padding: 6px 0 6px 11px;
   color: var(--text) !important; font-size: 13.5px;
 }
+
+/* ---------- the directive ----------
+   One line, in the imperative, at the top of the screen the player opens on. It is the
+   only instruction in the game: every other surface reports state. It is a button
+   because the instruction always names a screen, and an instruction you have to go and
+   find is half an instruction. */
+.directive {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--panel);
+  padding: 11px 13px; margin: 0 0 14px;
+}
+.directive.urgent {
+  border-color: var(--flame-mid);
+  background: linear-gradient(180deg, rgba(224,142,44,.12), rgba(224,142,44,.02));
+}
+.directive .di { flex: 0 0 auto; color: var(--text-faint); display: flex; }
+.directive.urgent .di { color: var(--flame-mid); }
+.directive .db { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.directive .dn { font-family: var(--font-display); font-size: 15px; line-height: 1.2; }
+.directive.urgent .dn { color: var(--flame-hi); }
+.directive .dw { font-size: 11.5px; color: var(--text-soft); line-height: 1.35; }
+.directive .dgo {
+  flex: 0 0 auto; font-family: var(--font-mono); font-size: 17px; color: var(--text-faint);
+}
+
+/* ---------- the forge ---------- */
+.label.sub { margin-top: 14px; opacity: .85; }
+.forgerow { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
+.forgerow .pipsm i { width: 6px; height: 6px; }
+
+/* ---------- the trail ----------
+   What is moving in this ground right now. Legible before you spend a charge, which is
+   the entire point: it turns "when I happen to open the app" into a decision. */
+.trail {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--flame-mid); border-radius: 11px; padding: 11px 13px;
+  background: linear-gradient(180deg, rgba(224,142,44,.10), transparent);
+  margin-bottom: 12px;
+}
+.trail .tb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trail .tk { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+             text-transform: uppercase; color: var(--text-faint); }
+.trail .tn { font-family: var(--font-display); font-size: 15px; color: var(--flame-hi); line-height: 1.2; }
+.trail .td { font-size: 11.5px; color: var(--text-soft); line-height: 1.35; }
+.trail .tt { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+.card .cd .up, .artmain .cd .up { color: var(--flame-hi); font-weight: 600; }

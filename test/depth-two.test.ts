@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { newPlayer, type PlayerState } from '../src/core/state.ts'
 import { TECHNIQUES, technique, upkeepOf, effectText } from '../src/core/techniques.ts'
-import { refine, canRefine, refineCost, levelOf, valueAt, investedIn, MASTERY_MAX, MASTERY_STEP } from '../src/core/mastery.ts'
+import { refine, canRefine, refineCost, levelOf, valueAt, investedIn, MASTERY_MAX, MASTERY_STEP, MASTERY_STEP_LATE, MASTERY_KNEE } from '../src/core/mastery.ts'
 import { modifiers, openSession, ratePerSecond } from '../src/core/progress.ts'
 import { ENCOUNTERS, ENCOUNTER_CHANCE, ENCOUNTER_GAP_MS, choose, draw, encounter } from '../src/core/encounters.ts'
 import { TURMOIL_MAX } from '../src/core/progress.ts'
@@ -29,7 +29,7 @@ test('refining costs insight, raises the effect and never the upkeep', () => {
   assert.ok(ratePerSecond(one, T0) > ratePerSecond(s, T0))
 })
 
-test('mastery stops at five and gets dearer every step', () => {
+test('mastery stops at nine and gets dearer every step', () => {
   const t = technique('frost')!
   let s = rich({ learned: ['frost'] })
   const costs: number[] = []
@@ -38,10 +38,19 @@ test('mastery stops at five and gets dearer every step', () => {
     s = refine(s, 'frost')
   }
   assert.equal(levelOf(s.mastery, 'frost'), MASTERY_MAX)
-  assert.equal(refine(s, 'frost'), s, 'six is not a level')
+  assert.equal(refine(s, 'frost'), s, 'there is no level past the ceiling')
   assert.deepEqual(costs, [...costs].sort((a, b) => a - b), 'each step costs more than the last')
   assert.equal(investedIn(s, 'frost'), costs.reduce((a, b) => a + b, 0))
-  assert.equal(valueAt(t, MASTERY_MAX), t.value * (1 + MASTERY_STEP * MASTERY_MAX))
+  // The step halves past the knee: the last four levels are a place to put a surplus,
+  // not a second power curve. Nine is worth 2.4× the listed value where five was 2.0×.
+  assert.equal(valueAt(t, MASTERY_KNEE), t.value * (1 + MASTERY_STEP * MASTERY_KNEE))
+  assert.equal(
+    valueAt(t, MASTERY_MAX),
+    t.value * (1 + MASTERY_STEP * MASTERY_KNEE + MASTERY_STEP_LATE * (MASTERY_MAX - MASTERY_KNEE)),
+  )
+  assert.ok(valueAt(t, MASTERY_MAX) - valueAt(t, MASTERY_MAX - 1)
+          < valueAt(t, MASTERY_KNEE) - valueAt(t, MASTERY_KNEE - 1), 'the late steps give less')
+  assert.ok(refineCost(t, MASTERY_MAX - 1) > refineCost(t, MASTERY_KNEE - 1) * 1.5, 'and cost more')
 })
 
 test('an art you have not learned cannot be refined, however rich you are', () => {

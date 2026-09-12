@@ -7,8 +7,9 @@ import { realm } from './realms.ts'
 import { FIRST_GROUND } from './grounds.ts'
 import type { Mastery } from './mastery.ts'
 import type { Slot } from './relics.ts'
+import type { Forged } from './forge.ts'
 
-export const SAVE_VERSION = 8
+export const SAVE_VERSION = 9
 
 export interface PlayerState {
   readonly version: number
@@ -59,8 +60,12 @@ export interface PlayerState {
   ground: string
   /** 法寶 taken off wardens. Owned for life; a relic is never spent or lost. */
   relics: string[]
-  /** One to a slot, and changeable at any time — the cost was taking it, not wearing it. */
+  /** One to a slot, and changeable at any time — the cost was taking it, not wearing it.
+   *  Holds either a relic id or a forge pattern id: found and made share the three slots,
+   *  which is what makes "what am I wearing" a question with a wrong answer. */
   wearing: Record<Slot, string | null>
+  /** 鍛 What you have poured into each forge pattern. The materials ladder. */
+  forged: Forged
   /** 妖王 already put down. A warden drops its relic once and only once. */
   wardens: string[]
   /** 經脈 opened, permanently. The active player's power curve. */
@@ -125,6 +130,7 @@ export function newPlayer(
     ground: FIRST_GROUND,
     relics: [],
     wearing: { implement: null, robe: null, charm: null },
+    forged: {},
     wardens: [],
     gates: [],
     failedTribulations: 0,

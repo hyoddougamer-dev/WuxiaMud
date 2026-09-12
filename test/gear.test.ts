@@ -87,8 +87,11 @@ test('each relic reaches the rule it claims', () => {
 
   const cord = wear({ ...bare, ground: 'ash' }, 'cord', 'charm')
   assert.equal(relicValue(cord, 'haul'), 1)
+  // Same hour and same ground, so both hunts meet the same beast and the only thing
+  // that differs is the cord.
   const plain = hunt({ ...bare, ground: 'ash' }, T0, 0.5)!
   const laden = hunt(cord, T0, 0.5)!
+  assert.equal(laden.beast.id, plain.beast.id)
   assert.equal(laden.material.amount, plain.material.amount + 1)
 })
 

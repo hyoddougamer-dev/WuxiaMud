@@ -347,6 +347,65 @@ export function Sprite() {
     <path d="M13 13L27 27L24 29L11 16Z"/>
     <path opacity=".45" d="M15 11L18 14L14 18L11 15Z"/>
   </symbol>
+
+      {/* 鍛 forged gear. Drawn rather than borrowed: a seal that shows a bell is a
+          seal the player has to be told about, and the whole point of a glyph is that
+          it says what the thing is before the label does. Each is a made object, so
+          each has a mark of its own making — a drilled hole, a lacing, a fold. */}
+      <symbol id="f-ring" viewBox="0 0 40 40">
+    <path fillRule="evenodd" d="M20 11C27 11 32 16 32 23C32 30 27 35 20 35C13 35 8 30 8 23C8 16 13 11 20 11ZM20 16C16 16 13 19 13 23C13 27 16 32 20 32C24 32 27 27 27 23C27 19 24 16 20 16Z"/>
+    <path d="M20 3L26 9L20 15L14 9Z"/>
+    <circle cx="20" cy="9" r="2" fill="#0a0f1a"/>
+  </symbol>
+      <symbol id="f-vest" viewBox="0 0 40 40">
+    <path d="M15 5L20 10L25 5L32 9V34H8V9Z"/>
+    <path fill="none" stroke="#0a0f1a" strokeWidth="1.7" d="M9 16H31M9 22H31M9 28H31M20 11V34"/>
+  </symbol>
+      <symbol id="f-bonecharm" viewBox="0 0 40 40">
+    <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+          d="M7 11C13 6 27 6 33 11"/>
+    <g>
+      <path d="M11 14C12.6 14 13.6 15.2 13.6 16.4L13.6 24C13.6 25.4 12.6 26.6 11 26.6C9.4 26.6 8.4 25.4 8.4 24L8.4 16.4C8.4 15.2 9.4 14 11 14Z"/>
+      <path d="M20 17C21.6 17 22.6 18.2 22.6 19.4L22.6 29C22.6 30.4 21.6 31.6 20 31.6C18.4 31.6 17.4 30.4 17.4 29L17.4 19.4C17.4 18.2 18.4 17 20 17Z"/>
+      <path d="M29 14C30.6 14 31.6 15.2 31.6 16.4L31.6 24C31.6 25.4 30.6 26.6 29 26.6C27.4 26.6 26.4 25.4 26.4 24L26.4 16.4C26.4 15.2 27.4 14 29 14Z"/>
+    </g>
+  </symbol>
+
+      <symbol id="f-seal" viewBox="0 0 40 40">
+    <path d="M13 4H27V13H13Z"/>
+    <path d="M7 15H33V35H7Z"/>
+    <path fill="none" stroke="#0a0f1a" strokeWidth="2.4" strokeLinejoin="round" d="M22 19L16 26H21L18 32"/>
+  </symbol>
+      <symbol id="f-corefire" viewBox="0 0 40 40">
+    <path d="M20 4C26 4 31 7 34 12L28 17V35H12V17L6 12C9 7 14 4 20 4Z"/>
+    <g fill="#0a0f1a">
+      <path d="M11 21H29V23H11ZM11 27H29V29H11Z"/>
+      <path d="M20 8C22.4 11 23.4 13 23.4 15C23.4 17.6 22 19.4 20 21C18 19.4 16.6 17.6 16.6 15C16.6 13 17.6 11 20 8Z"/>
+    </g>
+  </symbol>
+      <symbol id="f-foxcharm" viewBox="0 0 40 40">
+    <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M9 9C15 5 25 5 31 9"/>
+    <path d="M20 11L23 18L31 19L25 24L27 33L20 28L13 33L15 24L9 19L17 18Z"/>
+    <circle cx="20" cy="21" r="2.4" fill="#0a0f1a"/>
+  </symbol>
+
+      <symbol id="f-skyiron" viewBox="0 0 40 40">
+    <path d="M22 2L34 14L16 32L8 34L10 26Z"/>
+    <path opacity=".45" fill="#0a0f1a" d="M22 7L29 14L16 27L14 21Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M5 37L12 30"/>
+    <path opacity=".7" d="M27 9L37 3L33 13Z"/>
+  </symbol>
+      <symbol id="f-trueweave" viewBox="0 0 40 40">
+    <path d="M14 5L20 10L26 5L33 10L29 16V35H11V16L7 10Z"/>
+    <path fill="none" stroke="#0a0f1a" strokeWidth="1.5"
+          d="M12 20L28 20M12 26L28 26M12 32L28 32M16 15V35M20 11V35M24 15V35"/>
+  </symbol>
+      <symbol id="f-knot" viewBox="0 0 40 40">
+    <path fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
+          d="M20 6L28 14L20 22L12 14ZM20 22L28 30L20 37L12 30Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+          d="M12 14L6 20L12 26M28 14L34 20L28 26"/>
+  </symbol>
       <symbol id="s-shrike" viewBox="0 0 100 100">
     <path opacity=".5" d="M18 96L26 52L31 53L24 97Z"/>
     <path opacity=".5" d="M26 64L14 58L25 58ZM28 52L18 44L28 47Z"/>

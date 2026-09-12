@@ -2,6 +2,7 @@ import { ground, type Ground } from './grounds.ts'
 import { realm } from './realms.ts'
 import { levelOf } from './mastery.ts'
 import { relicValue } from './relics.ts'
+import { forgeValue } from './forge.ts'
 import { modifiers, TURMOIL_MAX } from './progress.ts'
 import { add, type Satchel } from './materials.ts'
 import type { PlayerState } from './state.ts'
@@ -136,7 +137,7 @@ export function odds(s: PlayerState, w: Warden): WardenOdds {
   const standing = Math.max(0, s.realm - g.realm) * STANDING_PER_REALM
   const levels = s.equipped.reduce((n, id) => n + levelOf(s.mastery, id), 0)
   const craft = s.equipped.length * CRAFT_PER_ART + levels * CRAFT_PER_LEVEL
-  const gear = relicValue(s, 'odds')
+  const gear = relicValue(s, 'odds') + forgeValue(s, 'odds')
   const turmoil = -(Math.min(s.turmoil, TURMOIL_MAX) / TURMOIL_MAX) * TURMOIL_WEIGHT
   const total = Math.min(CEILING, Math.max(FLOOR, w.base + standing + craft + gear + turmoil))
   return { base: w.base, standing, craft, gear, turmoil, total }

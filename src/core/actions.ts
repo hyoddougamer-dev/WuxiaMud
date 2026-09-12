@@ -4,6 +4,7 @@ import { attempt, type Outcome } from './tribulation.ts'
 import { refine } from './mastery.ts'
 import { choose, type Outcome as EncounterOutcome } from './encounters.ts'
 import { wear, type Slot } from './relics.ts'
+import { temper } from './forge.ts'
 import { fight, warden, type Kill } from './wardens.ts'
 import { huntCharges, HUNT_CHARGE_MS } from './hunt.ts'
 import { hunt, travel, type Spoils } from './hunt.ts'
@@ -32,6 +33,7 @@ export type Action =
   | { type: 'refine'; id: string }
   | { type: 'answer'; index: number }
   | { type: 'wear'; id: string | null; slot: Slot }
+  | { type: 'temper'; id: string }
   | { type: 'challenge'; id: string }
   | { type: 'meridian'; id: string }
   | { type: 'gate' }
@@ -84,6 +86,7 @@ export function apply(
     case 'travel':   return same(travel(state, action.id))
     case 'refine':   return same(refine(state, action.id))
     case 'wear':     return same(wear(state, action.id, action.slot))
+    case 'temper':   return same(temper(state, action.id))
     case 'open':     return same(openSession(state, now, roll))
 
     case 'answer': {

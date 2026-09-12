@@ -225,6 +225,7 @@ export default function App() {
             onAttempt={() => void send({ type: 'attempt' })}
             onAscend={() => setSealing(true)}
             onBreakGate={() => void send({ type: 'gate' })}
+            onGo={(where) => setTab(where)}
           />
         )}
         {tab === 'body' && (
@@ -253,6 +254,7 @@ export default function App() {
           <Gear
             state={shown}
             onWear={(id, slot) => void send({ type: 'wear', id, slot })}
+            onTemper={(id) => void send({ type: 'temper', id })}
             onBrew={(id: PillId) => void send({ type: 'brew', id })}
             onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
           />

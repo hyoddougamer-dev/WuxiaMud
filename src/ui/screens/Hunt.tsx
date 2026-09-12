@@ -1,6 +1,9 @@
 import { BEASTS } from '../../core/beasts.ts'
 import { MATERIALS } from '../../core/materials.ts'
-import { canHunt, huntCost, huntCharges, nextChargeAt, quarry, dangerHere, maxCharges } from '../../core/hunt.ts'
+import {
+  canHunt, huntCost, huntCharges, nextChargeAt, quarry, dangerHere, maxCharges,
+  trailAt, trailEndsAt,
+} from '../../core/hunt.ts'
 import { wardenOf, odds as wardenOdds, known, canChallenge, wardenCost, WARDEN_CHARGES } from '../../core/wardens.ts'
 import { Figure } from '../art/Figure.tsx'
 import { GROUNDS, ground, openAt, quarryOf, groundOf } from '../../core/grounds.ts'
@@ -51,14 +54,35 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
   // "Needs 150 qi" on a fresh save is a dead end unless it also says how long that is.
   const rate = ratePerSecond(state, now)
   const untilAfford = rate > 0 ? (huntCost(state) - state.qi) / rate : Infinity
+  const trail = pool.length > 0 ? trailAt(state.ground, now) : undefined
+  const turns = (trailEndsAt(now) - now) / 1000
 
   return (
     <div className="screen">
+      {/* The trail is the one thing on this screen that is worth reading before you
+          spend anything. It is what makes opening the app at a chosen moment better
+          than opening it at a random one, without asking anyone to open it more often. */}
+      {trail && (
+        <div className="trail">
+          <Figure symbol={trail.symbol} size={52} />
+          <span className="tb">
+            <span className="tk">On the trail · {here.name}</span>
+            <span className="tn">{trail.name} <span className="han dim-han">{trail.zh}</span></span>
+            <span className="td">
+              This is what you will find here until it turns over. Drops{' '}
+              {MATERIALS[trail.rank - 1].name}.
+            </span>
+          </span>
+          <span className="tt">turns in<br />{duration(turns)}</span>
+        </div>
+      )}
+
       <p className="label">Hunting grounds <span className="han">洞天</span></p>
       <p className="hint">
         Each ground holds three beasts and therefore leans toward one material, and each
-        stirs the heart every time you hunt there. Going deeper is not about being strong
-        enough — it is about what you can afford to pay in calm before the next tribulation.
+        stirs the heart every time you hunt there. What is on the trail is what you will
+        find, so the question is not whether to hunt but where — and the grounds turn over
+        independently, which is why looking twice a day is worth more than looking once.
       </p>
       <div className="list">
         {GROUNDS.map((g) => {
@@ -73,12 +97,19 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
             .filter(([, n]) => n > 0)
             .map(([m, n]) => `${n}× ${m.name}`)
             .join(', ')
+          // What is up in this ground right now. Shown for every open ground, because
+          // the whole decision the trail creates is a comparison between them.
+          const up = open ? trailAt(g.id, now) : undefined
           return (
             <button key={g.id} className={`card${on ? ' on' : ''}${open ? '' : ' locked'}`}
                     disabled={!open || on} onClick={() => onTravel(g.id)}>
               <span className="cb">
                 <span className="cn">{g.name} <span className="han dim-han">{g.zh}</span></span>
-                <span className="cd">{g.note}</span>
+                {up && (
+                  <span className="cd">
+                    <b className="up">{up.name}</b> on the trail · {MATERIALS[up.rank - 1].name}
+                  </span>
+                )}
                 <span className="cd dim">
                   {open
                     ? `${mix} · ${g.danger === 0 ? 'no turmoil' : `+${g.danger} turmoil a hunt`}` +

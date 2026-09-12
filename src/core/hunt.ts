@@ -5,6 +5,7 @@ import { originHuntDiscount } from './origins.ts'
 import { realm } from './realms.ts'
 import { modifiers, TURMOIL_MAX } from './progress.ts'
 import { relicValue } from './relics.ts'
+import { forgeValue, haulFrom } from './forge.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -98,6 +99,67 @@ export function travel(s: PlayerState, id: string): PlayerState {
   return { ...s, ground: g.id }
 }
 
+/**
+ * 蹤 The trail. What is moving in this ground right now, and the only thing in the
+ * game that pays attention rather than presence.
+ *
+ * The hunt was the one thing a player actually presses and it contained no decision:
+ * you pressed Hunt and one of the ground's three beasts came back at random, so
+ * opening the app at a chosen moment and opening it at an idle one paid exactly the
+ * same. Charges cap at four a day whether you look once or five times — deliberately,
+ * because an idle game must not reward compulsive checking — and with nothing else to
+ * separate them, attention was worth precisely nothing.
+ *
+ * The trail is what it is worth instead. Every ground turns over every three hours, on
+ * a clock everyone shares, and the beast on the trail is *the* beast you find there —
+ * not a sixty-percent chance of it. That one word is the whole mechanic: a random
+ * bonus is something that happens to you, and a certainty is something you can plan
+ * around. A measurement caught the difference cleanly. While the trail was a chance,
+ * a player opening four times a day rode it fifty-nine times in a month and a player
+ * opening once a day rode it fifty-nine times, because neither of them was choosing.
+ *
+ * So the decision is not "shall I hunt" but "what is up, and where". Grounds turn over
+ * independently, so at any instant there are as many trails as you have grounds open,
+ * and the question is which of them is worth a charge right now — a Moon Toad in the
+ * marsh against a Nine-Tailed Fox in the wood, weighed against what the wood costs you
+ * in calm. Someone who opens the game four times a day gets four of those picks.
+ * Someone who opens it once gets one, spends four charges on it, and still climbs.
+ *
+ * The window is the charge period exactly, and that pairing is the design rather than
+ * a coincidence: one charge, one trail, four of each a day. A player who looks when
+ * their charge lands sees a fresh ground and decides whether it is worth spending on —
+ * and if it is not, holding costs them nothing, because the next charge is not due
+ * until the next trail is up. A player who looks once a day finds four charges and one
+ * trail, spends all four on it, and climbs at the pace the game is balanced around.
+ *
+ * That is the entire advantage, and it is bounded on purpose: more looks buy better
+ * picks, never more hunts, and checking every ten minutes buys nothing at all — there
+ * is nothing new to see until the ground turns over.
+ */
+export const TRAIL_MS = HUNT_CHARGE_MS
+
+/** Deterministic from the clock and the ground alone, so every device agrees. */
+export function trailAt(groundId: string, now: number): Beast | undefined {
+  const pool = quarryOf(ground(groundId))
+  if (pool.length === 0) return undefined
+  let h = Math.floor(now / TRAIL_MS) * 2654435761
+  for (let i = 0; i < groundId.length; i++) h = (h ^ groundId.charCodeAt(i)) * 16777619
+  return pool[Math.abs(h) % pool.length]
+}
+
+/** When the ground turns over and something else starts moving. */
+export function trailEndsAt(now: number): number {
+  return (Math.floor(now / TRAIL_MS) + 1) * TRAIL_MS
+}
+
+/** What one hunt is worth in comprehension. Scaled by rank and by the realm you read it at. */
+export function insightFor(s: PlayerState, b: Beast): number {
+  return Math.round(b.rank * (3 + s.realm * 2) * modifiers(s).insight)
+}
+
+/** Seeing a thing for the first time is worth more than the hundredth time. */
+export const FIRST_SIGHTING_INSIGHT = 12
+
 export interface Spoils {
   state: PlayerState
   beast: Beast
@@ -112,15 +174,17 @@ export interface Spoils {
 export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
   if (!canHunt(s, now)) return null
   const pool = quarry(s)
-  const beast = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))]
   const g = ground(s.ground)
+  // What is on the trail is what you find. The roll decides only how much of it comes
+  // back, which is the one part of a hunt a player cannot plan around anyway.
+  const beast = trailAt(s.ground, now) ?? pool[0]
   const material = MATERIAL_FOR_RANK[beast.rank]
-  const amount = 1 + Math.floor(roll * 3) + g.bonus + relicValue(s, 'haul')
-  // Insight scales with the realm as well as the quarry: meridians cost hundreds by
-  // the end, and a game where the only way to afford them is to hunt a hare four
-  // thousand times is a spreadsheet, not a climb.
-  const insight = Math.round(beast.rank * (2 + s.realm) * modifiers(s).insight)
+  const amount = 1 + Math.floor(roll * 3) + g.bonus
+    + haulFrom(relicValue(s, 'haul') + forgeValue(s, 'haul'))
+
   const firstSighting = !s.seenBeasts.includes(beast.id)
+  const insight = insightFor(s, beast)
+    + (firstSighting ? Math.round(FIRST_SIGHTING_INSIGHT * s.realm * modifiers(s).insight) : 0)
 
   return {
     state: {

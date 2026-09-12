@@ -16,9 +16,28 @@ import type { PlayerState } from './state.ts'
  * only place in the game where a decision you already made gets more expensive to undo
  * the longer it stands — which is what a cultivation game should feel like.
  */
-export const MASTERY_MAX = 5
-/** Each level adds this fraction of the art's own listed value. Five doubles it. */
+/**
+ * Nine levels, like the realms and like the forge — and the four beyond five exist
+ * because a measurement found the sink running dry again.
+ *
+ * At a ceiling of five, an active player finished a climb having maxed every art they
+ * ran, opened all twelve meridians, and learnt all eighteen arts by about day thirty,
+ * and then spent the last three weeks earning twenty-three thousand insight that had
+ * nowhere to go. A currency with no sink is a currency that says "your extra sessions
+ * did not matter", which is the exact opposite of what hunting more is supposed to buy.
+ *
+ * The four extra levels are deliberately cheap in power and dear in insight: the step
+ * tapers to half past level five, so nine is worth 2.4× the listed value against 2.0×
+ * at five, while costing more than three times as much to reach. It is a place to put
+ * a surplus, not a second power curve.
+ */
+export const MASTERY_MAX = 9
+/** Each of the first five levels adds this fraction of the art's own listed value. */
 export const MASTERY_STEP = 0.2
+/** Past the fifth, half as much per level — depth to spend into, not power to gain. */
+export const MASTERY_STEP_LATE = 0.1
+/** Where the step halves. */
+export const MASTERY_KNEE = 5
 
 export type Mastery = Record<string, number>
 
@@ -38,7 +57,9 @@ export function refineCost(t: Technique, level: number): number {
 
 /** What the art is worth at its current mastery. Level zero returns the listed value. */
 export function valueAt(t: Technique, level: number): number {
-  return t.value * (1 + MASTERY_STEP * level)
+  const early = Math.min(level, MASTERY_KNEE)
+  const late = Math.max(0, level - MASTERY_KNEE)
+  return t.value * (1 + MASTERY_STEP * early + MASTERY_STEP_LATE * late)
 }
 
 export function masteredValue(s: PlayerState, id: string): number {

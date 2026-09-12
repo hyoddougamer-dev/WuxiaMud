@@ -1,3 +1,4 @@
+import { made, pattern } from './forge.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -110,13 +111,28 @@ export function worn(s: PlayerState, slot: Slot): Relic | undefined {
   return id ? relic(id) : undefined
 }
 
-/** Put it on, or take it off by wearing nothing. One to a slot, always. */
+/** What is in the slot, of either kind, for a screen that just wants to name it. */
+export function wornName(s: PlayerState, slot: Slot): string | null {
+  const id = s.wearing[slot]
+  if (!id) return null
+  return relic(id)?.name ?? pattern(id)?.name ?? null
+}
+
+/**
+ * Put it on, or take it off by wearing nothing. One to a slot, always.
+ *
+ * A slot holds either a relic you took or an item you forged — they compete for the
+ * same three places on purpose, so a level-seven Stormcore Seal has to be weighed
+ * against the Drowned Bell rather than worn alongside it.
+ */
 export function wear(s: PlayerState, id: string | null, slot: Slot): PlayerState {
   if (id === null) return { ...s, wearing: { ...s.wearing, [slot]: null } }
-  const r = relic(id)
-  if (!r || r.slot !== slot || !owns(s, id)) return s
   if (s.wearing[slot] === id) return s
-  return { ...s, wearing: { ...s.wearing, [slot]: id } }
+  const r = relic(id)
+  if (r) return r.slot === slot && owns(s, id) ? { ...s, wearing: { ...s.wearing, [slot]: id } } : s
+  const p = pattern(id)
+  if (!p) return s
+  return p.slot === slot && made(s, id) ? { ...s, wearing: { ...s.wearing, [slot]: id } } : s
 }
 
 /** The value of one effect across everything currently worn. */

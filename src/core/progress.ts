@@ -7,6 +7,7 @@ import { inheritedEffect } from './ancestry.ts'
 import { MERIDIANS, meridian, unlocked } from './meridians.ts'
 import { masteredValue } from './mastery.ts'
 import { relicValue } from './relics.ts'
+import { forgeValue } from './forge.ts'
 import { gateOpen } from './bottlenecks.ts'
 import { draw as drawEncounter } from './encounters.ts'
 import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
@@ -103,6 +104,20 @@ export function modifiers(s: PlayerState): Modifiers {
   // a relic that gave +20% qi would just be an art you cannot refine.
   m.insight += relicValue(s, 'insight')
   m.odds += relicValue(s, 'odds')
+
+  // 鍛 is the opposite case, and the one place gear does touch generation. A relic is
+  // found; a forged item is nine levels of a satchel you filled by going out, so its
+  // power is the reward for playing rather than for waiting. Paid for in the realm
+  // cost table like every other source of power, never taken back out.
+  m.rate += forgeValue(s, 'rate')
+  m.breakthrough -= forgeValue(s, 'breakthrough')
+  m.insight += forgeValue(s, 'insight')
+  m.odds += forgeValue(s, 'odds')
+  m.turmoilRate -= forgeValue(s, 'turmoil')
+  m.huntSpeed -= forgeValue(s, 'hunt')
+  m.turmoilRate = Math.max(0.2, m.turmoilRate)
+  m.huntSpeed = Math.max(0.3, m.huntSpeed)
+
   for (const id of s.equipped) {
     const t = technique(id)
     if (!t) continue

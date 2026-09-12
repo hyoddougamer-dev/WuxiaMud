@@ -8,19 +8,28 @@ import {
 import { odds } from '../../core/tribulation.ts'
 import { bottleneckAt, checklist, canBreakGate, gateOpen } from '../../core/bottlenecks.ts'
 import { canAscend } from '../../core/ancestry.ts'
+import { nextStep, type Where } from '../../core/next.ts'
+import { Icon } from '../art/Icon.tsx'
 import { short, duration } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
 const pc = (v: number) => `${Math.round(v * 100)}%`
 const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`
 
-export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGate }: {
+const WHERE_ICON: Record<Where, string> = {
+  cultivate: 'u-cultivate', body: 'u-meridians', arts: 'u-techniques',
+  gear: 'u-gear', hunt: 'u-hunt', lineage: 'u-lineage',
+}
+
+export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGate, onGo }: {
   state: PlayerState
   now: number
   onAttempt: () => void
   onSettle: () => void
   onAscend: () => void
   onBreakGate: () => void
+  /** Where the one-line instruction sends you. The whole point of it is that it moves. */
+  onGo: (where: Where) => void
 }) {
   const r = realm(state.realm)
   const cost = breakthroughCost(state)
@@ -39,6 +48,7 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGa
   const gate = bottleneckAt(state.realm)
   const gateDone = gateOpen(state)
   const rows = gate && !gateDone ? checklist(state, gate) : []
+  const step = nextStep(state, now)
 
   return (
     <div className="screen lit">
@@ -69,6 +79,20 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGa
                 title={x.name} />
         ))}
       </div>
+
+      {/* One line, in the imperative, at the top of the screen the player opens on.
+          Everything below this is a status report; this is the only instruction in the
+          game, and it is here because a player stared at "Offer Spirit Core 0 / 3"
+          with no way to learn that spirit cores come off rank-two beasts. */}
+      <button className={`directive${step.urgent ? ' urgent' : ''}`}
+              onClick={() => onGo(step.where)}>
+        <span className="di"><Icon symbol={WHERE_ICON[step.where]} size={22} /></span>
+        <span className="db">
+          <span className="dn">{step.say}</span>
+          <span className="dw">{step.why}</span>
+        </span>
+        <span className="dgo">{step.where === 'cultivate' ? '' : '›'}</span>
+      </button>
 
       {injured && (
         <div className="notice warn">
