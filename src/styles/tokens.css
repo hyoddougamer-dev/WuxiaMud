@@ -26,6 +26,11 @@
   --text-soft: #98A2B2;
   --text-faint: #6B7484;
 
+  /* The colour a drawing punches a hole with. It has to be the surface behind the
+     drawing rather than a fixed near-black, or the art cannot survive a change of
+     theme: on a pale ground every cut-out reads as a dark blob instead of a gap. */
+  --cut: var(--panel);
+
   /* The three variables every drawing reads. Set per realm at the app root. */
   --flame-lo: var(--t3);
   --flame-mid: var(--t6);

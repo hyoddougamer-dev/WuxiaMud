@@ -319,12 +319,12 @@ export function Sprite() {
   </symbol>
       <symbol id="r-robe" viewBox="0 0 40 40">
     <path d="M14 6L20 11L26 6L33 11L29 17L27 15V34H13V15L11 17L7 11Z"/>
-    <path fill="none" stroke="#0a0f1a" strokeWidth="1.6" d="M20 12V33"/>
+    <path fill="none" stroke="var(--cut)" strokeWidth="1.6" d="M20 12V33"/>
   </symbol>
       <symbol id="r-pendant" viewBox="0 0 40 40">
     <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M11 6C14 14 26 14 29 6"/>
     <path d="M20 13C25 18 28 22 28 26C28 31 24 34 20 34C16 34 12 31 12 26C12 22 15 18 20 13Z"/>
-    <circle cx="20" cy="26" r="2.6" fill="#0a0f1a"/>
+    <circle cx="20" cy="26" r="2.6" fill="var(--cut)"/>
   </symbol>
       <symbol id="r-mantle" viewBox="0 0 40 40">
     <path d="M20 5C28 5 35 10 36 18C30 15 24 14 20 14C16 14 10 15 4 18C5 10 12 5 20 5Z"/>
@@ -338,7 +338,7 @@ export function Sprite() {
   </symbol>
       <symbol id="r-blade" viewBox="0 0 40 40">
     <path d="M26 3L31 8L14 30L9 32L11 27Z"/>
-    <path opacity=".5" d="M24 5L29 10L16 26Z" fill="#0a0f1a"/>
+    <path opacity=".5" d="M24 5L29 10L16 26Z" fill="var(--cut)"/>
     <path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M6 34L13 27"/>
     <path opacity=".6" d="M30 12L37 6L34 16Z"/>
   </symbol>
@@ -355,11 +355,11 @@ export function Sprite() {
       <symbol id="f-ring" viewBox="0 0 40 40">
     <path fillRule="evenodd" d="M20 11C27 11 32 16 32 23C32 30 27 35 20 35C13 35 8 30 8 23C8 16 13 11 20 11ZM20 16C16 16 13 19 13 23C13 27 16 32 20 32C24 32 27 27 27 23C27 19 24 16 20 16Z"/>
     <path d="M20 3L26 9L20 15L14 9Z"/>
-    <circle cx="20" cy="9" r="2" fill="#0a0f1a"/>
+    <circle cx="20" cy="9" r="2" fill="var(--cut)"/>
   </symbol>
       <symbol id="f-vest" viewBox="0 0 40 40">
     <path d="M15 5L20 10L25 5L32 9V34H8V9Z"/>
-    <path fill="none" stroke="#0a0f1a" strokeWidth="1.7" d="M9 16H31M9 22H31M9 28H31M20 11V34"/>
+    <path fill="none" stroke="var(--cut)" strokeWidth="1.7" d="M9 16H31M9 22H31M9 28H31M20 11V34"/>
   </symbol>
       <symbol id="f-bonecharm" viewBox="0 0 40 40">
     <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
@@ -374,11 +374,11 @@ export function Sprite() {
       <symbol id="f-seal" viewBox="0 0 40 40">
     <path d="M13 4H27V13H13Z"/>
     <path d="M7 15H33V35H7Z"/>
-    <path fill="none" stroke="#0a0f1a" strokeWidth="2.4" strokeLinejoin="round" d="M22 19L16 26H21L18 32"/>
+    <path fill="none" stroke="var(--cut)" strokeWidth="2.4" strokeLinejoin="round" d="M22 19L16 26H21L18 32"/>
   </symbol>
       <symbol id="f-corefire" viewBox="0 0 40 40">
     <path d="M20 4C26 4 31 7 34 12L28 17V35H12V17L6 12C9 7 14 4 20 4Z"/>
-    <g fill="#0a0f1a">
+    <g fill="var(--cut)">
       <path d="M11 21H29V23H11ZM11 27H29V29H11Z"/>
       <path d="M20 8C22.4 11 23.4 13 23.4 15C23.4 17.6 22 19.4 20 21C18 19.4 16.6 17.6 16.6 15C16.6 13 17.6 11 20 8Z"/>
     </g>
@@ -386,18 +386,18 @@ export function Sprite() {
       <symbol id="f-foxcharm" viewBox="0 0 40 40">
     <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M9 9C15 5 25 5 31 9"/>
     <path d="M20 11L23 18L31 19L25 24L27 33L20 28L13 33L15 24L9 19L17 18Z"/>
-    <circle cx="20" cy="21" r="2.4" fill="#0a0f1a"/>
+    <circle cx="20" cy="21" r="2.4" fill="var(--cut)"/>
   </symbol>
 
       <symbol id="f-skyiron" viewBox="0 0 40 40">
     <path d="M22 2L34 14L16 32L8 34L10 26Z"/>
-    <path opacity=".45" fill="#0a0f1a" d="M22 7L29 14L16 27L14 21Z"/>
+    <path opacity=".45" fill="var(--cut)" d="M22 7L29 14L16 27L14 21Z"/>
     <path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M5 37L12 30"/>
     <path opacity=".7" d="M27 9L37 3L33 13Z"/>
   </symbol>
       <symbol id="f-trueweave" viewBox="0 0 40 40">
     <path d="M14 5L20 10L26 5L33 10L29 16V35H11V16L7 10Z"/>
-    <path fill="none" stroke="#0a0f1a" strokeWidth="1.5"
+    <path fill="none" stroke="var(--cut)" strokeWidth="1.5"
           d="M12 20L28 20M12 26L28 26M12 32L28 32M16 15V35M20 11V35M24 15V35"/>
   </symbol>
       <symbol id="f-knot" viewBox="0 0 40 40">
