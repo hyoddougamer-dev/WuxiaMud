@@ -55,10 +55,59 @@ export function realm(id: number): Realm {
   return REALMS[Math.min(Math.max(id, 1), REALMS.length) - 1]
 }
 
-/** Nine-step ember ramp. Realm colour is the single most-read piece of state in the game. */
+/**
+ * 五行 The five phases, walked across nine realms.
+ *
+ * This was a nine-step ember ramp: nine shades of one orange, which made the ladder a
+ * gradient rather than a journey — a screenshot of the eighth realm and one of the
+ * second were the same picture at different brightnesses. The phases are the cosmology
+ * the genre is actually built from, and spending the ramp on them costs nothing and
+ * buys a climb you can see.
+ *
+ * Two realms to a phase and the ninth alone at the top, which is right both ways: the
+ * eight climbable rungs pair off cleanly, and 渡劫 is the one realm that belongs to no
+ * pair. Within a phase the first realm is its darker step and the second its brighter,
+ * so the ladder still reads as a progression at a glance and never as two identical pips.
+ */
+export type Phase = 'wood' | 'fire' | 'earth' | 'metal' | 'water'
+
+export const PHASE_NAME: Record<Phase, { name: string; zh: string }> = {
+  wood:  { name: 'Wood',  zh: '木' },
+  fire:  { name: 'Fire',  zh: '火' },
+  earth: { name: 'Earth', zh: '土' },
+  metal: { name: 'Metal', zh: '金' },
+  water: { name: 'Water', zh: '水' },
+}
+
+/** Realm to phase. The one table this whole system rests on. */
+export const PHASE_OF: readonly Phase[] = [
+  'wood', 'wood', 'fire', 'fire', 'earth', 'earth', 'metal', 'metal', 'water',
+]
+
+export function phaseOf(id: number): Phase {
+  return PHASE_OF[Math.min(Math.max(id, 1), PHASE_OF.length) - 1]
+}
+
+/**
+ * The three steps a realm lights its artwork with.
+ *
+ * Deliberately all from one phase rather than from the realms two either side, which is
+ * what the ramp used to do. With a nine-orange ladder that read fine; across phases it
+ * meant a cultivator at the fourth realm glowed half fire and half wood, and the figure
+ * looked broken rather than transitional.
+ */
+export function realmRamp(id: number): { lo: string; mid: string; hi: string } {
+  const p = phaseOf(id)
+  return { lo: `var(--${p}-lo)`, mid: `var(--${p}-mid)`, hi: `var(--${p}-hi)` }
+}
+
+/** Nine rungs, two to a phase: the darker step, then the brighter. */
 export const REALM_COLOUR: readonly string[] = [
-  '#7C3411', '#91400F', '#A64F12', '#BC6016', '#D0741C',
-  '#E08E2C', '#EDA948', '#F6C673', '#FCE2AA',
+  'var(--wood-lo)',  'var(--wood-mid)',
+  'var(--fire-lo)',  'var(--fire-mid)',
+  'var(--earth-lo)', 'var(--earth-mid)',
+  'var(--metal-lo)', 'var(--metal-mid)',
+  'var(--water-mid)',
 ]
 
 export function realmColour(id: number): string {

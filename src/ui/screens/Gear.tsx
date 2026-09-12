@@ -1,4 +1,5 @@
 import { Glyph } from '../art/Glyph.tsx'
+import { Lore } from '../Lore.tsx'
 import { RELICS, SLOTS, SLOT_NAME, owns, relic, type Slot } from '../../core/relics.ts'
 import {
   PATTERNS, TEMPER_MAX, canTemper, costToMax, effectText as forgeText,
@@ -34,10 +35,11 @@ import type { PlayerState } from '../../core/state.ts'
  */
 const MAT_GLYPH: Record<string, string> = { hide: 'g-stone', core: 'g-cauldron', essence: 'g-talisman' }
 
+/** Three tiers, and the note is four words because a tier header is a signpost. */
 const TIERS: { mat: MaterialId; name: string; zh: string; note: string }[] = [
-  { mat: 'hide',    name: 'Hide work',    zh: '皮', note: 'The first afternoon. Cheap per level, and hide is everywhere.' },
-  { mat: 'core',    name: 'Core work',    zh: '丹', note: 'The middle of a life. Spirit cores carry the heaviest patterns.' },
-  { mat: 'essence', name: 'Essence work', zh: '真元', note: 'The last stretch. Few levels affordable, each one enormous.' },
+  { mat: 'hide',    name: 'Hide work',    zh: '皮',   note: 'Cheap, and hide is everywhere' },
+  { mat: 'core',    name: 'Core work',    zh: '丹',   note: 'The heaviest patterns' },
+  { mat: 'essence', name: 'Essence work', zh: '真元', note: 'Few levels, each enormous' },
 ]
 
 function Levels({ level }: { level: number }) {
@@ -79,18 +81,13 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
           )
         })}
       </div>
-      <p className="hint">
-        One to a slot, changeable whenever you like. Forged and found compete for the same
-        three places on purpose — a Seal at level seven has to be weighed against the Bell,
-        not worn beside it.
-      </p>
+      <p className="hint">Forged and found share these three slots. Changeable whenever you like.</p>
 
       {/* The forge first. It is the reason this screen exists and the only place in the
           game where a full satchel turns into generation. */}
       <p className="label">The forge <span className="han">鍛</span> · {forgedCount} of {PATTERNS.length} made</p>
       <p className="hint" style={{ marginBottom: 10 }}>
-        Materials and nothing else — insight buys knowledge, the satchel buys objects.
-        Nine levels to a pattern, each dearer than the last.
+        Paid in materials, never insight. Nine levels, each dearer than the last.
       </p>
 
       {TIERS.map((tier) => {
@@ -102,7 +99,7 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
               {tier.name} <span className="han">{tier.zh}</span>
               <span className="num dim"> · {have} in the satchel</span>
             </p>
-            <p className="hint" style={{ marginBottom: 8 }}>{tier.note}</p>
+            <p className="hint" style={{ marginBottom: 8 }}>{tier.note}.</p>
             <div className="list">
               {pool.map((p) => {
                 const lv = levelOf(state.forged, p.id)
@@ -118,25 +115,24 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
                       <span className="cn">
                         {p.name} <span className="han dim-han">{p.zh}</span>
                       </span>
-                      <span className="cd">
+                      {/* What you are choosing between, at the top and in the realm's light. */}
+                      <span className="ceff">
                         {lv > 0 ? forgeText(p, lv) : locked ? `Known at realm ${p.realm}` : 'Not forged yet'}
-                      </span>
-                      <span className="cd dim">
-                        {SLOT_NAME[p.slot].name} · {p.note}
                       </span>
                       <span className="forgerow">
                         <Levels level={lv} />
-                        <span className="cd dim">
-                          {maxed ? 'tempered to the ceiling'
-                                 : `${lv === 0 ? 'forge' : `level ${lv + 1}`} · ${cost} ${MATERIALS.find((m) => m.id === p.mat)!.name}` +
-                                   (lv > 0 ? ` → ${forgeText(p, lv + 1)}` : '')}
+                        {/* What it costs, in figures rather than in a sentence. */}
+                        <span className="cnum">
+                          {maxed ? 'at the ceiling'
+                                 : <>{lv === 0 ? 'forge' : `→ ${lv + 1}`} · <b>{cost}</b> {p.mat}</>}
                         </span>
                       </span>
                       {lv > 0 && !maxed && (
-                        <span className="cd dim">
-                          {costToMax(p, lv)} more to reach {TEMPER_MAX} · {forgeText(p, TEMPER_MAX)}
+                        <span className="cnum">
+                          at {TEMPER_MAX} · {forgeText(p, TEMPER_MAX).replace(/^(\+|−)?/, '$1')} · <b>{costToMax(p, lv)}</b> more
                         </span>
                       )}
+                      <Lore>{SLOT_NAME[p.slot].name} · {p.note}</Lore>
                     </span>
                     <span className="pillcol">
                       <button className="mini" onClick={() => onTemper(p.id)} disabled={!can}>
@@ -167,15 +163,11 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
           </div>
         ))}
       </div>
-      <p className="hint">
-        The forge, the meridians, the gates and the cauldron all draw on this. It is the
-        one number that hunting raises and waiting never does.
-      </p>
+      <p className="hint">Hunting raises these. Waiting never does.</p>
 
       <p className="label">Relics taken <span className="han">法寶</span> · {state.relics.length} of {RELICS.length}</p>
       <p className="hint" style={{ marginBottom: 8 }}>
-        Off wardens, one to a kind, never improved. None of them touches generation —
-        they bend a rule instead, which is what a forged item can never do.
+        One to a warden, never improved. They bend a rule rather than raise a number.
       </p>
       {SLOTS.map((slot) => (
         <div key={slot}>
@@ -195,8 +187,8 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
                   <Glyph symbol={r.glyph} size={26} />
                   <span className="cb">
                     <span className="cn">{r.name} <span className="han dim-han">{r.zh}</span></span>
-                    <span className="cd">{have ? r.text : `Taken from ${w?.name ?? 'a warden'}`}</span>
-                    <span className="cd dim">{have ? r.note : `${w?.zh ?? ''} · not yet beaten`}</span>
+                    <span className="ceff">{have ? r.text : `Taken from ${w?.name ?? 'a warden'}`}</span>
+                    <Lore>{have ? r.note : `${w?.zh ?? ''} · not yet beaten`}</Lore>
                   </span>
                   <span className={`cx${have ? '' : ' dim'}`}>
                     {on ? 'worn' : have ? 'put on' : 'unclaimed'}
@@ -218,8 +210,8 @@ export function Gear({ state, onWear, onTemper, onBrew, onTakePill }: {
             <div className="card" key={p.id}>
               <span className="cb">
                 <span className="cn">{p.name} <span className="han dim-han">{p.zh}</span></span>
-                <span className="cd">{p.text}</span>
-                <span className="cd dim">{costText}</span>
+                <span className="ceff">{p.text}</span>
+                <span className="cnum">{costText}</span>
               </span>
               <span className="pillcol">
                 {have > 0 && (

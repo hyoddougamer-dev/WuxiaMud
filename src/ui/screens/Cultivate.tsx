@@ -142,7 +142,7 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGa
             ? 'Settling. Generation is at 15% while the heart quiets.'
             : strained
               ? `Turmoil is costing you ${Math.round((1 - turmoilFactor(state.turmoil)) * 100)}% of your generation, and the same again off any tribulation.`
-              : `Free until ${TURMOIL_FREE}. Rises with every qi you gather — faster cultivation, louder demon.`}
+              : `Free until ${TURMOIL_FREE}. Faster cultivation, louder demon.`}
         </p>
         <button className="cta ghost" onClick={onSettle}>
           {state.settling ? 'Resume cultivating' : 'Settle the heart'}

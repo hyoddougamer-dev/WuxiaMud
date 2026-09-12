@@ -6,6 +6,7 @@ import {
 } from '../../core/hunt.ts'
 import { wardenOf, odds as wardenOdds, known, canChallenge, wardenCost, WARDEN_CHARGES } from '../../core/wardens.ts'
 import { Figure } from '../art/Figure.tsx'
+import { Lore } from '../Lore.tsx'
 import { GROUNDS, ground, openAt, quarryOf, groundOf } from '../../core/grounds.ts'
 import { TURMOIL_MAX } from '../../core/progress.ts'
 import { ratePerSecond } from '../../core/progress.ts'
@@ -68,22 +69,14 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
           <span className="tb">
             <span className="tk">On the trail · {here.name}</span>
             <span className="tn">{trail.name} <span className="han dim-han">{trail.zh}</span></span>
-            <span className="td">
-              This is what you will find here until it turns over. Drops{' '}
-              {MATERIALS[trail.rank - 1].name}.
-            </span>
+            <span className="td">Drops {MATERIALS[trail.rank - 1].name} until it turns over.</span>
           </span>
           <span className="tt">turns in<br />{duration(turns)}</span>
         </div>
       )}
 
       <p className="label">Hunting grounds <span className="han">洞天</span></p>
-      <p className="hint">
-        Each ground holds three beasts and therefore leans toward one material, and each
-        stirs the heart every time you hunt there. What is on the trail is what you will
-        find, so the question is not whether to hunt but where — and the grounds turn over
-        independently, which is why looking twice a day is worth more than looking once.
-      </p>
+      <p className="hint">What is on the trail is what you will find. So the question is where.</p>
       <div className="list">
         {GROUNDS.map((g) => {
           const open = openAt(g, state.realm)
@@ -92,11 +85,6 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
           // "up to Spirit Core" was the same sentence for three different grounds.
           // What actually separates the Reed Marsh from Thunder Ridge is the mix —
           // two hides and a core against three cores — so show the mix.
-          const mix = MATERIALS
-            .map((m) => [m, quarryOf(g).filter((b) => b.rank === m.rank).length] as const)
-            .filter(([, n]) => n > 0)
-            .map(([m, n]) => `${n}× ${m.name}`)
-            .join(', ')
           // What is up in this ground right now. Shown for every open ground, because
           // the whole decision the trail creates is a comparison between them.
           const up = open ? trailAt(g.id, now) : undefined
@@ -105,17 +93,27 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
                     disabled={!open || on} onClick={() => onTravel(g.id)}>
               <span className="cb">
                 <span className="cn">{g.name} <span className="han dim-han">{g.zh}</span></span>
+                <Lore>{g.note}</Lore>
                 {up && (
                   <span className="cd">
                     <b className="up">{up.name}</b> on the trail · {MATERIALS[up.rank - 1].name}
                   </span>
                 )}
-                <span className="cd dim">
-                  {open
-                    ? `${mix} · ${g.danger === 0 ? 'no turmoil' : `+${g.danger} turmoil a hunt`}` +
-                      `${g.bonus ? ` · +${g.bonus} to every haul` : ''} · ${found}/3 recorded`
-                    : `opens at realm ${g.realm}`}
-                </span>
+                {open ? (
+                  <span className="chips">
+                    {MATERIALS.map((m) => {
+                      const n = quarryOf(g).filter((b) => b.rank === m.rank).length
+                      return n > 0 ? <span className="chip" key={m.id}>{n}× {m.name}</span> : null
+                    })}
+                    <span className={`chip${g.danger ? ' hot' : ' good'}`}>
+                      {g.danger ? `+${g.danger} 心魔` : 'no 心魔'}
+                    </span>
+                    {g.bonus > 0 && <span className="chip good">+{g.bonus} haul</span>}
+                    <span className={`chip${found === 3 ? ' lit' : ''}`}>{found}/3 recorded</span>
+                  </span>
+                ) : (
+                  <span className="cd dim">opens at realm {g.realm}</span>
+                )}
               </span>
               <span className={`cx${on ? '' : ' dim'}`}>{on ? 'here' : open ? 'travel' : 'shut'}</span>
             </button>
@@ -172,10 +170,7 @@ export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
           </p>
         )}
         <p className="hint">
-          A hunt costs five minutes of gathering and returns materials and insight —
-          the two things meridians are bought with. Charges come back on their own
-          whether the app is open or not and stop at {cap}, so checking in
-          five times an evening earns no more than checking in once.
+          Charges return on their own, open or not, and stop at {cap}.
         </p>
       </div>
 

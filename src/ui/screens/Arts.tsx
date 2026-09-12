@@ -52,10 +52,7 @@ export function Arts({ state, onLearn, onEquip, onUnequip, onRefine }: {
           <span className="v num jade">{state.insight}</span>
         </div>
         {equipped.length === 0 && (
-          <p className="hint">
-            Nothing equipped. A learned art does nothing until it sits in a slot, and every
-            slot filled costs qi per second — so a full bar is rarely the right bar.
-          </p>
+          <p className="hint">Nothing equipped. An art does nothing until it sits in a slot.</p>
         )}
       </div>
 
@@ -92,9 +89,9 @@ export function Arts({ state, onLearn, onEquip, onUnequip, onRefine }: {
                 <Glyph symbol={t.glyph} />
                 <span className="cb">
                   <span className="cn">{t.name} <span className="han dim-han">{t.zh}</span></span>
-                  <span className="cd">{effectText(t, valueAt(t, level))}</span>
-                  <span className="cd dim">
-                    {SCHOOL_NAME[t.school]} school · −{short(upkeepOf(t))} qi/s upkeep
+                  <span className="ceff">{effectText(t, valueAt(t, level))}</span>
+                  <span className="cnum">
+                    {SCHOOL_NAME[t.school]} · <b>−{short(upkeepOf(t))}</b> qi/s
                   </span>
                 </span>
                 <span className={`cx${disabled ? ' dim' : ''}`}>{action}</span>

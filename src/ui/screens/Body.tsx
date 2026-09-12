@@ -42,11 +42,7 @@ export function Body({ state, onOpen, onPickFlame }: {
           <span className="v num">{opened} of {rows.length}</span>
         </div>
         <div className="bar"><i style={{ width: `${(opened / rows.length) * 100}%` }} /></div>
-        <p className="hint">
-          A meridian is bought once and kept for life — no upkeep, no slot, nothing to
-          clash with. Insight and beast materials are the only currency, which makes
-          hunting the thing that decides how strong you get rather than how long you wait.
-        </p>
+        <p className="hint">Bought once, kept for life. No upkeep, no slot, nothing to clash with.</p>
         <div className="matrow wide">
           <div className="mat">
             <Glyph symbol="g-bone" size={22} />
@@ -71,6 +67,22 @@ export function Body({ state, onOpen, onPickFlame }: {
             <p className="label">
               {COURSE_NAME[c].name} <span className="han">{COURSE_NAME[c].zh}</span> · {done}/{list.length}
             </p>
+            {/* A course is four channels that open in order — a shape, not a list. Drawn
+                once above the rows so "what is open, what is next, what is still dark"
+                is a glance rather than four cards' worth of reading. */}
+            <div className="track" role="img"
+                 aria-label={`${COURSE_NAME[c].name}: ${done} of ${list.length} open`}>
+              {list.map((m, i) => {
+                const isOpen = state.meridians.includes(m.id)
+                const isNext = !isOpen && list.slice(0, i).every((x) => state.meridians.includes(x.id))
+                return (
+                  <span key={m.id} style={{ display: 'contents' }}>
+                    {i > 0 && <span className={`span${isOpen ? ' open' : ''}`} />}
+                    <span className={`node${isOpen ? ' open' : ''}${isNext ? ' next' : ''}`} />
+                  </span>
+                )
+              })}
+            </div>
             <div className="list">
               {list.map((m) => {
                 const r = at(m.id)

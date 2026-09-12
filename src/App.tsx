@@ -11,7 +11,7 @@ import { Body } from './ui/screens/Body.tsx'
 import { Gear } from './ui/screens/Gear.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
 import { advance } from './core/progress.ts'
-import { realmColour } from './core/realms.ts'
+import { realmRamp } from './core/realms.ts'
 import { short, duration } from './core/format.ts'
 import { makeSession, newNonce } from './net/index.ts'
 import type { Action } from './core/actions.ts'
@@ -208,10 +208,14 @@ export default function App() {
     </>
   )
 
+  // All three steps come from the realm's own phase. Reading the realms two either
+  // side worked while the ladder was nine oranges and breaks the moment it is not:
+  // at Nascent Soul it lit the cultivator half fire and half wood.
+  const phase = realmRamp(shown.realm)
   const ramp = {
-    ['--flame-lo' as string]: realmColour(Math.max(1, shown.realm - 2)),
-    ['--flame-mid' as string]: realmColour(shown.realm),
-    ['--flame-hi' as string]: realmColour(Math.min(9, shown.realm + 2)),
+    ['--flame-lo' as string]: phase.lo,
+    ['--flame-mid' as string]: phase.mid,
+    ['--flame-hi' as string]: phase.hi,
   }
 
   return (

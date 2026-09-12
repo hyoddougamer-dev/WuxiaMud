@@ -1,30 +1,68 @@
-/* The seventeen colours from the art bible, plus the surfaces they sit on.
-   Nothing in the game may introduce a colour that is not declared here. */
+/* 青玉 Jade and lacquer, with 五行 deciding what the accent is doing at each realm.
+   Nothing in the game may introduce a colour that is not declared here.
+
+   The palette before this one was a blue-black ground with a saturated amber accent —
+   which is the default of every developer tool and sci-fi dashboard of the last decade,
+   and is the single reason the game read as an app rather than as 仙俠. Nothing in ink
+   painting, lacquer or jade is blue-black.
+
+   Two systems, and keeping them apart is what stops the screen turning into a paint
+   chart. Jade and gold are chrome: the nav, the section labels, what is interactive,
+   what is currently selected — fixed for the life of the save, so the interface never
+   has to be relearned. The five phases are character: the cultivator, the realm, every
+   bar that measures progress toward one. Those move as you climb.
+
+   Semantic colour is exempt from both. Danger, calm and failure hold still, because a
+   player who has to re-learn what red means every fortnight has no interface at all. */
 :root {
-  --abyss: #060911;
-  --ink: #0C1220;
-  --slate: #18202F;
-  --stone: #364256;
-  --ash: #7C8798;
-  --bone: #E9E6DC;
+  /* 漆 the lacquer ground. Black-green rather than black-blue, which is the whole point. */
+  --abyss: #030A08;
+  --ink: #05100D;
+  --slate: #0B1915;
+  --stone: #1D3A31;
+  --ash: #8FA89B;
+  --bone: #E2EFE8;
 
-  --t1: #7C3411; --t2: #91400F; --t3: #A64F12; --t4: #BC6016; --t5: #D0741C;
-  --t6: #E08E2C; --t7: #EDA948; --t8: #F6C673; --t9: #FCE2AA;
+  /* 五行 the five phases, two realms to a phase and the ninth alone at the top. Each
+     phase carries three steps so a figure can be lit with its own light rather than
+     with the neighbouring realm's — realm 4 glowing half green was the first draft. */
+  --wood-lo: #235C33; --wood-mid: #5FAE68; --wood-hi: #BFE3BF;
+  --fire-lo: #8E2C1E; --fire-mid: #D0442C; --fire-hi: #F0937C;
+  --earth-lo: #7A5514; --earth-mid: #CE9A2C; --earth-hi: #F2D480;
+  --metal-lo: #5E6875; --metal-mid: #B9C3CE; --metal-hi: #EEF4F9;
+  --water-lo: #22307E; --water-mid: #5570CC; --water-hi: #B9C8F5;
 
-  --jade: #35C79A;
-  --crimson: #E03E2D;
-  --demon: #8C5CF0;
-  --apex: #FFF0C4;
+  /* 器 chrome. Fixed forever: these are what "you may press this" and "you are here"
+     look like, and they must mean the same thing at the ninth realm as at the first. */
+  --jade: #4ECFA3;
+  --jade-deep: #1B7A5C;
+  --gold: #D4A843;
+
+  /* Semantic. Also fixed, for the same reason and more so. */
+  --crimson: #E0533C;
+  --demon: #9B6BFF;
+  --apex: #EAFBF3;
 
   /* Surfaces */
-  --bg: #070A12;
-  --panel: #0E1420;
-  --panel-2: #131A28;
-  --line: #1D2634;
-  --line-soft: #151C28;
-  --text: #E9E6DC;
-  --text-soft: #98A2B2;
-  --text-faint: #6B7484;
+  --bg: #05100D;
+  --panel: #0B1915;
+  --panel-2: #10231C;
+  --line: #1D3A31;
+  --line-soft: #142A23;
+  --trough: #10241D;
+  --text: #E2EFE8;
+  --text-soft: #90A99C;
+  --text-faint: #5E7469;
+
+  /* 影 The cultivator's own body, which is never lit by the phase — a silhouette is a
+     silhouette. These were five fixed blue-greys inside Figure.tsx, left over from the
+     navy ground, and once everything around them turned to lacquer they were the only
+     thing on the screen still painted in the old theme. */
+  --silhouette-hi: #2B3A35;
+  --silhouette-mid: #131F1B;
+  --silhouette-lo: #060F0C;
+  --silhouette-rim: #172721;
+  --silhouette-edge: #29403A;
 
   /* The colour a drawing punches a hole with. It has to be the surface behind the
      drawing rather than a fixed near-black, or the art cannot survive a change of
@@ -32,12 +70,16 @@
   --cut: var(--panel);
 
   /* The three variables every drawing reads. Set per realm at the app root. */
-  --flame-lo: var(--t3);
-  --flame-mid: var(--t6);
-  --flame-hi: var(--t9);
+  --flame-lo: var(--fire-lo);
+  --flame-mid: var(--fire-mid);
+  --flame-hi: var(--fire-hi);
 
-  --font-display: 'Cinzel', Georgia, serif;
-  --font-body: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Cinzel is drawn from the inscription on Trajan's Column. It carries Rome and
+     Greco-Roman fantasy, it sat on every realm name, and it was the loudest wrong
+     signal on the screen. Noto Serif SC covers Latin and 漢字 in one family, so the
+     two scripts stop disagreeing with each other on every line that holds both. */
+  --font-display: 'Noto Serif SC', 'Songti SC', Georgia, serif;
+  --font-body: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-han: 'Noto Serif SC', serif;
 
@@ -45,7 +87,8 @@
   --safe-t: env(safe-area-inset-top, 0px);
 }
 
-/* The deviant path swaps the ramp wholesale, which is why it reads as wrong on sight. */
+/* The deviant path swaps the ramp wholesale, which is why it reads as wrong on sight:
+   violet belongs to no phase, so a deviant cultivator is lit by nothing in the world. */
 .deviant {
   --flame-lo: #3A1B6B;
   --flame-mid: var(--demon);

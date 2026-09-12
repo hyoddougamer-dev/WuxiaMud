@@ -87,9 +87,9 @@ export function Figure({ symbol, size = 132, flames = false, motes, ring = null,
           <stop offset="100%" stopColor="var(--flame-hi)" />
         </linearGradient>
         <linearGradient id={`body${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2E3A4E" />
-          <stop offset="55%" stopColor="#141C2B" />
-          <stop offset="100%" stopColor="#080C15" />
+          <stop offset="0%" stopColor="var(--silhouette-hi)" />
+          <stop offset="55%" stopColor="var(--silhouette-mid)" />
+          <stop offset="100%" stopColor="var(--silhouette-lo)" />
         </linearGradient>
         <filter id={`bl${id}`} x="-70%" y="-70%" width="240%" height="240%">
           <feGaussianBlur stdDeviation="2.4" />
@@ -100,7 +100,7 @@ export function Figure({ symbol, size = 132, flames = false, motes, ring = null,
 
       {ring !== null && (
         <>
-          <circle cx="50" cy="52" r={R} fill="none" stroke="#19212F" strokeWidth="2.6" />
+          <circle cx="50" cy="52" r={R} fill="none" stroke="var(--silhouette-rim)" strokeWidth="2.6" />
           <circle
             cx="50" cy="52" r={R} fill="none" stroke={`url(#rim${id})`} strokeWidth="2.6"
             strokeLinecap="round"
@@ -123,7 +123,7 @@ export function Figure({ symbol, size = 132, flames = false, motes, ring = null,
           <use href={`#${symbol}`} width="100" height="100" />
         </g>
       )}
-      <g fill={dim ? '#19212F' : `url(#body${id})`} style={{ color: dim ? '#19212F' : '#2C384C' }}>
+      <g fill={dim ? 'var(--silhouette-rim)' : `url(#body${id})`} style={{ color: dim ? 'var(--silhouette-rim)' : 'var(--silhouette-edge)' }}>
         <use href={`#${symbol}`} width="100" height="100" />
       </g>
 
