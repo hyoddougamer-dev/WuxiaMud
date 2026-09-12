@@ -1,4 +1,4 @@
-package com.hyoddou.lineage;
+package com.hyoddou.ninefold;
 
 import com.getcapacitor.BridgeActivity;
 

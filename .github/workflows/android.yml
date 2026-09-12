@@ -44,29 +44,58 @@ jobs:
       - name: Name it after the commit
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/app-debug.apk "out/lineage-${GITHUB_SHA::7}.apk"
-          cp android/app/build/outputs/apk/debug/app-debug.apk out/lineage-latest.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/ninefold-${GITHUB_SHA::7}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/ninefold-latest.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lineage-apk
+          name: ninefold-apk
           path: out/*.apk
           if-no-files-found: error
+
+      # Clear the release before re-uploading. Without this the tag accumulates one
+      # per-commit APK per push — seven of them by the time anybody noticed — and a
+      # player following the link has to work out which of eight files is today's.
+      - name: Clear stale assets from the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                    -H "Accept: application/vnd.github+json" "$@"; }
+          id=$(api "https://api.github.com/repos/$REPO/releases/tags/ninefold-latest" \
+               | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null || true)
+          [ -n "$id" ] || { echo "no release yet — nothing to clear"; exit 0; }
+          api "https://api.github.com/repos/$REPO/releases/$id/assets" \
+            | python3 -c 'import json,sys; [print(a["id"]) for a in json.load(sys.stdin)]' \
+            | while read -r a; do
+                echo "removing asset $a"
+                curl -fsSL -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
+                  "https://api.github.com/repos/$REPO/releases/assets/$a"
+              done
 
       # A release asset under a fixed tag gives one URL that never rots, so a link
       # handed over today still works after the next push.
       - name: Publish to the rolling release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: lineage-latest
-          name: Lineage · latest build
+          tag_name: ninefold-latest
+          name: Ninefold · latest build
           body: |
-            Debug APK built from `${{ github.sha }}`.
+            **[⬇ Download ninefold-latest.apk](https://github.com/${{ github.repository }}/releases/download/ninefold-latest/ninefold-latest.apk)** — always the newest build.
 
-            Stable download (always the newest build):
-            https://github.com/${{ github.repository }}/releases/download/lineage-latest/lineage-latest.apk
+            Built from `${{ github.sha }}`.
 
-            Unsigned debug build — Android will warn about an unknown source.
-            Enable "install unknown apps" for your browser or file manager to install it.
+            **Installing on Android.** This is an unsigned debug build, so the phone
+            will not trust it on sight:
+
+            1. Open the link above in Chrome. It will say the file "may be harmful" —
+               tap **Download anyway**.
+            2. Open the downloaded file. Android asks for permission to install from
+               this source: tap **Settings**, turn on **Allow from this source**, then back.
+            3. Play Protect may offer a second warning. **Install anyway**.
+
+            It installs as **Ninefold**. Nothing is uploaded anywhere — the save lives
+            on the phone, so uninstalling the app deletes the cultivator.
           files: out/*.apk
           make_latest: true

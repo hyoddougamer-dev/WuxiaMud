@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Lineage</string>
-    <string name="title_activity_main">Lineage</string>
-    <string name="package_name">com.hyoddou.lineage</string>
-    <string name="custom_url_scheme">com.hyoddou.lineage</string>
+    <string name="app_name">Ninefold</string>
+    <string name="title_activity_main">Ninefold</string>
+    <string name="package_name">com.hyoddou.ninefold</string>
+    <string name="custom_url_scheme">com.hyoddou.ninefold</string>
 </resources>
