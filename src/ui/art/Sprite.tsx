@@ -191,6 +191,9 @@ export function Sprite() {
       <symbol id="u-lineage" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.8">
     <path strokeLinecap="round" d="M12 6V12M12 12H7V17M12 12H17V17"/>
     <circle cx="12" cy="4" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></g></symbol>
+      <symbol id="u-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round">
+    <path d="M9 3L12 5.4L15 3L19.4 6.2L17 9.6L15.6 8.6V20.5H8.4V8.6L7 9.6L4.6 6.2Z"/>
+    <path d="M12 9.4V20.5"/></g></symbol>
       <symbol id="u-hunt" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" strokeWidth="1.7">
     <ellipse cx="12" cy="16.6" rx="4.9" ry="4"/>
     <ellipse cx="6.2" cy="10.8" rx="2.1" ry="2.7" transform="rotate(-20 6.2 10.8)"/>
@@ -230,6 +233,119 @@ export function Sprite() {
     <path fillRule="evenodd" d="M56 34C51 34 48 30.5 48 26C48 21 52 17.5 57 17.5C62 17.5 66 21 66 26C66 30.5 62 34 57 34ZM54.4 24a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0-3.8 0Z"/>
     <path d="M48 24L34 21L48 18Z"/>
     <path d="M62 18L66 6L69 19Z"/>
+  </symbol>
+      {/* ── 妖王 wardens ───────────────────────────────────────────────────
+           A warden has to read as a boss at the same seventy pixels a hare gets,
+           and the three things that do it are scale, crown and asymmetry: they
+           fill the frame corner to corner where a beast sits inside a margin,
+           every one carries something horn-like above the skull line, and none of
+           them is the same shape on both sides. */}
+      <symbol id="w-grey" viewBox="0 0 100 100">
+    <path d="M26 64C26 50 40 42 60 42C78 42 92 52 92 68C92 82 82 90 64 90L40 90C30 90 26 78 26 64Z"/>
+    <path opacity=".3" d="M42 48C52 42 72 42 84 50C70 46 54 46 42 48Z"/>
+    <path fillRule="evenodd" d="M34 62C22 62 14 54 14 42C14 28 24 18 38 18C52 18 60 28 60 42C60 54 50 62 38 62ZM24 40a2.8 2.8 0 1 0 5.6 0a2.8 2.8 0 1 0-5.6 0ZM40 38a2.8 2.8 0 1 0 5.6 0a2.8 2.8 0 1 0-5.6 0Z"/>
+    <path d="M20 28C10 24 7 12 12 5C13 15 17 21 25 23Z"/>
+    <path d="M54 24C65 17 69 6 64 4C67 15 61 21 52 25Z"/>
+    <path d="M16 34C7 38 6 50 12 56C8 48 11 42 19 40Z"/>
+    <path d="M58 30C68 34 70 46 64 52C68 44 66 38 56 36Z"/>
+    <path d="M14 54L6 60L18 61Z"/>
+    <path d="M40 88L44 96L34 96ZM60 88L64 96L54 96ZM80 88L84 95L72 95Z"/>
+    <path opacity=".5" d="M92 62C96 54 96 44 93 36C96 48 95 58 92 66Z"/>
+  </symbol>
+      <symbol id="w-marsh" viewBox="0 0 100 100">
+    <path fillRule="evenodd" d="M8 66C8 42 28 26 50 26C72 26 92 42 92 66C92 82 80 90 60 90L32 90C16 90 8 82 8 66ZM24 36C18 36 14 31 14 25C14 17 20 12 28 12C36 12 41 17 41 25C41 31 36 36 29 36ZM70 34C64 34 59 29 59 23C59 15 65 10 73 10C81 10 86 15 86 23C86 29 81 34 74 34ZM21 24a3 3 0 1 0 6 0a3 3 0 1 0-6 0ZM68 22a3 3 0 1 0 6 0a3 3 0 1 0-6 0Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" d="M28 56C40 70 64 70 74 54"/>
+    <path d="M44 22L40 6L54 18ZM56 20L66 6L64 24Z"/>
+    <path opacity=".45" d="M12 46C5 42 4 30 8 23C7 34 11 39 18 41Z"/>
+    <path opacity=".45" d="M88 44C95 40 96 28 92 21C93 32 89 37 82 39Z"/>
+    <path d="M8 84L2 94L18 92ZM92 84L98 94L82 92Z"/>
+    <path opacity=".3" d="M34 74C44 80 58 80 68 74C56 78 46 78 34 74Z"/>
+  </symbol>
+      <symbol id="w-cinder" viewBox="0 0 100 100">
+    <path opacity=".5" d="M54 54C42 40 26 30 8 27C22 36 34 47 44 62Z"/>
+    <path opacity=".55" d="M56 52C49 34 39 18 25 9C34 25 43 40 48 57Z"/>
+    <path opacity=".65" d="M58 50C58 32 55 16 48 5C55 20 58 34 58 50Z"/>
+    <path opacity=".65" d="M61 50C66 32 75 16 87 7C77 21 68 35 63 52Z"/>
+    <path opacity=".55" d="M63 54C75 41 89 32 96 30C85 36 74 46 66 60Z"/>
+    <path d="M36 74C36 62 46 54 58 54C72 54 82 62 82 74C82 84 74 90 60 90L48 90C40 90 36 82 36 74Z"/>
+    <path fillRule="evenodd" d="M34 76C24 76 16 69 16 59C16 47 26 39 38 39C50 39 58 47 58 59C58 69 48 76 38 76ZM24 57a2.7 2.7 0 1 0 5.4 0a2.7 2.7 0 1 0-5.4 0ZM40 55a2.7 2.7 0 1 0 5.4 0a2.7 2.7 0 1 0-5.4 0Z"/>
+    <path d="M20 44L13 28L32 40ZM48 40L54 24L58 42Z"/>
+    <path d="M16 62L6 66L16 70Z"/>
+    <path d="M46 88L50 96L40 96ZM68 88L72 96L60 96Z"/>
+  </symbol>
+      <symbol id="w-sovereign" viewBox="0 0 100 100">
+    <path d="M16 74C16 60 26 50 44 50L64 50C78 50 86 58 86 72C86 84 78 90 64 90L30 90C20 90 16 84 16 74Z"/>
+    <path opacity=".28" d="M42 52L52 52L46 88L36 88ZM60 52L70 52L66 88L56 88Z"/>
+    <path fillRule="evenodd" d="M68 58C54 58 45 48 45 34C45 19 56 10 72 10C88 10 94 19 94 34C94 48 82 58 72 58ZM55 34a3 3 0 1 0 6 0a3 3 0 1 0-6 0ZM75 32a3 3 0 1 0 6 0a3 3 0 1 0-6 0Z"/>
+    <path d="M50 16L44 4L62 12ZM86 12L95 4L94 18Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+          d="M16 66L7 55L16 51L5 38"/>
+    <path opacity=".6" d="M46 46L35 39L48 41Z"/>
+    <path d="M26 88L30 96L18 96ZM48 88L52 96L40 96ZM72 88L76 95L62 95Z"/>
+    <path opacity=".4" d="M90 46C96 40 98 30 95 22C99 33 96 45 90 52Z"/>
+  </symbol>
+      <symbol id="w-guardian" viewBox="0 0 100 100">
+    <path d="M8 70C8 48 24 32 44 32C64 32 80 48 80 70C80 80 74 84 62 84L22 84C12 84 8 80 8 70Z"/>
+    <path opacity=".4" d="M44 34C37 43 34 56 34 82L54 82C54 56 51 43 44 34Z"/>
+    <path opacity=".4" d="M18 56C26 47 34 40 40 37L37 82L21 82Z"/>
+    <path opacity=".4" d="M70 56C62 47 54 40 48 37L51 82L67 82Z"/>
+    <path opacity=".75" d="M32 30L44 10L56 30Z"/>
+    <path d="M41 14L44 4L47 14Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" d="M74 72C84 70 88 62 86 54"/>
+    <path fillRule="evenodd" d="M84 56C76 56 70 49 70 41C70 31 78 25 88 25C96 25 96 31 96 41C96 49 92 56 86 56ZM76 40a2.8 2.8 0 1 0 5.6 0a2.8 2.8 0 1 0-5.6 0Z"/>
+    <path d="M92 27L96 17L94 30Z"/>
+    <path d="M18 84L12 96L30 96ZM62 84L70 96L50 96Z"/>
+    <path opacity=".5" d="M8 74L-0 84L10 83Z"/>
+  </symbol>
+      <symbol id="w-skysplitter" viewBox="0 0 100 100">
+    <path d="M14 94C14 74 26 62 46 57C63 53 70 45 70 33L84 33C84 52 70 65 50 70C34 74 29 82 29 94Z"/>
+    <path opacity=".4" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round"
+          d="M30 68C19 57 15 42 20 29M43 58C36 42 36 28 43 16M56 54C56 38 61 26 70 20M65 47C70 33 79 25 89 22"/>
+    <path opacity=".4" d="M20 32C15 32 12 29 12 25C12 20 16 17 21 17C26 17 29 20 29 25C29 29 25 32 21 32Z"/>
+    <path opacity=".4" d="M43 19C38 19 35 16 35 12C35 7 39 4 44 4C49 4 52 7 52 12C52 16 48 19 44 19Z"/>
+    <path opacity=".4" d="M70 23C65 23 62 20 62 16C62 11 66 8 71 8C76 8 79 11 79 16C79 20 75 23 71 23Z"/>
+    <path opacity=".4" d="M89 25C84 25 81 22 81 18C81 13 85 10 90 10C95 10 96 13 96 18C96 22 93 25 90 25Z"/>
+    <path fillRule="evenodd" d="M76 52C63 52 54 43 54 31C54 17 65 10 79 10C92 10 96 17 96 31C96 43 86 52 78 52ZM63 30a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0-6.4 0Z"/>
+    <path d="M60 14L52 4L70 11Z"/>
+    <path opacity=".65" d="M14 92L6 82L18 84Z"/>
+  </symbol>
+      {/* ── 法寶 relic marks, in the technique-glyph idiom: 40×40, one filled shape
+           plus at most one stroked line, legible at twenty pixels. */}
+      <symbol id="r-cord" viewBox="0 0 40 40">
+    <path fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"
+          d="M8 12C16 6 24 6 32 12C24 18 16 18 8 12M8 28C16 22 24 22 32 28C24 34 16 34 8 28"/>
+    <circle cx="20" cy="20" r="3.2"/>
+    <path d="M18 8h4v3h-4ZM18 29h4v3h-4Z"/>
+  </symbol>
+      <symbol id="r-robe" viewBox="0 0 40 40">
+    <path d="M14 6L20 11L26 6L33 11L29 17L27 15V34H13V15L11 17L7 11Z"/>
+    <path fill="none" stroke="#0a0f1a" strokeWidth="1.6" d="M20 12V33"/>
+  </symbol>
+      <symbol id="r-pendant" viewBox="0 0 40 40">
+    <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M11 6C14 14 26 14 29 6"/>
+    <path d="M20 13C25 18 28 22 28 26C28 31 24 34 20 34C16 34 12 31 12 26C12 22 15 18 20 13Z"/>
+    <circle cx="20" cy="26" r="2.6" fill="#0a0f1a"/>
+  </symbol>
+      <symbol id="r-mantle" viewBox="0 0 40 40">
+    <path d="M20 5C28 5 35 10 36 18C30 15 24 14 20 14C16 14 10 15 4 18C5 10 12 5 20 5Z"/>
+    <path opacity=".55" d="M5 21C11 18 16 17 20 17C24 17 29 18 35 21L31 34H9Z"/>
+    <circle cx="20" cy="10" r="2.8"/>
+  </symbol>
+      <symbol id="r-bell" viewBox="0 0 40 40">
+    <path d="M20 6C27 6 31 12 31 22L33 28H7L9 22C9 12 13 6 20 6Z"/>
+    <path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M20 3V6"/>
+    <circle cx="20" cy="31" r="3"/>
+  </symbol>
+      <symbol id="r-blade" viewBox="0 0 40 40">
+    <path d="M26 3L31 8L14 30L9 32L11 27Z"/>
+    <path opacity=".5" d="M24 5L29 10L16 26Z" fill="#0a0f1a"/>
+    <path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M6 34L13 27"/>
+    <path opacity=".6" d="M30 12L37 6L34 16Z"/>
+  </symbol>
+      <symbol id="r-mirror" viewBox="0 0 40 40">
+    <path fillRule="evenodd" d="M20 5C28 5 34 11 34 20C34 29 28 35 20 35C12 35 6 29 6 20C6 11 12 5 20 5ZM20 9C14 9 10 14 10 20C10 26 14 31 20 31C26 31 30 26 30 20C30 14 26 9 20 9Z"/>
+    <path d="M13 13L27 27L24 29L11 16Z"/>
+    <path opacity=".45" d="M15 11L18 14L14 18L11 15Z"/>
   </symbol>
       <symbol id="s-shrike" viewBox="0 0 100 100">
     <path opacity=".5" d="M18 96L26 52L31 53L24 97Z"/>

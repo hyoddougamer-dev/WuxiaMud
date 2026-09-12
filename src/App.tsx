@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Sprite } from './ui/art/Sprite.tsx'
+import { Figure } from './ui/art/Figure.tsx'
 import { Icon } from './ui/art/Icon.tsx'
 import { Cultivate } from './ui/screens/Cultivate.tsx'
 import { Arts } from './ui/screens/Arts.tsx'
 import { Lineage } from './ui/screens/Lineage.tsx'
 import { Hunt } from './ui/screens/Hunt.tsx'
 import { Body } from './ui/screens/Body.tsx'
+import { Gear } from './ui/screens/Gear.tsx'
 import { Choose } from './ui/screens/Choose.tsx'
 import { advance } from './core/progress.ts'
 import { realmColour } from './core/realms.ts'
@@ -14,6 +16,8 @@ import { makeSession, newNonce } from './net/index.ts'
 import type { Action } from './core/actions.ts'
 import type { Outcome } from './core/tribulation.ts'
 import type { Spoils } from './core/hunt.ts'
+import type { Kill } from './core/wardens.ts'
+import { relic } from './core/relics.ts'
 import type { PlayerState } from './core/state.ts'
 import type { PathId } from './core/paths.ts'
 import type { PillId } from './core/pills.ts'
@@ -27,12 +31,13 @@ import type { CreateOptions } from './net/session.ts'
  * what am I carrying, what do I go out and get, and who came before. The previous
  * "Sect" tab answered five of those at once and the screenshot of it was unreadable.
  */
-type Tab = 'cultivate' | 'body' | 'arts' | 'hunt' | 'lineage'
+type Tab = 'cultivate' | 'body' | 'arts' | 'gear' | 'hunt' | 'lineage'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'cultivate', icon: 'u-cultivate', label: 'Cultivate' },
   { id: 'body', icon: 'u-meridians', label: 'Body' },
   { id: 'arts', icon: 'u-techniques', label: 'Arts' },
+  { id: 'gear', icon: 'u-gear', label: 'Gear' },
   { id: 'hunt', icon: 'u-hunt', label: 'Hunt' },
   { id: 'lineage', icon: 'u-lineage', label: 'Lineage' },
 ]
@@ -56,6 +61,7 @@ export default function App() {
   const [welcome, setWelcome] = useState<Welcome | null>(null)
   const [trial, setTrial] = useState<Outcome | null>(null)
   const [spoils, setSpoils] = useState<Spoils | null>(null)
+  const [kill, setKill] = useState<Kill | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [line, setLine] = useState<Ancestor[]>([])
   const [sealing, setSealing] = useState(false)
@@ -94,6 +100,7 @@ export default function App() {
       setTruth(state)
       if (event.tribulation) setTrial(event.tribulation)
       if (event.spoils) setSpoils(event.spoils)
+      if (event.kill) setKill(event.kill)
       if (event.answered) setAnswered(event.answered.said)
       if (event.ascended) {
         setAscended(event.ascended)
@@ -221,13 +228,20 @@ export default function App() {
             onRefine={(id) => void send({ type: 'refine', id })}
           />
         )}
+        {tab === 'gear' && (
+          <Gear
+            state={shown}
+            onWear={(id, slot) => void send({ type: 'wear', id, slot })}
+            onBrew={(id: PillId) => void send({ type: 'brew', id })}
+            onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
+          />
+        )}
         {tab === 'hunt' && (
           <Hunt
             state={shown} now={now}
             onHunt={() => void send({ type: 'hunt' })}
             onTravel={(id) => void send({ type: 'travel', id })}
-            onBrew={(id: PillId) => void send({ type: 'brew', id })}
-            onTakePill={(id: PillId) => void send({ type: 'takePill', id })}
+            onChallenge={(id) => void send({ type: 'challenge', id })}
           />
         )}
 
@@ -301,6 +315,41 @@ export default function App() {
                 : 'You keep the realm you had, lose almost half your stored qi, and cultivate at little more than half speed for two hours.'}</p>
               <button className="cta" onClick={() => setTrial(null)}>
                 {trial.succeeded ? 'Continue' : 'Endure it'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {kill && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="The warden">
+            <div className={`modal tall${kill.won ? ' gold' : ' failed'}`}>
+              <div className="killtop">
+                <Figure symbol={kill.warden.symbol} size={132} flames={kill.won} motes={kill.won ? 14 : 0}
+                        dim={!kill.won} />
+              </div>
+              <h2>{kill.won ? kill.warden.name : `${kill.warden.name} throws you off`}</h2>
+              <p className="label">{kill.warden.zh} · you went in at {Math.round(kill.chance * 100)}%</p>
+              {kill.won ? (
+                <>
+                  <p>{kill.firstKill ? kill.warden.first : 'It is on its feet again by the time you are down the slope. It always is.'}</p>
+                  <p>
+                    Taken: <strong>{Object.entries(kill.warden.haul).map(([k, v]) => `${v}× ${k}`).join(', ')}</strong>,
+                    and <strong>{kill.warden.insight}</strong> insight.
+                  </p>
+                  {kill.took && (
+                    <p className="gotrelic">
+                      <strong>{relic(kill.took)?.name}</strong> — {relic(kill.took)?.text}. It is in your satchel.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p>
+                  The qi is spent either way. Your heart takes twenty and you cultivate at
+                  little more than half speed for six hours. It keeps what it was holding.
+                </p>
+              )}
+              <button className="cta" onClick={() => setKill(null)}>
+                {kill.won ? 'Continue' : 'Go back down'}
               </button>
             </div>
           </div>

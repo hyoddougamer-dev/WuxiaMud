@@ -3,6 +3,9 @@ import { breakGate } from './bottlenecks.ts'
 import { attempt, type Outcome } from './tribulation.ts'
 import { refine } from './mastery.ts'
 import { choose, type Outcome as EncounterOutcome } from './encounters.ts'
+import { wear, type Slot } from './relics.ts'
+import { fight, warden, type Kill } from './wardens.ts'
+import { huntCharges, HUNT_CHARGE_MS } from './hunt.ts'
 import { hunt, travel, type Spoils } from './hunt.ts'
 import type { PillId } from './pills.ts'
 import { ascend, canAscend, type Ancestor, type Line } from './ancestry.ts'
@@ -28,6 +31,8 @@ export type Action =
   | { type: 'travel'; id: string }
   | { type: 'refine'; id: string }
   | { type: 'answer'; index: number }
+  | { type: 'wear'; id: string | null; slot: Slot }
+  | { type: 'challenge'; id: string }
   | { type: 'meridian'; id: string }
   | { type: 'gate' }
   | { type: 'open' }
@@ -41,6 +46,8 @@ export interface ActionEvent {
   ascended?: Ancestor
   /** What the 奇遇 turned into, said once. */
   answered?: EncounterOutcome
+  /** How the warden went. */
+  kill?: Kill
 }
 
 export interface ActionResult {
@@ -76,6 +83,7 @@ export function apply(
     case 'gate':     return same(breakGate(state))
     case 'travel':   return same(travel(state, action.id))
     case 'refine':   return same(refine(state, action.id))
+    case 'wear':     return same(wear(state, action.id, action.slot))
     case 'open':     return same(openSession(state, now, roll))
 
     case 'answer': {
@@ -109,6 +117,17 @@ export function apply(
       if (!got) return { state, event: {}, applied: false }
       return { state: got.state, event: { spoils: got }, applied: true }
     }
+
+    case 'challenge': {
+      const w = warden(action.id)
+      if (!w) return { state, event: {}, applied: false }
+      const out = fight(state, w, now, roll, huntCharges(state, now))
+      if (!out) return { state, event: {}, applied: false }
+      // Three charges, spent whichever way it goes. The anchor moves rather than
+      // resetting, so whatever was left over is still there afterwards.
+      const spent = { ...out.state, huntAnchorAt: chargesAfter(state, now, 3) }
+      return { state: spent, event: { kill: { ...out, state: spent } }, applied: true }
+    }
   }
 }
 
@@ -116,6 +135,13 @@ export function apply(
 export function needsRoll(action: Action): boolean {
   return action.type === 'attempt' || action.type === 'hunt'
     || action.type === 'answer' || action.type === 'open'
+    || action.type === 'challenge'
+}
+
+/** The anchor that leaves `spent` fewer charges than are held right now. */
+function chargesAfter(s: PlayerState, now: number, spent: number): number {
+  const left = Math.max(0, huntCharges(s, now) - spent)
+  return now - left * HUNT_CHARGE_MS
 }
 
 /** Ascension ends the character, so the caller has to do something after it. */

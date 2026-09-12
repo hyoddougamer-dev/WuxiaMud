@@ -17,6 +17,8 @@ import { openSession } from '../src/core/progress.ts'
 import { choose, encounter } from '../src/core/encounters.ts'
 import { refine, canRefine, refineCost, levelOf, MASTERY_MAX } from '../src/core/mastery.ts'
 import { GROUNDS, ground, openAt, quarryOf } from '../src/core/grounds.ts'
+import { WARDENS, wardenOf, odds as wardenOdds, fight, canChallenge, WARDEN_CHARGES } from '../src/core/wardens.ts'
+import { RELICS, SLOTS, owns, wear, type Slot } from '../src/core/relics.ts'
 import { bottleneckAt, canBreakGate, breakGate, checklist, gateOpen } from '../src/core/bottlenecks.ts'
 import { MERIDIANS, unlocked } from '../src/core/meridians.ts'
 import { newPlayer, type PlayerState } from '../src/core/state.ts'
@@ -43,6 +45,9 @@ interface Run {
   beastsSeen: number
   encounters: number
   refines: number
+  wardensBeaten: number
+  wardenTries: number
+  relicsWorn: number
   masteryTotal: number
   insightLeft: number
   days: number
@@ -190,6 +195,61 @@ function answer(s: PlayerState, now: number, roll: () => number, tally: Run): Pl
   return choose(s, bestIndex, now, roll()).state
 }
 
+/**
+ * What to wear. Fixed preferences rather than a search: these are seven objects, a
+ * player reads all seven once and never thinks about it again.
+ */
+const WEAR_ORDER: Record<Slot, string[]> = {
+  implement: ['blade', 'bell'],
+  robe: ['robe', 'mantle'],
+  charm: ['pendant', 'cord', 'mirror'],
+}
+
+function dress(s: PlayerState): PlayerState {
+  for (const slot of SLOTS) {
+    const pick = WEAR_ORDER[slot].find((id) => owns(s, id))
+    if (pick && s.wearing[slot] !== pick) s = wear(s, pick, slot)
+  }
+  return s
+}
+
+/**
+ * Whether to spend three of the day's four charges on the thing at the bottom.
+ *
+ * Worth it for the relic, which drops once; not worth it afterwards, because the haul
+ * costs three hunts and a warden's materials are not three hunts better. A competent
+ * player clears each warden once, at odds they would take, and then leaves them alone.
+ */
+function pickWarden(s: PlayerState, now: number) {
+  const charges = huntCharges(s, now)
+  for (const w of [...WARDENS].reverse()) {
+    if (s.wardens.includes(w.id)) continue
+    if (!canChallenge({ ...s, ground: w.ground }, w, charges)) continue
+    if (wardenOdds({ ...s, ground: w.ground }, w).total < 0.65) continue
+    return w
+  }
+  return null
+}
+
+/**
+ * True when a warden is waiting on nothing but charges.
+ *
+ * The Blade Path opens the game five times an evening and spends charges as they
+ * trickle in, so it never held the three a warden asks for — the first measurement
+ * had it beating none of the six while the Sword Path cleared four. Nobody plays like
+ * that: if the thing at the bottom of the ground is worth three hunts, you stop
+ * spending hunts.
+ */
+function bankingForWarden(s: PlayerState, now: number): boolean {
+  const charges = huntCharges(s, now)
+  if (charges >= WARDEN_CHARGES) return false
+  return WARDENS.some((w) => {
+    if (s.wardens.includes(w.id)) return false
+    const at = { ...s, ground: w.ground }
+    return canChallenge(at, w, WARDEN_CHARGES) && wardenOdds(at, w).total >= 0.65
+  })
+}
+
 /** What a competent player does with a minute and a half, in priority order. */
 function play(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
   const slots = slotsAt(s.realm)
@@ -197,6 +257,11 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   // 0. Whatever happened while you were away is answered before anything else — the
   //    modal is in the way on the real screen too.
   s = answer(s, now, roll, tally)
+
+  //    Put on anything new before anything is priced against what you are wearing.
+  s = dress(s)
+  const before = SLOTS.filter((sl) => s.wearing[sl]).length
+  tally.relicsWorn = Math.max(tally.relicsWorn, before)
 
   //    Then the heavens, while the heart is still quiet from the night.
   s = faceIt(s, now, roll, tally)
@@ -209,13 +274,26 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   // 1. Hunt out the charges first. Insight and materials are what everything below
   //    spends, and a hunt now costs five minutes of gathering rather than a fifth of
   //    the bank, so there is no longer a reason to hold them back.
+  //    A warden takes three of the four charges, so it is decided before the hunt is.
+  const boss = pickWarden(s, now)
+  if (boss) {
+    const at = { ...s, ground: boss.ground }
+    const out = fight(at, boss, now, roll(), huntCharges(at, now))
+    tally.wardenTries++
+    if (out) {
+      s = { ...out.state, huntAnchorAt: now - Math.max(0, huntCharges(at, now) - WARDEN_CHARGES) * 6 * 3_600_000 }
+      if (out.won) tally.wardensBeaten++
+      s = dress(s)
+    }
+  }
+
   //    Whether to hunt at all is decided once, before the first one. Charges are
   //    capped at four and a day makes exactly four, so a charge not spent today is a
   //    charge lost — stopping halfway through is the worst of both. The first draft
   //    broke out of this loop the moment the heart got loud, which quietly halved the
   //    Sword Path: one session a day meant one hunt a day, and mastery became a
   //    system only the Blade Path could afford to use.
-  if (wantsQuiet(s) === null || ground(s.ground).danger === 0) {
+  if (!bankingForWarden(s, now) && (wantsQuiet(s) === null || ground(s.ground).danger === 0)) {
     while (canHunt(s, now) && huntCharges(s, now) > 0) {
       const got = hunt(s, now, roll())
       if (!got) break
@@ -334,6 +412,7 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
     path, origin, days: 0, sessions: 0, breakthroughs: 0, failures: 0,
     hunts: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
     travels: 0, beastsSeen: 0, encounters: 0, refines: 0, masteryTotal: 0,
+    wardensBeaten: 0, wardenTries: 0, relicsWorn: 0,
     insightLeft: 0, activeMinutes: 0, reachedCeiling: false,
   }
 
@@ -390,15 +469,16 @@ for (const path of ['sword', 'blade'] as PathId[]) {
 
 const pad = (v: string | number, n: number) => String(v).padStart(n)
 console.log(`\nNinefold · measured content length to realm ${V1_CEILING}\n`)
-console.log('path   origin      days  sessions  active  hunts  beasts  merid  arts  mastery  events  insight  done')
-console.log('─'.repeat(98))
+console.log('path   origin      days  sessions  active  hunts  beasts  merid  mastery  events  wardens  relics  done')
+console.log('─'.repeat(100))
 for (const r of rows) {
   console.log(
     r.path.padEnd(7) + r.origin.padEnd(12) +
     pad(r.days, 4) + pad(r.sessions, 10) + pad(`${(r.activeMinutes / 60).toFixed(1)}h`, 8) +
     pad(r.hunts, 7) + pad(`${r.beastsSeen}/${BEASTS.length}`, 8) +
-    pad(r.meridians, 7) + pad(r.artsLearned, 6) + pad(r.masteryTotal, 9) +
-    pad(r.encounters, 8) + pad(r.insightLeft, 9) + pad(r.reachedCeiling ? 'yes' : 'NO', 6),
+    pad(r.meridians, 7) + pad(r.masteryTotal, 9) + pad(r.encounters, 8) +
+    pad(`${r.wardensBeaten}/${WARDENS.length}`, 9) +
+    pad(`${r.relicsWorn}/${SLOTS.length}`, 8) + pad(r.reachedCeiling ? 'yes' : 'NO', 6),
   )
 }
 

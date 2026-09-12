@@ -6,6 +6,7 @@ import { canPay, pay, type Satchel } from './materials.ts'
 import { inheritedEffect } from './ancestry.ts'
 import { MERIDIANS, meridian, unlocked } from './meridians.ts'
 import { masteredValue } from './mastery.ts'
+import { relicValue } from './relics.ts'
 import { gateOpen } from './bottlenecks.ts'
 import { draw as drawEncounter } from './encounters.ts'
 import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
@@ -97,6 +98,11 @@ export function modifiers(s: PlayerState): Modifiers {
   }
   m.turmoilRate = Math.max(0.2, m.turmoilRate)
   m.huntSpeed = Math.max(0.3, m.huntSpeed)
+
+  // 法寶 are deliberately absent from the rate: generation is what arts are for, and
+  // a relic that gave +20% qi would just be an art you cannot refine.
+  m.insight += relicValue(s, 'insight')
+  m.odds += relicValue(s, 'odds')
   for (const id of s.equipped) {
     const t = technique(id)
     if (!t) continue

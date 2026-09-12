@@ -27,9 +27,10 @@ export const V1_CEILING = 9
  * evening, and the last two are most of the game.
  *
  *   realm   1     2      3     4     5      6     7      8
- *   time    3m    15m    1h    5h    1.2d   4d    15d    58d
+ *   time    3m    15m    1h    5h    1.2d   4d    22d    90d
  *
- * The last two rungs grew from twelve and forty-five days when 精通 and 奇遇 arrived:
+ * The last two rungs have grown twice: from twelve and forty-five when 精通 and 奇遇
+ * arrived, and again when 妖王 and 法寶 did. Each time for the same reason:
  * mastery roughly doubles a loadout over a life and encounters pay out on top of it,
  * and a measured climb had quietly fallen from fifty-five days to forty-six. New power
  * is paid for in the cost table, never by taking the power back out.
@@ -45,8 +46,8 @@ export const REALMS: readonly Realm[] = [
   { id: 4, name: 'Nascent Soul',    zh: '元嬰', cost: 5.9e5,  rate: 33 },
   { id: 5, name: 'Spirit Severing', zh: '化神', cost: 1.12e7, rate: 108 },
   { id: 6, name: 'Void Refining',   zh: '煉虛', cost: 1.21e8, rate: 350 },
-  { id: 7, name: 'Unity',           zh: '合體', cost: 1.49e9, rate: 1150 },
-  { id: 8, name: 'Great Vehicle',   zh: '大乘', cost: 1.90e10, rate: 3800 },
+  { id: 7, name: 'Unity',           zh: '合體', cost: 2.19e9, rate: 1150 },
+  { id: 8, name: 'Great Vehicle',   zh: '大乘', cost: 2.95e10, rate: 3800 },
   { id: 9, name: 'Tribulation',     zh: '渡劫', cost: Infinity, rate: 12500 },
 ]
 

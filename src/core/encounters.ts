@@ -1,6 +1,7 @@
 import { add, canPay, pay, count, type Satchel } from './materials.ts'
 import { held, type PillId } from './pills.ts'
 import { ratePerSecond, TURMOIL_MAX } from './progress.ts'
+import { relicValue } from './relics.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -352,15 +353,20 @@ export function eligible(s: PlayerState): Encounter[] {
  * What, if anything, is waiting when the player opens the game. Pure: the roll comes
  * from the caller, so the server draws it and the phone cannot re-roll for a better one.
  */
+export function chanceFor(s: PlayerState): number {
+  return Math.min(0.9, ENCOUNTER_CHANCE * (1 + relicValue(s, 'omen')))
+}
+
 export function draw(s: PlayerState, now: number, roll: number): Encounter | null {
   if (s.encounter) return encounter(s.encounter) ?? null
   if (now - s.lastEncounterAt < ENCOUNTER_GAP_MS) return null
-  if (roll >= ENCOUNTER_CHANCE) return null
+  const chance = chanceFor(s)
+  if (roll >= chance) return null
   const pool = eligible(s)
   if (!pool.length) return null
   // Re-use the same roll's low bits rather than asking for a second one: one action,
   // one roll, which is the rule the whole engine is built on.
-  return pool[Math.floor((roll / ENCOUNTER_CHANCE) * pool.length) % pool.length]
+  return pool[Math.floor((roll / chance) * pool.length) % pool.length]
 }
 
 /** Resolve the waiting encounter. Out-of-range or unaffordable choices change nothing. */

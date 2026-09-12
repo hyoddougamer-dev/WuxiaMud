@@ -1,5 +1,6 @@
 import { realm } from './realms.ts'
 import { breakthroughCost, canBreakThrough, modifiers, TURMOIL_MAX } from './progress.ts'
+import { relicValue } from './relics.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -96,12 +97,15 @@ export function attempt(s: PlayerState, now: number, roll: number): Outcome {
 
   // Failure costs qi, time and calm — never the character. A cultivation game that
   // deletes a three-week save on one bad roll is a cultivation game nobody finishes.
+  // The Stormhide Mantle halves every part of that bill, which is the only thing in
+  // the game that makes going in at bad odds a defensible plan.
+  const mercy = 1 - relicValue(s, 'mercy')
   return {
     state: {
       ...s,
-      qi: s.qi * 0.55,
-      turmoil: Math.min(TURMOIL_MAX, s.turmoil + 12),
-      injuredUntil: now + 2 * 3_600_000,
+      qi: s.qi * (1 - 0.45 * mercy),
+      turmoil: Math.min(TURMOIL_MAX, s.turmoil + 12 * mercy),
+      injuredUntil: now + 2 * 3_600_000 * mercy,
       failedTribulations: s.failedTribulations + 1,
       pillPrimed: false,
     },

@@ -6,8 +6,9 @@ import { origin, type OriginId } from './origins.ts'
 import { realm } from './realms.ts'
 import { FIRST_GROUND } from './grounds.ts'
 import type { Mastery } from './mastery.ts'
+import type { Slot } from './relics.ts'
 
-export const SAVE_VERSION = 7
+export const SAVE_VERSION = 8
 
 export interface PlayerState {
   readonly version: number
@@ -56,6 +57,12 @@ export interface PlayerState {
   huntAnchorAt: number
   /** 洞天 you are standing in. Decides what a hunt can find and what it costs in calm. */
   ground: string
+  /** 法寶 taken off wardens. Owned for life; a relic is never spent or lost. */
+  relics: string[]
+  /** One to a slot, and changeable at any time — the cost was taking it, not wearing it. */
+  wearing: Record<Slot, string | null>
+  /** 妖王 already put down. A warden drops its relic once and only once. */
+  wardens: string[]
   /** 經脈 opened, permanently. The active player's power curve. */
   meridians: string[]
   /** Realms whose 瓶頸 has been broken. A gate stays open once passed. */
@@ -116,6 +123,9 @@ export function newPlayer(
     // with a full set of hunts rather than a locked screen.
     huntAnchorAt: 0,
     ground: FIRST_GROUND,
+    relics: [],
+    wearing: { implement: null, robe: null, charm: null },
+    wardens: [],
     gates: [],
     failedTribulations: 0,
     lastSeenAt: now,

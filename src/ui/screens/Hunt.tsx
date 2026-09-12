@@ -1,10 +1,8 @@
-import { Figure } from '../art/Figure.tsx'
-import { Glyph } from '../art/Glyph.tsx'
 import { BEASTS } from '../../core/beasts.ts'
-import { MATERIALS, count } from '../../core/materials.ts'
-import { PILLS, brewable, held } from '../../core/pills.ts'
-import type { PillId } from '../../core/pills.ts'
-import { canHunt, huntCost, huntCharges, nextChargeAt, quarry, HUNT_MAX_CHARGES } from '../../core/hunt.ts'
+import { MATERIALS } from '../../core/materials.ts'
+import { canHunt, huntCost, huntCharges, nextChargeAt, quarry, dangerHere, maxCharges } from '../../core/hunt.ts'
+import { wardenOf, odds as wardenOdds, known, canChallenge, wardenCost, WARDEN_CHARGES } from '../../core/wardens.ts'
+import { Figure } from '../art/Figure.tsx'
 import { GROUNDS, ground, openAt, quarryOf, groundOf } from '../../core/grounds.ts'
 import { TURMOIL_MAX } from '../../core/progress.ts'
 import { ratePerSecond } from '../../core/progress.ts'
@@ -26,15 +24,16 @@ const RANK_TIER: Record<number, [string, string, string]> = {
   2: ['#8B3D10', '#D0741C', '#F0B25C'],
   3: ['#C06A1E', '#FCE2AA', '#FFFBEE'],
 }
-const MAT_GLYPH: Record<string, string> = { hide: 'g-stone', core: 'g-cauldron', essence: 'g-talisman' }
 
-export function Hunt({ state, now, onHunt, onTravel, onBrew, onTakePill }: {
+const pc = (v: number) => `${Math.round(v * 100)}%`
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`
+
+export function Hunt({ state, now, onHunt, onTravel, onChallenge }: {
   state: PlayerState
   now: number
   onHunt: () => void
   onTravel: (id: string) => void
-  onBrew: (id: PillId) => void
-  onTakePill: (id: PillId) => void
+  onChallenge: (id: string) => void
 }) {
   const ready = canHunt(state, now)
   const charges = huntCharges(state, now)
@@ -43,6 +42,12 @@ export function Hunt({ state, now, onHunt, onTravel, onBrew, onTakePill }: {
   const broke = charges > 0 && state.qi < huntCost(state)
   const pool = quarry(state)
   const here = ground(state.ground)
+  const cap = maxCharges(state)
+  const danger = dangerHere(state)
+  const boss = wardenOf(here.id)
+  const seen = boss ? known(state, boss) : false
+  const wo = boss ? wardenOdds(state, boss) : null
+  const canFight = boss ? canChallenge(state, boss, charges) : false
   // "Needs 150 qi" on a fresh save is a dead end unless it also says how long that is.
   const rate = ratePerSecond(state, now)
   const untilAfford = rate > 0 ? (huntCost(state) - state.qi) / rate : Infinity
@@ -90,14 +95,14 @@ export function Hunt({ state, now, onHunt, onTravel, onBrew, onTakePill }: {
       <p className="label">The hunt <span className="han">狩</span></p>
 
       <div className="panel">
-        <div className="charges" aria-label={`${charges} of ${HUNT_MAX_CHARGES} hunts held`}>
-          {Array.from({ length: HUNT_MAX_CHARGES }, (_, i) => (
+        <div className="charges" aria-label={`${charges} of ${cap} hunts held`}>
+          {Array.from({ length: cap }, (_, i) => (
             <i key={i} className={i < charges ? 'on' : ''} />
           ))}
         </div>
         <div className="row">
           <span className="k">Hunts held</span>
-          <span className="v num">{charges} of {HUNT_MAX_CHARGES}</span>
+          <span className="v num">{charges} of {cap}</span>
         </div>
         <div className="row">
           <span className="k">Cost of one</span>
@@ -115,8 +120,8 @@ export function Hunt({ state, now, onHunt, onTravel, onBrew, onTakePill }: {
         </div>
         <div className="row">
           <span className="k">Costs in calm</span>
-          <span className={`v num${here.danger > 0 ? '' : ' dim'}`}>
-            {here.danger > 0 ? `+${here.danger} turmoil` : 'nothing'}
+          <span className={`v num${danger > 0 ? '' : ' dim'}`}>
+            {danger > 0 ? `+${danger} turmoil` : 'nothing'}
           </span>
         </div>
         <div className="row">
@@ -129,64 +134,77 @@ export function Hunt({ state, now, onHunt, onTravel, onBrew, onTakePill }: {
             : waiting > 0 ? `No hunts held · next in ${duration(waiting)}`
             : 'Nothing to hunt yet'}
         </button>
-        {here.danger > 0 && state.turmoil + here.danger > TURMOIL_MAX * 0.5 && (
+        {danger > 0 && state.turmoil + danger > TURMOIL_MAX * 0.5 && (
           <p className="hint warnline">
             Your heart is at {Math.round(state.turmoil)}. Four trips here put it at{' '}
-            {Math.min(TURMOIL_MAX, Math.round(state.turmoil + here.danger * 4))}.
+            {Math.min(TURMOIL_MAX, Math.round(state.turmoil + danger * 4))}.
           </p>
         )}
         <p className="hint">
           A hunt costs five minutes of gathering and returns materials and insight —
           the two things meridians are bought with. Charges come back on their own
-          whether the app is open or not and stop at {HUNT_MAX_CHARGES}, so checking in
+          whether the app is open or not and stop at {cap}, so checking in
           five times an evening earns no more than checking in once.
         </p>
       </div>
 
-      <p className="label">Satchel</p>
-      <div className="matrow">
-        {MATERIALS.map((mt) => (
-          <div className="mat" key={mt.id}>
-            <Glyph symbol={MAT_GLYPH[mt.id]} size={22} />
-            <span className="mn">{mt.name}</span>
-            <span className="mv num">{count(state.satchel, mt.id)}</span>
-          </div>
-        ))}
-      </div>
-
-      <p className="label">The cauldron <span className="han">丹</span></p>
-      <div className="list">
-        {PILLS.map((p) => {
-          const have = held(state.pills, p.id)
-          const can = brewable(state.satchel, p)
-          const costText = Object.entries(p.cost).map(([k, v]) => `${v}× ${k}`).join(' + ')
-          return (
-            <div className="card" key={p.id}>
-              <span className="cb">
-                <span className="cn">{p.name} <span className="han dim-han">{p.zh}</span></span>
-                <span className="cd">{p.text}</span>
-                <span className="cd dim">{costText}</span>
-              </span>
-              <span className="pillcol">
-                {have > 0 && (
-                  <button
-                    className="mini on"
-                    onClick={() => onTakePill(p.id)}
-                    disabled={p.id === 'tribulation' && state.pillPrimed}
-                  >
-                    {p.id === 'tribulation' && state.pillPrimed ? 'primed' : `take (${have})`}
-                  </button>
-                )}
-                <button className="mini" onClick={() => onBrew(p.id)} disabled={!can}>brew</button>
-              </span>
+      {boss && (
+        <>
+          <p className="label">The warden <span className="han">妖王</span></p>
+          <div className={`panel boss${seen ? '' : ' shut'}`}>
+            <div className="bosstop">
+              <Figure symbol={seen ? boss.symbol : 's-wraith'} size={110} dim={!seen}
+                      flames={seen} motes={seen ? 10 : 0}
+                      label={seen ? `${boss.name}. ${boss.text}` : 'A warden you have not met'} />
+              <div className="bossid">
+                <p className="bn">{seen ? boss.name : 'Something below'}</p>
+                <p className="bz han">{seen ? boss.zh : '???'}</p>
+              </div>
             </div>
-          )
-        })}
-      </div>
-      <p className="hint">
-        Pills and meridians draw on the same satchel. Brewing one you will not swallow
-        is a channel you do not open.
-      </p>
+            <p className="hint">
+              {seen
+                ? boss.text
+                : `Record all three beasts of ${here.name} and it will know you are here.`}
+            </p>
+            {seen && wo && (
+              <>
+                <div className="ledger">
+                  <div className="lr"><span>Base</span><b>{pc(wo.base)}</b></div>
+                  <div className="lr">
+                    <span>Standing · {Math.max(0, state.realm - here.realm)} realms above it</span>
+                    <b className={wo.standing > 0 ? 'up' : ''}>{signed(wo.standing)}</b>
+                  </div>
+                  <div className="lr">
+                    <span>Craft · {state.equipped.length} arts, refined</span>
+                    <b className={wo.craft > 0 ? 'up' : ''}>{signed(wo.craft)}</b>
+                  </div>
+                  {wo.gear > 0 && (
+                    <div className="lr"><span>What you are wearing</span><b className="up">{signed(wo.gear)}</b></div>
+                  )}
+                  <div className="lr">
+                    <span>Heart demon at {Math.round(state.turmoil)}</span>
+                    <b className={wo.turmoil < 0 ? 'dn' : ''}>{signed(wo.turmoil)}</b>
+                  </div>
+                  <div className="lr tot"><span>Your odds</span><b>{pc(wo.total)}</b></div>
+                </div>
+                <div className="row">
+                  <span className="k">Going in costs</span>
+                  <span className="v num">{WARDEN_CHARGES} hunts · {short(wardenCost(state))} qi</span>
+                </div>
+                <button className="cta gold" onClick={() => onChallenge(boss.id)} disabled={!canFight}>
+                  {canFight ? `Face ${boss.name}`
+                    : charges < WARDEN_CHARGES ? `Needs ${WARDEN_CHARGES} hunts held`
+                    : `Needs ${short(wardenCost(state))} qi`}
+                </button>
+                <p className="hint">
+                  Losing costs the qi, twenty of your calm and six hours of injury. It never
+                  costs the realm{state.wardens.includes(boss.id) ? '.' : ', and the relic drops once.'}
+                </p>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <p className="label">Bestiary · {state.seenBeasts.length} of {BEASTS.length} taken</p>
       <div className="grid">

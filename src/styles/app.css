@@ -402,3 +402,36 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .pipsm { display: flex; gap: 3px; flex: 0 0 auto; }
 .pipsm i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .pipsm i.on { background: var(--flame-mid); }
+
+/* ── 法寶 gear, and 妖王 wardens ────────────────────────────────────────────
+   The three worn slots are one object repeated, so they share edges, baselines
+   and inner padding and the glyph sits in the same place on each. */
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slot {
+  border: 1px dashed var(--line); border-radius: 10px; background: var(--panel);
+  padding: 11px 6px 9px; display: flex; flex-direction: column;
+  align-items: center; gap: 4px; min-height: 96px; justify-content: center;
+}
+.slot.filled { border-style: solid; border-color: var(--flame-mid);
+  background: linear-gradient(180deg, rgba(224,142,44,.1), transparent); }
+.slot .sk {
+  font-size: 11px; color: var(--text-faint); letter-spacing: .14em;
+}
+.slot.filled .sk { color: var(--flame-mid); }
+.slot .sn { font-size: 10.5px; color: var(--text-soft); text-align: center; line-height: 1.25; }
+.slot .empty { font-family: var(--font-mono); font-size: 20px; color: var(--stone); line-height: 26px; }
+
+/* A warden gets the one heavy treatment on the screen: a portrait, a gold rule
+   and its own ledger. Everything around it stays a plain panel on purpose. */
+.panel.boss { border-color: #5b4a22; gap: 12px; }
+.panel.boss.shut { border-color: var(--line); }
+.bosstop { display: flex; align-items: center; gap: 14px; }
+.bossid { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bossid .bn { font-family: var(--font-display); font-size: 19px; margin: 0; line-height: 1.15; }
+.bossid .bz { font-family: var(--font-han); font-size: 13px; color: var(--flame-mid);
+  letter-spacing: .2em; margin: 0; }
+.killtop { display: flex; justify-content: center; }
+.gotrelic {
+  border-left: 2px solid var(--t9); padding: 6px 0 6px 11px;
+  color: var(--text) !important; font-size: 13.5px;
+}

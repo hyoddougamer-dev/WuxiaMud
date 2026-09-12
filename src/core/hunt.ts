@@ -4,6 +4,7 @@ import { MATERIAL_FOR_RANK, add } from './materials.ts'
 import { originHuntDiscount } from './origins.ts'
 import { realm } from './realms.ts'
 import { modifiers, TURMOIL_MAX } from './progress.ts'
+import { relicValue } from './relics.ts'
 import type { PlayerState } from './state.ts'
 
 /**
@@ -37,14 +38,19 @@ export const HUNT_CHARGE_MS = 6 * 3_600_000
 export const HUNT_MAX_CHARGES = 4
 
 /** Whole charge periods banked at `now`, capped. The Girdling of the hunt. */
+/** The cap a relic may raise. Everything else reads this rather than the constant. */
+export function maxCharges(s: PlayerState): number {
+  return HUNT_MAX_CHARGES + relicValue(s, 'charge')
+}
+
 export function huntCharges(s: PlayerState, now: number): number {
   const per = HUNT_CHARGE_MS * modifiers(s).huntSpeed
-  return Math.max(0, Math.min(HUNT_MAX_CHARGES, Math.floor((now - s.huntAnchorAt) / per)))
+  return Math.max(0, Math.min(maxCharges(s), Math.floor((now - s.huntAnchorAt) / per)))
 }
 
 /** Epoch ms at which the next charge lands, or 0 when already full. */
 export function nextChargeAt(s: PlayerState, now: number): number {
-  if (huntCharges(s, now) >= HUNT_MAX_CHARGES) return 0
+  if (huntCharges(s, now) >= maxCharges(s)) return 0
   const per = HUNT_CHARGE_MS * modifiers(s).huntSpeed
   return s.huntAnchorAt + (huntCharges(s, now) + 1) * per
 }
@@ -80,6 +86,11 @@ export function quarry(s: PlayerState): Beast[] {
   return openAt(g, s.realm) ? quarryOf(g) : []
 }
 
+/** What this ground actually costs you in calm, after the robe. Never below zero. */
+export function dangerHere(s: PlayerState): number {
+  return Math.max(0, ground(s.ground).danger - relicValue(s, 'danger'))
+}
+
 /** Move to a ground. Refused if the realm does not open it. */
 export function travel(s: PlayerState, id: string): PlayerState {
   const g = ground(id)
@@ -104,7 +115,7 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
   const beast = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))]
   const g = ground(s.ground)
   const material = MATERIAL_FOR_RANK[beast.rank]
-  const amount = 1 + Math.floor(roll * 3) + g.bonus
+  const amount = 1 + Math.floor(roll * 3) + g.bonus + relicValue(s, 'haul')
   // Insight scales with the realm as well as the quarry: meridians cost hundreds by
   // the end, and a game where the only way to afford them is to hunt a hare four
   // thousand times is a spreadsheet, not a climb.
@@ -120,13 +131,13 @@ export function hunt(s: PlayerState, now: number, roll: number): Spoils | null {
       seenBeasts: firstSighting ? [...s.seenBeasts, beast.id] : s.seenBeasts,
       // The price of a deep ground is paid in calm, not in qi: the satchel comes back
       // fuller and the tribulation you were saving for comes back thinner.
-      turmoil: Math.min(TURMOIL_MAX, s.turmoil + g.danger),
+      turmoil: Math.min(TURMOIL_MAX, s.turmoil + dangerHere(s)),
       // Move the anchor forward by one period rather than resetting it, so the
       // charges you did not spend are still there afterwards.
       huntAnchorAt: now - (huntCharges(s, now) - 1) * HUNT_CHARGE_MS * modifiers(s).huntSpeed,
     },
     beast,
-    danger: g.danger,
+    danger: dangerHere(s),
     material: { id: material, amount },
     insight,
     firstSighting,
