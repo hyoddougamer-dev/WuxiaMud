@@ -18,6 +18,7 @@ import type { PlayerState } from './core/state.ts'
 import type { PathId } from './core/paths.ts'
 import type { PillId } from './core/pills.ts'
 import type { Ancestor } from './core/ancestry.ts'
+import { encounter } from './core/encounters.ts'
 import { AscendModal } from './ui/screens/Ascend.tsx'
 import type { CreateOptions } from './net/session.ts'
 
@@ -59,6 +60,7 @@ export default function App() {
   const [line, setLine] = useState<Ancestor[]>([])
   const [sealing, setSealing] = useState(false)
   const [ascended, setAscended] = useState<Ancestor | null>(null)
+  const [answered, setAnswered] = useState<string | null>(null)
   const busy = useRef(false)
 
   /**
@@ -92,6 +94,7 @@ export default function App() {
       setTruth(state)
       if (event.tribulation) setTrial(event.tribulation)
       if (event.spoils) setSpoils(event.spoils)
+      if (event.answered) setAnswered(event.answered.said)
       if (event.ascended) {
         setAscended(event.ascended)
         setSealing(false)
@@ -215,6 +218,7 @@ export default function App() {
             onLearn={(id) => void send({ type: 'learn', id })}
             onEquip={(id) => void send({ type: 'equip', id })}
             onUnequip={(id) => void send({ type: 'unequip', id })}
+            onRefine={(id) => void send({ type: 'refine', id })}
           />
         )}
         {tab === 'hunt' && (
@@ -242,6 +246,47 @@ export default function App() {
             onCancel={() => setSealing(false)}
             onSeal={(artName, techniqueId) => void send({ type: 'ascend', artName, techniqueId })}
           />
+        )}
+
+        {/* 奇遇 first: it happened while you were away, so it is answered before
+            anything else on the screen can be pressed. */}
+        {shown.encounter && !answered && (() => {
+          const e = encounter(shown.encounter)
+          if (!e) return null
+          return (
+            <div className="scrim" role="dialog" aria-modal="true" aria-label={e.name}>
+              <div className="modal tall">
+                <p className="label">While you were away <span className="han">奇遇</span></p>
+                <h2>{e.name} <span className="han dim-han">{e.zh}</span></h2>
+                <p>{e.text}</p>
+                <div className="list">
+                  {e.options.map((o, i) => {
+                    const can = o.can(shown)
+                    return (
+                      <button key={o.label} className="card" disabled={!can}
+                              onClick={() => void send({ type: 'answer', index: i })}>
+                        <span className="cb">
+                          <span className="cn">{o.label}</span>
+                          <span className="cd">{o.detail}</span>
+                        </span>
+                        <span className={`cx${can ? '' : ' dim'}`}>{can ? 'choose' : 'cannot'}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {answered && (
+          <div className="scrim" role="dialog" aria-modal="true" aria-label="What came of it">
+            <div className="modal">
+              <h2>And so</h2>
+              <p>{answered}</p>
+              <button className="cta" onClick={() => setAnswered(null)}>Continue</button>
+            </div>
+          </div>
         )}
 
         {trial && (

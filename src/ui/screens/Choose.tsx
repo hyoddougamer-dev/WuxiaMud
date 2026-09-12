@@ -67,7 +67,8 @@ export function Choose({ line, onChoose }: {
     lineBonus: lineageBonus(line),
     meridians: inheritedMeridians(line),
     inherited: carried
-      ? { techniqueId: carried.techniqueId, from: carried.name, fromPath: carried.path, artName: carried.artName }
+      ? { techniqueId: carried.techniqueId, from: carried.name, fromPath: carried.path,
+          artName: carried.artName, mastery: carried.mastery ?? 0 }
       : null,
   }) : null), [path, orig, seal, name, carried, line, now])
 

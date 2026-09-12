@@ -7,8 +7,8 @@ const KEY = 'lineage.save.v1'
 /**
  * Bring an older save forward, or return null if it is older than we can carry.
  *
- * Version four had no meridians, no gates and a bare hunt cooldown; version five had
- * no hunting ground. All of them have sane empty values, so there is no reason to make
+ * Version four had no meridians, no gates and a bare hunt cooldown; five had no
+ * hunting ground; six had no mastery and nothing waiting when you opened the game. All of them have sane empty values, so there is no reason to make
  * someone who has been playing for a fortnight start again — refusing to migrate is
  * the lazy option, not the safe one. Gates start empty on purpose: a gate only bars
  * the realm you are standing in, so an old cultivator meets their first bottleneck
@@ -18,7 +18,7 @@ const KEY = 'lineage.save.v1'
 function migrate(raw: Record<string, unknown>): PlayerState | null {
   const v = typeof raw.version === 'number' ? raw.version : 0
   if (v === SAVE_VERSION) return raw as unknown as PlayerState
-  if (v === 4 || v === 5) {
+  if (v >= 4 && v < SAVE_VERSION) {
     const { huntReadyAt: _drop, ...rest } = raw as Record<string, unknown> & { huntReadyAt?: number }
     return {
       meridians: [],
@@ -29,7 +29,11 @@ function migrate(raw: Record<string, unknown>): PlayerState | null {
       ...rest,
       // Version six put the cultivator in a hunting ground. Everyone starts back on
       // the Ash Slopes, which is open at every realm and costs no calm to walk.
-      ground: FIRST_GROUND,
+      ground: (raw.ground as string) ?? FIRST_GROUND,
+      mastery: (raw.mastery as Record<string, number>) ?? {},
+      encounter: null,
+      lastEncounter: null,
+      lastEncounterAt: 0,
       version: SAVE_VERSION,
     } as unknown as PlayerState
   }

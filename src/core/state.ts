@@ -5,8 +5,9 @@ import type { Seal } from './names.ts'
 import { origin, type OriginId } from './origins.ts'
 import { realm } from './realms.ts'
 import { FIRST_GROUND } from './grounds.ts'
+import type { Mastery } from './mastery.ts'
 
-export const SAVE_VERSION = 6
+export const SAVE_VERSION = 7
 
 export interface PlayerState {
   readonly version: number
@@ -17,7 +18,7 @@ export interface PlayerState {
   /** How many forebears this cultivator stands on. 1 is the first of a line. */
   generation: number
   /** The art received from an ancestor: free to keep, and stronger if off-path. */
-  inherited: { techniqueId: string; from: string; fromPath: PathId; artName: string } | null
+  inherited: { techniqueId: string; from: string; fromPath: PathId; artName: string; mastery: number } | null
   /** What the line was worth on the day this cultivator was born. */
   lineBonus: number
   /** Chosen once at the start; switching costs a realm (not implemented in the slice). */
@@ -27,6 +28,12 @@ export interface PlayerState {
   insight: number
   learned: string[]
   equipped: string[]
+  /** 精通 per art. What you have poured into the six you actually run. */
+  mastery: Mastery
+  /** 奇遇 waiting to be answered, by id. Survives a reload; nothing else would. */
+  encounter: string | null
+  lastEncounter: string | null
+  lastEncounterAt: number
   flame: string | null
   seenBeasts: string[]
   /** 心魔. Rises with every qi gathered; the whole risk axis of the game. 0–100. */
@@ -93,6 +100,10 @@ export function newPlayer(
     insight: 0,
     learned: [],
     equipped: [],
+    mastery: {},
+    encounter: null,
+    lastEncounter: null,
+    lastEncounterAt: now,
     flame: null,
     seenBeasts: [],
     turmoil: 0,

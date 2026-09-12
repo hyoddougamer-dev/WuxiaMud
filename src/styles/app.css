@@ -114,11 +114,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .card.locked { opacity: .45; }
 .card.on { border-color: var(--flame-mid); background: linear-gradient(180deg, rgba(224,142,44,.10), transparent); }
-.card .cb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.card .cn { font-family: var(--font-display); font-size: 14px; line-height: 1.2; }
-.card .cd { font-size: 11.5px; color: var(--text-soft); }
-.card .cx { font-family: var(--font-mono); font-size: 10.5px; color: var(--flame-mid); white-space: nowrap; }
-.card .cx.dim { color: var(--text-faint); }
+.card .cb, .artmain .cb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.card .cn, .artmain .cn { font-family: var(--font-display); font-size: 14px; line-height: 1.2; }
+.card .cd, .artmain .cd { font-size: 11.5px; color: var(--text-soft); }
+.card .cx, .artmain .cx { font-family: var(--font-mono); font-size: 10.5px; color: var(--flame-mid); white-space: nowrap; }
+.card .cx.dim, .artmain .cx.dim { color: var(--text-faint); }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .beast {
@@ -177,7 +177,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .hint.centered { text-align: center; }
 .row .v.dim { color: var(--text-faint); }
 .dim-han { font-size: 10px; color: var(--text-faint); }
-.card .cd.dim { color: var(--text-faint); font-size: 10.5px; }
+.card .cd.dim, .artmain .cd.dim { color: var(--text-faint); font-size: 10.5px; }
 
 .bar.turmoil > i { background: linear-gradient(90deg, var(--stone), var(--crimson)); }
 .panel.alarm { border-color: rgba(224, 62, 45, .45); }
@@ -379,3 +379,26 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 /* A hint that is a warning, not a footnote. */
 .hint.warnline { color: #e07a6e; }
+
+/* ── arts: the card, and the mastery rail under it ─────────────────────────
+   An art is two controls in one object — what it is, and what you have poured
+   into it — so the row is a container with a footer rather than one button. */
+.art {
+  border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.art.on { border-color: var(--flame-mid); background: linear-gradient(180deg, rgba(224,142,44,.1), transparent); }
+.art.locked { opacity: .45; }
+.artmain {
+  display: flex; gap: 11px; align-items: center; text-align: left;
+  width: 100%; padding: 10px 12px;
+}
+.artmain:disabled { cursor: default; }
+.artfoot {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px 8px; border-top: 1px solid var(--line-soft);
+}
+.artnote { flex: 1; min-width: 0; font-size: 10.5px; color: var(--text-faint); }
+.pipsm { display: flex; gap: 3px; flex: 0 0 auto; }
+.pipsm i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.pipsm i.on { background: var(--flame-mid); }

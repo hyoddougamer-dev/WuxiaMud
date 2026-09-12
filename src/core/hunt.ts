@@ -21,11 +21,19 @@ import type { PlayerState } from './state.ts'
  * the Sword Path could not afford the eleven meridians the last gate asks for.
  *
  * Charges accrue whether the app is open or not and stop at four, so both paths get
- * about the same number of hunts a day and neither is rewarded for compulsive
- * checking. The cap is the part that matters: it is what stops a player who vanishes
- * for a week from returning to fifty free hunts.
+ * the same number of hunts a day and neither is rewarded for compulsive checking. The
+ * cap is what stops a player who vanishes for a week from returning to fifty free
+ * hunts; the six-hour period is what makes the cap fair.
+ *
+ * That period was three hours, and a measurement caught what it quietly did. Four
+ * charges cap what you can *hold*, not what you can *earn*: at three hours a day makes
+ * eight, so a Blade player dipping in five times an evening drew eight a day while a
+ * Sword player who opened once found four waiting and lost the rest to the ceiling.
+ * It did not matter until mastery arrived — and then one path could afford to refine
+ * its whole loadout and the other could not afford to refine anything. Six hours is
+ * one full set a day, banked whether you look or not, identical for both.
  */
-export const HUNT_CHARGE_MS = 3 * 3_600_000
+export const HUNT_CHARGE_MS = 6 * 3_600_000
 export const HUNT_MAX_CHARGES = 4
 
 /** Whole charge periods banked at `now`, capped. The Girdling of the hunt. */

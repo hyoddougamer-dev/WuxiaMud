@@ -1,6 +1,7 @@
 import { technique, type Technique } from './techniques.ts'
 import { realm, V1_CEILING } from './realms.ts'
 import { MERIDIANS } from './meridians.ts'
+import { levelOf, MASTERY_STEP } from './mastery.ts'
 import type { PathId } from './paths.ts'
 import type { Seal } from './names.ts'
 import type { PlayerState } from './state.ts'
@@ -25,6 +26,8 @@ export interface Ancestor {
   readonly artName: string
   /** How many meridians they got open before they stopped. The line remembers. */
   readonly meridians: number
+  /** The mastery the sealed art had. An heirloom is as good as it was made. */
+  readonly mastery: number
   readonly ascendedAt: number
 }
 
@@ -74,8 +77,10 @@ export function inheritedUpkeep(): number {
  */
 export const OFF_PATH_BONUS = 0.15
 
-export function inheritedEffect(t: Technique, ancestorPath: PathId, own: PathId): number {
-  return t.value * (ancestorPath === own ? 1 : 1 + OFF_PATH_BONUS)
+export function inheritedEffect(
+  t: Technique, ancestorPath: PathId, own: PathId, mastery = 0,
+): number {
+  return t.value * (1 + MASTERY_STEP * mastery) * (ancestorPath === own ? 1 : 1 + OFF_PATH_BONUS)
 }
 
 export interface Ascension {
@@ -107,6 +112,7 @@ export function ascend(
     techniqueId,
     artName: artName.trim().slice(0, 32) || technique(techniqueId)!.name,
     meridians: s.meridians.length,
+    mastery: levelOf(s.mastery, techniqueId),
     ascendedAt: now,
   }
   return { ancestor, line: [...line, ancestor] }

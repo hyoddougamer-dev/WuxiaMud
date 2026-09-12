@@ -51,6 +51,23 @@ export const TECHNIQUES: readonly Technique[] = [
   { id: 'unbroken',   name: 'Unbroken Thread',   zh: '不斷', glyph: 'g-thread',    realm: 7, cost: 150, upkeep: 0.30, school: 'edge', kind: 'insight',      value: 0.75, text: '+75% insight from breakthroughs' },
 ]
 
+/**
+ * What an art does, at whatever value it is currently worth.
+ *
+ * The `text` field is the art at mastery zero and stops being true the moment a player
+ * refines it. Everything the UI shows goes through here instead, so a refined art
+ * reports what it actually gives rather than what it was sold as.
+ */
+export function effectText(t: Technique, value: number): string {
+  const pc = `${Math.round(value * 100)}%`
+  switch (t.kind) {
+    case 'rate':         return `+${pc} qi generation`
+    case 'breakthrough': return `−${pc} breakthrough cost`
+    case 'insight':      return `+${pc} insight from everything`
+    case 'offlineCap':   return `+${value.toFixed(value % 1 ? 1 : 0)}h offline cap`
+  }
+}
+
 export function technique(id: string): Technique | undefined {
   return TECHNIQUES.find((t) => t.id === id)
 }

@@ -24,11 +24,14 @@ test('a refused action reports itself refused rather than silently doing nothing
   assert.deepEqual(poor.state.learned, [])
 })
 
-test('only tribulation and hunting consume randomness', () => {
-  assert.equal(needsRoll({ type: 'attempt' }), true)
-  assert.equal(needsRoll({ type: 'hunt' }), true)
-  for (const t of ['settle', 'equip', 'brew', 'open'] as const) {
-    assert.equal(needsRoll({ type: t, id: 'x' } as Action), false)
+test('the four actions that consume randomness, and no others', () => {
+  // `open` joined the list when 奇遇 arrived: opening the game is when the world gets
+  // to have had something happen in it, and that draw has to come from the server.
+  for (const t of ['attempt', 'hunt', 'open', 'answer'] as const) {
+    assert.equal(needsRoll({ type: t, id: 'x', index: 0 } as unknown as Action), true, t)
+  }
+  for (const t of ['settle', 'equip', 'brew', 'learn', 'travel', 'refine', 'gate'] as const) {
+    assert.equal(needsRoll({ type: t, id: 'x' } as Action), false, t)
   }
 })
 

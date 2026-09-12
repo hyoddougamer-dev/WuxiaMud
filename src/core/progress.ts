@@ -5,7 +5,9 @@ import { PILLS, type PillId, held } from './pills.ts'
 import { canPay, pay, type Satchel } from './materials.ts'
 import { inheritedEffect } from './ancestry.ts'
 import { MERIDIANS, meridian, unlocked } from './meridians.ts'
+import { masteredValue } from './mastery.ts'
 import { gateOpen } from './bottlenecks.ts'
+import { draw as drawEncounter } from './encounters.ts'
 import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
 import type { PlayerState } from './state.ts'
 
@@ -98,10 +100,13 @@ export function modifiers(s: PlayerState): Modifiers {
   for (const id of s.equipped) {
     const t = technique(id)
     if (!t) continue
-    if (t.kind === 'rate') m.rate += t.value
-    else if (t.kind === 'breakthrough') m.breakthrough -= t.value
-    else if (t.kind === 'insight') m.insight += t.value
-    else if (t.kind === 'offlineCap') m.offlineCapHours += t.value
+    // Mastery raises what the art gives and never what it costs, which is the whole
+    // reason refining is a commitment rather than a tax.
+    const v = masteredValue(s, id)
+    if (t.kind === 'rate') m.rate += v
+    else if (t.kind === 'breakthrough') m.breakthrough -= v
+    else if (t.kind === 'insight') m.insight += v
+    else if (t.kind === 'offlineCap') m.offlineCapHours += v
     m.upkeep += upkeepOf(t)
   }
   // The inherited art is carried by the ancestor, not by you: full effect, no upkeep,
@@ -109,7 +114,7 @@ export function modifiers(s: PlayerState): Modifiers {
   if (s.inherited) {
     const t = technique(s.inherited.techniqueId)
     if (t) {
-      const v = inheritedEffect(t, s.inherited.fromPath, s.path)
+      const v = inheritedEffect(t, s.inherited.fromPath, s.path, s.inherited.mastery)
       if (t.kind === 'rate') m.rate += v
       else if (t.kind === 'breakthrough') m.breakthrough -= v
       else if (t.kind === 'insight') m.insight += v
@@ -271,9 +276,14 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
   }
 }
 
-/** Called once when the player brings the game to the foreground. Resets Blade's clock. */
-export function openSession(s: PlayerState, now: number): PlayerState {
-  return { ...s, lastOpenedAt: now, lastSeenAt: now }
+/**
+ * Called once when the player brings the game to the foreground. Resets Blade's clock,
+ * and is where 奇遇 are drawn — the one moment the game gets to say "while you were
+ * away". The roll comes from the caller for the same reason every other roll does.
+ */
+export function openSession(s: PlayerState, now: number, roll = 1): PlayerState {
+  const found = drawEncounter(s, now, roll)
+  return { ...s, lastOpenedAt: now, lastSeenAt: now, encounter: found ? found.id : s.encounter }
 }
 
 export function learn(s: PlayerState, id: string): PlayerState {

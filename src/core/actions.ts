@@ -1,6 +1,8 @@
 import { equip, learn, unequip, toggleSettle, brew, takePill, openSession, openMeridian } from './progress.ts'
 import { breakGate } from './bottlenecks.ts'
 import { attempt, type Outcome } from './tribulation.ts'
+import { refine } from './mastery.ts'
+import { choose, type Outcome as EncounterOutcome } from './encounters.ts'
 import { hunt, travel, type Spoils } from './hunt.ts'
 import type { PillId } from './pills.ts'
 import { ascend, canAscend, type Ancestor, type Line } from './ancestry.ts'
@@ -24,6 +26,8 @@ export type Action =
   | { type: 'attempt' }
   | { type: 'hunt' }
   | { type: 'travel'; id: string }
+  | { type: 'refine'; id: string }
+  | { type: 'answer'; index: number }
   | { type: 'meridian'; id: string }
   | { type: 'gate' }
   | { type: 'open' }
@@ -35,6 +39,8 @@ export interface ActionEvent {
   spoils?: Spoils
   /** The forebear this action just created, if any. */
   ascended?: Ancestor
+  /** What the 奇遇 turned into, said once. */
+  answered?: EncounterOutcome
 }
 
 export interface ActionResult {
@@ -69,7 +75,14 @@ export function apply(
     case 'meridian': return same(openMeridian(state, action.id))
     case 'gate':     return same(breakGate(state))
     case 'travel':   return same(travel(state, action.id))
-    case 'open':     return same(openSession(state, now))
+    case 'refine':   return same(refine(state, action.id))
+    case 'open':     return same(openSession(state, now, roll))
+
+    case 'answer': {
+      const out = choose(state, action.index, now, roll)
+      if (out.state === state) return { state, event: {}, applied: false }
+      return { state: out.state, event: { answered: out }, applied: true }
+    }
 
     case 'flame': {
       if (action.id === state.flame) return { state, event: {}, applied: false }
@@ -102,6 +115,7 @@ export function apply(
 /** True when the action consumes randomness, so the server knows to draw a roll. */
 export function needsRoll(action: Action): boolean {
   return action.type === 'attempt' || action.type === 'hunt'
+    || action.type === 'answer' || action.type === 'open'
 }
 
 /** Ascension ends the character, so the caller has to do something after it. */

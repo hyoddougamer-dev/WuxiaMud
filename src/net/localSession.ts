@@ -41,7 +41,8 @@ export class LocalSession implements Session {
       lineBonus: lineageBonus(line),
       meridians: inheritedMeridians(line),
       inherited: from
-        ? { techniqueId: from.techniqueId, from: from.name, fromPath: from.path, artName: from.artName }
+        ? { techniqueId: from.techniqueId, from: from.name, fromPath: from.path,
+            artName: from.artName, mastery: from.mastery ?? 0 }
         : null,
     })
     store.save(this.state)

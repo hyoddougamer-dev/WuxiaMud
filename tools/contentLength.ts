@@ -13,6 +13,9 @@ import { advance, breakthroughCost, canBreakThrough, learn, equip, brew, takePil
          pillCost, TURMOIL_FREE } from '../src/core/progress.ts'
 import { attempt, odds, SURPLUS_CAP } from '../src/core/tribulation.ts'
 import { hunt, canHunt, huntCharges, travel } from '../src/core/hunt.ts'
+import { openSession } from '../src/core/progress.ts'
+import { choose, encounter } from '../src/core/encounters.ts'
+import { refine, canRefine, refineCost, levelOf, MASTERY_MAX } from '../src/core/mastery.ts'
 import { GROUNDS, ground, openAt, quarryOf } from '../src/core/grounds.ts'
 import { bottleneckAt, canBreakGate, breakGate, checklist, gateOpen } from '../src/core/bottlenecks.ts'
 import { MERIDIANS, unlocked } from '../src/core/meridians.ts'
@@ -38,6 +41,10 @@ interface Run {
   origin: OriginId
   travels: number
   beastsSeen: number
+  encounters: number
+  refines: number
+  masteryTotal: number
+  insightLeft: number
   days: number
   sessions: number
   breakthroughs: number
@@ -122,9 +129,14 @@ function chooseGround(s: PlayerState): string {
   const open = GROUNDS.filter((g) => openAt(g, s.realm))
   if (!open.length) return s.ground
 
-  // Four hunts a day is the cap, so four trips is the honest unit of a budget. When a
-  // tribulation or a quiet gate is waiting, the budget is nothing at all.
-  const budget = wantsQuiet(s) !== null ? 0 : Math.max(0, (TURMOIL_FREE - s.turmoil) / 4)
+  // With a tribulation or a quiet gate waiting, there is exactly one right answer:
+  // the ground that costs nothing. Not hunting at all was the first draft's answer and
+  // it cost the Sword Path half its hunts — one session a day means a day skipped is a
+  // day's charges gone, and charges do not bank past four.
+  if (wantsQuiet(s) !== null) return open[0].id
+
+  // Four hunts a day is the cap, so four trips is the honest unit of a budget.
+  const budget = Math.max(0, (TURMOIL_FREE - s.turmoil) / 4)
   const affordable = open.filter((g) => g.danger <= budget)
   const pool = affordable.length ? affordable : [open[0]]
 
@@ -139,11 +151,54 @@ function chooseGround(s: PlayerState): string {
   return pool[pool.length - 1].id
 }
 
+/**
+ * How good a state looks, in one number, so an encounter can be answered by weighing
+ * its options rather than by matching their wording.
+ *
+ * Everything is converted into seconds of gathering, which is the only unit the whole
+ * game shares. It is crude, and it is a great deal better than reading the labels.
+ */
+function worth(s: PlayerState, now: number): number {
+  const rate = Math.max(1e-6, ratePerSecond(s, now))
+  return s.qi / rate
+    + s.insight * 60
+    + count(s.satchel, 'hide') * 90
+    + count(s.satchel, 'core') * 400
+    + count(s.satchel, 'essence') * 1400
+    + held(s.pills, 'settling') * 300
+    + held(s.pills, 'tribulation') * 900
+    - s.turmoil * 260
+    - Math.max(0, s.injuredUntil - now) / 1000 * 0.4
+    + huntCharges(s, now) * 700
+}
+
+/** Answer whatever was waiting, by trying every option and keeping the best. */
+function answer(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
+  const e = s.encounter ? encounter(s.encounter) : null
+  if (!e) return s
+  let best = -Infinity
+  let bestIndex = e.options.length - 1
+  for (let i = 0; i < e.options.length; i++) {
+    const o = e.options[i]
+    if (!o.can(s)) continue
+    // Both faces of a gamble, averaged: a competent player knows the odds are there
+    // without knowing which way this one falls.
+    const v = (worth(o.take(s, 0.1).state, now) + worth(o.take(s, 0.9).state, now)) / 2
+    if (v > best) { best = v; bestIndex = i }
+  }
+  tally.encounters++
+  return choose(s, bestIndex, now, roll()).state
+}
+
 /** What a competent player does with a minute and a half, in priority order. */
 function play(s: PlayerState, now: number, roll: () => number, tally: Run): PlayerState {
   const slots = slotsAt(s.realm)
 
-  // 0. The heavens first, while the heart is still quiet from the night.
+  // 0. Whatever happened while you were away is answered before anything else — the
+  //    modal is in the way on the real screen too.
+  s = answer(s, now, roll, tally)
+
+  //    Then the heavens, while the heart is still quiet from the night.
   s = faceIt(s, now, roll, tally)
   if (s.settling && wantsQuiet(s) === null) s = toggleSettle(s)
 
@@ -154,13 +209,19 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
   // 1. Hunt out the charges first. Insight and materials are what everything below
   //    spends, and a hunt now costs five minutes of gathering rather than a fifth of
   //    the bank, so there is no longer a reason to hold them back.
-  while (canHunt(s, now) && huntCharges(s, now) > 0) {
-    const got = hunt(s, now, roll())
-    if (!got) break
-    s = got.state
-    tally.hunts++
-    // Standing still while the heart fills is how a run ends at 74% odds.
-    if (wantsQuiet(s) !== null) break
+  //    Whether to hunt at all is decided once, before the first one. Charges are
+  //    capped at four and a day makes exactly four, so a charge not spent today is a
+  //    charge lost — stopping halfway through is the worst of both. The first draft
+  //    broke out of this loop the moment the heart got loud, which quietly halved the
+  //    Sword Path: one session a day meant one hunt a day, and mastery became a
+  //    system only the Blade Path could afford to use.
+  if (wantsQuiet(s) === null || ground(s.ground).danger === 0) {
+    while (canHunt(s, now) && huntCharges(s, now) > 0) {
+      const got = hunt(s, now, roll())
+      if (!got) break
+      s = got.state
+      tally.hunts++
+    }
   }
 
   // 2. Open every meridian the purse stretches to, cheapest first. Permanent, no
@@ -208,6 +269,26 @@ function play(s: PlayerState, now: number, roll: () => number, tally: Run): Play
     s = equip(s, id, slots)
   }
 
+  // 5b. Pour what is left into the arts actually being run. Meridians come first —
+  //     they are stronger per point — so a reserve is kept for the next one.
+  //     The reserve only holds while the meridian is actually within reach — that is,
+  //     while insight is the *only* thing it is short of. Reserving against a channel
+  //     whose materials are nowhere near the satchel means never refining at all,
+  //     which is exactly what the first draft did to the Sword Path.
+  const nextMeridian = [...MERIDIANS].sort((a, b) => a.insight - b.insight)
+    .find((m) => !s.meridians.includes(m.id) && unlocked(s.meridians, m) && s.realm >= m.realm)
+  const reserve = nextMeridian && canPay(s.satchel, nextMeridian.mats) ? nextMeridian.insight : 0
+  for (;;) {
+    const pick = s.equipped
+      .filter((id) => canRefine(s, id) && levelOf(s.mastery, id) < MASTERY_MAX)
+      .map((id) => [id, refineCost(technique(id)!, levelOf(s.mastery, id))] as const)
+      .filter(([, c]) => s.insight - c >= reserve)
+      .sort((a, b) => a[1] - b[1])[0]
+    if (!pick) break
+    s = refine(s, pick[0])
+    tally.refines++
+  }
+
   // 6. Break the bottleneck the moment it will let you. Breaking one can open a
   //    tribulation, which is why the heart is looked at once more below.
   if (canBreakGate(s)) { s = breakGate(s); tally.gates++ }
@@ -252,7 +333,8 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
   const tally: Run = {
     path, origin, days: 0, sessions: 0, breakthroughs: 0, failures: 0,
     hunts: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
-    travels: 0, beastsSeen: 0, activeMinutes: 0, reachedCeiling: false,
+    travels: 0, beastsSeen: 0, encounters: 0, refines: 0, masteryTotal: 0,
+    insightLeft: 0, activeMinutes: 0, reachedCeiling: false,
   }
 
   // Sword is played once a day; Blade five times. Session times are computed from
@@ -268,13 +350,15 @@ function simulate(path: PathId, origin: OriginId, seed: number): Run {
   for (let i = 1; i <= maxSessions && s.realm < V1_CEILING; i++) {
     now = start + i * step
     s = advance(s, now).state
-    s = { ...s, lastOpenedAt: now }
+    s = openSession(s, now, roll())
     s = play(s, now, roll, tally)
     tally.sessions++
     s = { ...s, activeSeconds: s.activeSeconds + SESSION_SECONDS }
     tally.days = Math.ceil(i / perDay)
   }
   tally.beastsSeen = s.seenBeasts.length
+  tally.masteryTotal = Object.values(s.mastery).reduce((a: number, b) => a + (b as number), 0)
+  tally.insightLeft = Math.round(s.insight)
   tally.reachedCeiling = s.realm >= V1_CEILING
   if (!tally.reachedCeiling) {
     const o = odds(s)
@@ -306,15 +390,15 @@ for (const path of ['sword', 'blade'] as PathId[]) {
 
 const pad = (v: string | number, n: number) => String(v).padStart(n)
 console.log(`\nNinefold · measured content length to realm ${V1_CEILING}\n`)
-console.log('path   origin      days  sessions  active  breaks  hunts  moves  beasts  merid  gates  reached')
-console.log('─'.repeat(94))
+console.log('path   origin      days  sessions  active  hunts  beasts  merid  arts  mastery  events  insight  done')
+console.log('─'.repeat(98))
 for (const r of rows) {
   console.log(
     r.path.padEnd(7) + r.origin.padEnd(12) +
     pad(r.days, 4) + pad(r.sessions, 10) + pad(`${(r.activeMinutes / 60).toFixed(1)}h`, 8) +
-    pad(r.breakthroughs, 7) + pad(r.hunts, 7) + pad(r.travels, 7) +
-    pad(`${r.beastsSeen}/${BEASTS.length}`, 8) +
-    pad(r.meridians, 7) + pad(r.gates, 7) + pad(r.reachedCeiling ? 'yes' : 'NO', 9),
+    pad(r.hunts, 7) + pad(`${r.beastsSeen}/${BEASTS.length}`, 8) +
+    pad(r.meridians, 7) + pad(r.artsLearned, 6) + pad(r.masteryTotal, 9) +
+    pad(r.encounters, 8) + pad(r.insightLeft, 9) + pad(r.reachedCeiling ? 'yes' : 'NO', 6),
   )
 }
 
