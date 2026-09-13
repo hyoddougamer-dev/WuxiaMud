@@ -243,8 +243,13 @@ export default function App() {
         )}
         {tab === 'lineage' && (
           <Lineage
-            state={shown} line={line}
+            state={shown} line={line} now={now}
             onWipe={() => void session.abandon().then(() => { setTruth(null); setTab('cultivate') })}
+            onRestore={(b) => void session.restore(b.state, b.line).then(async (s) => {
+              setTruth(s)
+              setLine(await session.line())
+              setTab('cultivate')
+            }).catch((e) => setFailure(e instanceof Error ? e.message : String(e)))}
           />
         )}
         {tab === 'arts' && (

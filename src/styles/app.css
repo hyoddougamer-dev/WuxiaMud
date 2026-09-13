@@ -675,3 +675,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--text-faint); border-top: 1px solid var(--line-soft);
 }
 .notyet .dim { color: var(--stone); }
+
+/* ---------- 存 keep a copy ----------
+   The one screen that exists because something can go wrong, so it is allowed to be
+   the one screen that says so in red before anything is pressed. */
+.keepnow {
+  display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-radius: 10px;
+  border: 1px solid rgba(224,83,60,.4); background: linear-gradient(90deg, rgba(224,83,60,.10), transparent);
+}
+.keepnow .kk { font-size: 20px; color: var(--crimson); flex: 0 0 auto; }
+.keepnow .kb { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.keepnow .kn { font-family: var(--font-display); font-size: 14px; font-weight: 600; }
+.keepnow .kd { font-size: 11.5px; color: var(--text-soft); line-height: 1.4; }
+/* Once a copy exists the screen stops shouting. */
+.keepnow.safe { border-color: var(--jade-deep); background: linear-gradient(90deg, rgba(78,207,163,.09), transparent); }
+.keepnow.safe .kk { color: var(--jade); }
+
+.backupbox {
+  width: 100%; font-family: var(--font-mono); font-size: 10px; line-height: 1.45;
+  color: var(--text-soft); background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 10px; resize: vertical; word-break: break-all;
+}

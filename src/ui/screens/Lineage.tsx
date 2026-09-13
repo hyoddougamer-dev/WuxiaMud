@@ -4,6 +4,8 @@ import { technique } from '../../core/techniques.ts'
 import { PATHS } from '../../core/paths.ts'
 import { OFF_PATH_BONUS, lineageBonus, ANCESTOR_BONUS_CAP, type Ancestor } from '../../core/ancestry.ts'
 import { duration } from '../../core/format.ts'
+import { Keep } from './Keep.tsx'
+import type { Backup } from '../../core/backup.ts'
 import type { PlayerState } from '../../core/state.ts'
 
 /**
@@ -11,10 +13,12 @@ import type { PlayerState } from '../../core/state.ts'
  * art each of them left. Locally this is your own line; the mechanic does not change
  * when it becomes other people's.
  */
-export function Lineage({ state, line, onWipe }: {
+export function Lineage({ state, line, now, onWipe, onRestore }: {
   state: PlayerState
   line: Ancestor[]
+  now: number
   onWipe: () => void
+  onRestore: (b: Backup) => void
 }) {
   const r = realm(state.realm)
   const bonus = lineageBonus(line)
@@ -122,6 +126,11 @@ export function Lineage({ state, line, onWipe }: {
         <div className="row"><span className="k">Cultivating since</span>
           <span className="v num">{new Date(state.createdAt).toLocaleDateString()}</span></div>
       </div>
+
+      {/* 存 sits directly above the one button that destroys a save, which is the only
+          honest place for it: whoever is reading that button is exactly who needs to be
+          asked whether a copy exists. */}
+      <Keep state={state} line={line} now={now} onRestore={onRestore} />
 
       <button className="cta ghost danger" onClick={onWipe}>Abandon this cultivator</button>
       <p className="hint centered">

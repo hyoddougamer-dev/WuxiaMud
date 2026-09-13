@@ -86,6 +86,14 @@ export class LocalSession implements Session {
     return { state: out.state, event: out.event }
   }
 
+  async restore(state: PlayerState, line: Ancestor[]) {
+    store.save(state)
+    store.saveLine(line)
+    this.state = state
+    this.seen.clear()
+    return state
+  }
+
   async abandon() {
     store.wipe()
     this.state = null

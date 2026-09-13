@@ -33,6 +33,14 @@ export interface Session {
    * twice, so a flaky network cannot hunt the same beast into two piles of loot.
    */
   act(action: Action, nonce: string): Promise<{ state: PlayerState; event: ActionEvent }>
+  /**
+   * Replace everything with a backup the player brought back.
+   *
+   * Deliberately a session verb rather than a write straight to storage: once a server
+   * is the authority it has to be the one to accept or refuse a restore, and a path
+   * that quietly bypassed it would be the hole every cheat walks through.
+   */
+  restore(state: PlayerState, line: Ancestor[]): Promise<PlayerState>
   abandon(): Promise<void>
 }
 

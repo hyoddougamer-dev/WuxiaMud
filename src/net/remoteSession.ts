@@ -55,6 +55,13 @@ export class RemoteSession implements Session {
     return this.call('act', { action, nonce })
   }
 
+  async restore(state: PlayerState, line: Ancestor[]): Promise<PlayerState> {
+    // The server decides. A restore that the client could apply on its own would be
+    // the hole every cheat walks through the moment rankings exist.
+    const r = await this.call<{ state: PlayerState }>('restore', { state, line })
+    return r.state
+  }
+
   async abandon(): Promise<void> {
     await this.call('cultivator', { abandon: true })
   }

@@ -18,7 +18,7 @@ const KEY = 'lineage.save.v1'
  * where they are and no earlier. The defaults are spread *before* the old fields so a
  * version-five save keeps the meridians it had rather than having them wiped.
  */
-function migrate(raw: Record<string, unknown>): PlayerState | null {
+export function migrate(raw: Record<string, unknown>): PlayerState | null {
   const v = typeof raw.version === 'number' ? raw.version : 0
   if (v === SAVE_VERSION) return raw as unknown as PlayerState
   if (v >= 4 && v < SAVE_VERSION) {
