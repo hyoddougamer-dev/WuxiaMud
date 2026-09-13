@@ -9,43 +9,42 @@
 create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------- cultivators
+-- One column for the cultivator, and three promoted out of it.
+--
+-- This table used to shred PlayerState into forty columns, and that design had a
+-- standing defect rather than a bug: every field added to the engine had to be added
+-- here and in toRow/toState by hand, and the fourteen that were not turned every call
+-- into a 500 — `advance()` threw on `s.meridians is not iterable` before reaching a
+-- single write. A finished cultivator is under a kilobyte. There was never a reason
+-- to take it apart.
+--
+-- What stays promoted is only what the database itself has to do: order a leaderboard
+-- without deserialising every row, and hold the foreign key. Everything else lives in
+-- `state`, is migrated on read by the same migrate() the phone runs, and is checked on
+-- write by the same verify().
 create table if not exists public.cultivators (
   id                    uuid primary key default gen_random_uuid(),
   user_id               uuid not null references auth.users(id) on delete cascade,
   created_at            timestamptz not null default now(),
 
-  path                  text not null check (path in ('sword','blade')),
-  realm                 int  not null default 1 check (realm between 1 and 9),
-  qi                    double precision not null default 0 check (qi >= 0),
-  insight               int  not null default 0 check (insight >= 0),
-  turmoil               double precision not null default 0 check (turmoil between 0 and 100),
-  settling              boolean not null default false,
+  -- The whole cultivator, exactly as src/core/state.ts defines it.
+  state                 jsonb not null,
 
-  learned               text[] not null default '{}',
-  equipped              text[] not null default '{}',
-  flame                 text,
-  seen_beasts           text[] not null default '{}',
-  satchel               jsonb not null default '{}'::jsonb,
-  pills                 jsonb not null default '{}'::jsonb,
-  pill_primed           boolean not null default false,
-
-  -- The clock. Only the server ever writes these, which is the whole point.
+  -- Promoted for the leaderboard and for the one thing SQL enforces cheaply.
+  realm                 int not null default 1 check (realm between 1 and 9),
+  total_breakthroughs   int not null default 0 check (total_breakthroughs >= 0),
   last_seen_at          timestamptz not null default now(),
-  last_opened_at        timestamptz not null default now(),
-  last_breakthrough_at  timestamptz not null default now(),
-  injured_until         timestamptz,
-  hunt_ready_at         timestamptz,
 
-  total_breakthroughs   int not null default 0,
-  failed_tribulations   int not null default 0,
-  active_seconds        double precision not null default 0,
-
-  -- Ready for the line; unused until week four.
+  -- Ready for the line; unused until the hall holds other people's names.
   master_id             uuid references public.cultivators(id) on delete set null,
   seat_count            int not null default 0 check (seat_count between 0 and 2),
 
   unique (user_id)
 );
+
+-- What a ranking orders by. Realm first, then who got there sooner.
+create index if not exists cultivators_ladder_idx
+  on public.cultivators (realm desc, created_at asc);
 
 create index if not exists cultivators_master_idx on public.cultivators(master_id);
 

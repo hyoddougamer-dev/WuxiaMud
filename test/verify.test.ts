@@ -1,10 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { newPlayer, SAVE_VERSION, type PlayerState } from '../src/core/state.ts'
-import { verify, why, earliestSeconds } from '../src/core/verify.ts'
+import { verify, verifyLine, why, earliestSeconds } from '../src/core/verify.ts'
+import { ANCESTOR_BONUS, ANCESTOR_BONUS_CAP } from '../src/core/ancestry.ts'
 import { relic } from '../src/core/relics.ts'
+import { FLAMES } from '../src/core/flames.ts'
+import { inheritedEffect } from '../src/core/ancestry.ts'
+import { valueAt } from '../src/core/mastery.ts'
 import { apply, type Action } from '../src/core/actions.ts'
-import { advance, canBreakThrough, openSession } from '../src/core/progress.ts'
+import { advance, canBreakThrough, modifiers, openSession } from '../src/core/progress.ts'
+import { migrate } from '../src/core/save.ts'
 import { canBreakGate } from '../src/core/bottlenecks.ts'
 import { canHunt, huntCharges } from '../src/core/hunt.ts'
 import { canTemper, PATTERNS, TEMPER_MAX, levelOf as forgeLevel } from '../src/core/forge.ts'
@@ -140,6 +145,10 @@ test('a cultivator at the top of the ladder, with everything, is clean', () => {
   // meridian open, every pattern at the ceiling, six arts refined to nine.
   const finished = honest({
     realm: 9, totalBreakthroughs: 8, gates: [3, 4, 5, 6, 7, 8], generation: 3,
+    // A third-generation cultivator stands on two forebears, so they carry what a line
+    // is worth. Without it the state is not a wrong state, it is an unlikely one — and
+    // the checker now says so, which is the point of a suspicion.
+    lineBonus: ANCESTOR_BONUS * 2,
     createdAt: T0 - 90 * 24 * H, qi: 4e10, insight: 900,
     learned: TECHNIQUES.map((t) => t.id),
     equipped: ['ninewinter', 'unbroken', 'talisman', 'cauldron', 'heart', 'serpent'],
@@ -264,4 +273,164 @@ test('an unreachable backup is refused before it can be restored', async () => {
   }), T0)
   assert.equal(out.ok, false)
   if (!out.ok) assert.match(out.why, /not a cultivator the rules allow/)
+})
+
+/* ------------------------------------------ what the security review actually found */
+
+test('a flame cannot be taken before its realm, through any door', () => {
+  // This was enforced in exactly one place in the codebase: `disabled` on a button.
+  // A disabled button stops a finger, not a POST, and the edge function hands whatever
+  // arrives straight to apply(). A realm-one cultivator could take the Falling Heart
+  // Flame and halve every breakthrough for the rest of their life.
+  const young = { ...newPlayer('sword', T0), realm: 1 }
+  for (const f of FLAMES) {
+    const out = apply(young, { type: 'flame', id: f.id }, T0, 0.5, 2)
+    if (f.realm > 1) {
+      assert.equal(out.applied, false, `${f.name} needs realm ${f.realm} and was handed out at 1`)
+      assert.equal(out.state.flame, null)
+    }
+  }
+  const junk = apply(young, { type: 'flame', id: '<img src=x onerror=alert(1)>' }, T0, 0.5, 2)
+  assert.equal(junk.applied, false, 'an invented flame id is not a flame')
+  assert.equal(junk.state.flame, null)
+
+  // And the legitimate path still works, in both directions.
+  const old = { ...newPlayer('sword', T0), realm: 6 }
+  const lit = apply(old, { type: 'flame', id: 'seaheart' }, T0, 0.5, 2)
+  assert.equal(lit.applied, true)
+  assert.equal(apply(lit.state, { type: 'flame', id: null }, T0, 0.5, 2).state.flame, null, 'and can be put down')
+
+  // The verifier agrees, so a state that got one another way is refused too.
+  assert.equal(verify(honest({ realm: 1, totalBreakthroughs: 0, gates: [], meridians: [],
+                               learned: [], equipped: [], flame: 'fallheart' }), T0).ok, false)
+})
+
+test('the two fields that multiply the qi rate are bounded', () => {
+  // verify() checked every id and every count and never looked at the two numbers that
+  // feed modifiers().rate. A hand-written heirloom claiming a mastery of a million
+  // passed clean and generated qi two hundred thousand times faster than the best
+  // legal loadout — with the checker's own impossibility constant set at ten.
+  const forged = honest({
+    lineBonus: 1000,
+    inherited: { techniqueId: 'ninewinter', from: 'Nobody', fromPath: 'blade', artName: 'x', mastery: 1_000_000 },
+  })
+  const v = verify(forged, T0)
+  assert.equal(v.ok, false, 'the forged heirloom is refused')
+  assert.match(why(v), /line is worth at most|ceiling is/)
+
+  // Each half on its own, because either alone was enough.
+  assert.equal(verify(honest({ lineBonus: 1000 }), T0).ok, false, 'an impossible lineage bonus')
+  assert.equal(verify(honest({ inherited: { techniqueId: 'frost', from: 'A', fromPath: 'sword', artName: 'x', mastery: 999 } }), T0).ok,
+               false, 'an impossible heirloom mastery')
+  assert.equal(verify(honest({ inherited: { techniqueId: 'nosuchart', from: 'A', fromPath: 'sword', artName: 'x', mastery: 2 } }), T0).ok,
+               false, 'an heirloom of an art that does not exist')
+  assert.equal(verify(honest({ inherited: { techniqueId: 'frost', from: 'A', fromPath: 'jazz' as never, artName: 'x', mastery: 2 } }), T0).ok,
+               false, 'a forebear who walked no path')
+
+  // And a real inheritance still passes.
+  assert.equal(verify(honest({ lineBonus: ANCESTOR_BONUS_CAP,
+    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'blade', artName: 'Old Frost', mastery: 4 } }), T0).ok,
+    true, 'an honest heirloom is untouched')
+})
+
+test('an inherited art is worth exactly what the same art equipped is worth', () => {
+  // It used to compute its own curve — untapered and unbounded — so an heirloom at nine
+  // was quietly worth more than the art in your own hands. One curve, in one place.
+  const t = technique('ninewinter')!
+  for (const lv of [0, 3, 5, 9]) {
+    assert.equal(inheritedEffect(t, 'sword', 'sword', lv), valueAt(t, lv), `same path, mastery ${lv}`)
+  }
+  assert.equal(inheritedEffect(t, 'sword', 'sword', 1e6), valueAt(t, MASTERY_MAX), 'and it clamps')
+  assert.equal(inheritedEffect(t, 'sword', 'sword', -5), valueAt(t, 0), 'in both directions')
+  assert.ok(inheritedEffect(t, 'blade', 'sword', 4) > inheritedEffect(t, 'sword', 'sword', 4), 'off-path still pays')
+})
+
+test('a forged line is refused, because it outlives the cultivator that carried it', () => {
+  const good = [{ id: 'a', name: 'First', seal: '道' as const, path: 'sword' as const, realm: 9,
+                  generation: 1, techniqueId: 'frost', artName: 'Old Frost', meridians: 6,
+                  mastery: 4, ascendedAt: T0 - 100 * 24 * H }]
+  assert.equal(verifyLine(good, T0).ok, true, 'an honest forebear passes')
+  assert.equal(verifyLine([], T0).ok, true, 'and so does no line at all')
+
+  const lies: [string, Record<string, unknown>][] = [
+    ['a mastery past the ceiling', { mastery: 1_000_000 }],
+    ['more meridians than exist', { meridians: 99 }],
+    ['a realm below where sealing begins', { realm: 2 }],
+    ['an art that does not exist', { techniqueId: 'godhand' }],
+    ['a path that does not exist', { path: 'jazz' }],
+    ['a sealing in the future', { ascendedAt: T0 + 90 * 24 * H }],
+  ]
+  for (const [name, patch] of lies) {
+    const v = verifyLine([{ ...good[0], ...patch } as never], T0)
+    assert.equal(v.ok, false, `${name} was allowed through`)
+    assert.ok(/[.!]$/.test(v.faults[0].says), `"${v.faults[0].says}" is a sentence`)
+  }
+  const twice = verifyLine([good[0], good[0]] as never, T0)
+  assert.equal(twice.ok, false, 'the same forebear cannot appear twice')
+})
+
+test('the verifier refuses malformed state instead of throwing on it', () => {
+  // A checker that crashes rather than refusing hands its caller a decision about what
+  // a crash means, and that decision is a way around it.
+  const shapes: unknown[] = [
+    {}, { realm: 4 }, { ...honest(), learned: null }, { ...honest(), forged: 'nonsense' },
+    { ...honest(), wearing: null }, { ...honest(), gates: 'all of them' },
+    { ...honest(), mastery: [1, 2, 3] }, { ...honest(), seenBeasts: [1, 2, 3] },
+  ]
+  for (const shape of shapes) {
+    const v = verify(shape as never, T0)
+    assert.equal(v.ok, false, `${JSON.stringify(shape).slice(0, 40)} should be refused`)
+    assert.ok(v.faults.length > 0)
+  }
+})
+
+test('the shape the server stores round-trips through the engine', () => {
+  // The server used to shred PlayerState into forty columns and had drifted fourteen
+  // fields behind it, so advance() threw on `s.meridians is not iterable` before any
+  // call reached a write. It now stores the state whole and reads it back through the
+  // same migrate() the phone runs. This test is what stops that drift returning:
+  // it fails the moment a field cannot survive the trip.
+  const lived: PlayerState = {
+    ...newPlayer('blade', T0 - 90 * 24 * H, { origin: 'castout', name: 'Server' }),
+    realm: 7, totalBreakthroughs: 6, gates: [3, 4, 5, 6], qi: 3e9, insight: 420,
+    learned: ['frost', 'thread', 'wind', 'bell', 'thunder'], equipped: ['frost', 'wind'],
+    mastery: { frost: 5 }, meridians: ['lung', 'colon'], seenBeasts: ['hare', 'beetle', 'shrike'],
+    forged: { ring: 7, vest: 3 }, wearing: { implement: 'ring', robe: 'vest', charm: null },
+    satchel: { hide: 44, core: 12 }, ground: 'wood', flame: 'seaheart',
+    lineBonus: ANCESTOR_BONUS, generation: 2,
+    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'sword', artName: 'Old Frost', mastery: 3 },
+  }
+
+  // Exactly what toRow/toState do, minus the network: JSON in, migrate out.
+  const stored = JSON.parse(JSON.stringify(lived)) as Record<string, unknown>
+  const back = migrate(stored)
+  assert.ok(back, 'the row comes back as a cultivator')
+  assert.deepEqual(back, lived, 'and every field survives the trip')
+
+  // The two calls that used to throw before reaching a write.
+  assert.doesNotThrow(() => advance(back!, T0))
+  assert.doesNotThrow(() => modifiers(back!))
+  assert.equal(verify(back!, T0).ok, true, why(verify(back!, T0)))
+})
+
+test('the rate multiplier is bounded even by a state no checker ever saw', () => {
+  // Defence in depth, and the reason for it: verify() refuses these states at the door,
+  // but a number feeding the qi rate should not depend on a checker having run. Both
+  // clamps live at the point of use, where the arithmetic happens.
+  const s = newPlayer('sword', T0)
+  const forged = {
+    ...s, lineBonus: 1_000,
+    inherited: { techniqueId: 'ninewinter', from: 'X', fromPath: 'blade' as const, artName: 'x', mastery: 1e6 },
+  }
+  const rate = modifiers(forged).rate
+  assert.ok(rate < 5, `an unchecked forged state still multiplies by ${rate.toFixed(0)}`)
+
+  // And it lands exactly where the legitimate ceiling is: a full line plus the best
+  // art in the game inherited at the ceiling from the other path.
+  const legit = {
+    ...s, lineBonus: ANCESTOR_BONUS_CAP,
+    inherited: { techniqueId: 'ninewinter', from: 'X', fromPath: 'blade' as const, artName: 'x', mastery: MASTERY_MAX },
+  }
+  assert.equal(rate, modifiers(legit).rate, 'the forged state is worth no more than the best honest one')
+  assert.ok(modifiers(legit).rate > modifiers(s).rate, 'and an honest inheritance is still worth having')
 })

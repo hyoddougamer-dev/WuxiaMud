@@ -3,7 +3,7 @@ import { advance } from '../core/progress.ts'
 import { slotsAt } from '../core/techniques.ts'
 import { newPlayer, type PlayerState } from '../core/state.ts'
 import * as store from '../core/save.ts'
-import { verify, why } from '../core/verify.ts'
+import { verify, verifyLine, why } from '../core/verify.ts'
 import type { PathId } from '../core/paths.ts'
 import type { CreateOptions, Session } from './session.ts'
 import { generationOf, inheritedMeridians, lineageBonus, type Ancestor } from '../core/ancestry.ts'
@@ -90,8 +90,13 @@ export class LocalSession implements Session {
   async restore(state: PlayerState, line: Ancestor[]) {
     // Checked here as well as at the backup screen: this is the verb a server will own,
     // and a rule enforced in only one of the two places is a rule with a way around it.
-    const v = verify(state, Date.now())
+    const now = Date.now()
+    const v = verify(state, now)
     if (!v.ok) throw new Error(`That cultivator is not one the rules allow. ${why(v)}`)
+    // The forebears too: they outlive this cultivator and feed the next one's
+    // inheritance through the legitimate create path, long after the backup is forgotten.
+    const vl = verifyLine(line, now)
+    if (!vl.ok) throw new Error(`That line is not one the rules allow. ${why(vl)}`)
     store.save(state)
     store.saveLine(line)
     this.state = state

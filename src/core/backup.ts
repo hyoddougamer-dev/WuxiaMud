@@ -1,5 +1,5 @@
 import { migrate } from './save.ts'
-import { verify, why } from './verify.ts'
+import { verify, verifyLine, why } from './verify.ts'
 import { SAVE_VERSION, type PlayerState } from './state.ts'
 import type { Ancestor } from './ancestry.ts'
 
@@ -134,6 +134,8 @@ export function read(text: string, now?: number): Read {
   if (now !== undefined) {
     const v = verify(state, now)
     if (!v.ok) return { ok: false, why: `That backup is not a cultivator the rules allow. ${why(v)}` }
+    const vl = verifyLine(line, now)
+    if (!vl.ok) return { ok: false, why: `That backup carries a line the rules do not allow. ${why(vl)}` }
   }
 
   return {

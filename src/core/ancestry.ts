@@ -1,7 +1,7 @@
 import { technique, type Technique } from './techniques.ts'
 import { V1_CEILING } from './realms.ts'
 import { MERIDIANS } from './meridians.ts'
-import { levelOf, MASTERY_STEP } from './mastery.ts'
+import { levelOf, valueAt, MASTERY_MAX } from './mastery.ts'
 import type { PathId } from './paths.ts'
 import type { Seal } from './names.ts'
 import type { PlayerState } from './state.ts'
@@ -75,7 +75,13 @@ export const OFF_PATH_BONUS = 0.15
 export function inheritedEffect(
   t: Technique, ancestorPath: PathId, own: PathId, mastery = 0,
 ): number {
-  return t.value * (1 + MASTERY_STEP * mastery) * (ancestorPath === own ? 1 : 1 + OFF_PATH_BONUS)
+  // Through valueAt, which clamps to MASTERY_MAX and tapers past the knee. This used
+  // to compute its own curve — untapered and unbounded — so an inherited art at nine
+  // was quietly worth more than the same art equipped, and a hand-written heirloom
+  // claiming a mastery of a million multiplied the qi rate by two hundred thousand.
+  // One curve, in one place, or the two drift apart exactly like this.
+  const level = Math.min(MASTERY_MAX, Math.max(0, Math.floor(mastery) || 0))
+  return valueAt(t, level) * (ancestorPath === own ? 1 : 1 + OFF_PATH_BONUS)
 }
 
 export interface Ascension {

@@ -3,11 +3,12 @@ import { realm, V1_CEILING } from './realms.ts'
 import { TECHNIQUES, technique, upkeepOf, schoolClash } from './techniques.ts'
 import { PILLS, type PillId, held } from './pills.ts'
 import { canPay, pay, type Satchel } from './materials.ts'
-import { inheritedEffect } from './ancestry.ts'
+import { ANCESTOR_BONUS_CAP, inheritedEffect } from './ancestry.ts'
 import { MERIDIANS, meridian, unlocked } from './meridians.ts'
 import { masteredValue } from './mastery.ts'
 import { relicValue } from './relics.ts'
 import { forgeValue } from './forge.ts'
+import { flame } from './flames.ts'
 import { gateOpen } from './bottlenecks.ts'
 import { draw as drawEncounter } from './encounters.ts'
 import { originBreakthrough, originInsight, originPillDiscount, originRate, originTurmoilRate } from './origins.ts'
@@ -144,7 +145,12 @@ export function modifiers(s: PlayerState): Modifiers {
   }
   // Fixed at birth rather than read live: your line is what it was when you were
   // born, which is both simpler to reason about and better fiction.
-  m.rate += s.lineBonus
+  //
+  // Clamped at the point of use as well as refused at the door. verify() will not let a
+  // state with an impossible lineage bonus be stored, but a number that feeds the rate
+  // multiplier should not depend on a checker having run — the same reasoning that put
+  // the mastery clamp inside inheritedEffect rather than only inside verify().
+  m.rate += Math.min(ANCESTOR_BONUS_CAP, Math.max(0, s.lineBonus || 0))
 
   m.rate += originRate(s.origin)
   m.insight += originInsight(s.origin)
@@ -301,6 +307,26 @@ export function advance(s: PlayerState, now: number): { state: PlayerState; repo
 export function openSession(s: PlayerState, now: number, roll = 1): PlayerState {
   const found = drawEncounter(s, now, roll)
   return { ...s, lastOpenedAt: now, lastSeenAt: now, encounter: found ? found.id : s.encounter }
+}
+
+/**
+ * 異火 Take a heavenly flame, or put the one you carry down.
+ *
+ * This lived only in the UI — `disabled={!eligible}` on a button — while every other
+ * verb in the engine re-checked its own preconditions. That asymmetry is exactly the
+ * shape of a hole: a disabled button stops a finger, not a POST, and the edge function
+ * hands whatever arrives straight to `apply()`. A realm-one cultivator could take the
+ * Falling Heart Flame and halve the cost of every breakthrough for the rest of their
+ * life, or store an arbitrary string in the column.
+ *
+ * A rule enforced only where it is drawn is not a rule.
+ */
+export function takeFlame(s: PlayerState, id: string | null): PlayerState {
+  if (id === s.flame) return s
+  if (id === null) return { ...s, flame: null }
+  const f = flame(id)
+  if (!f || s.realm < f.realm) return s
+  return { ...s, flame: id }
 }
 
 export function learn(s: PlayerState, id: string): PlayerState {

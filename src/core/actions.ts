@@ -1,4 +1,5 @@
-import { equip, learn, unequip, toggleSettle, brew, takePill, openSession, openMeridian } from './progress.ts'
+import { equip, learn, unequip, toggleSettle, brew, takePill, openSession, openMeridian,
+         takeFlame } from './progress.ts'
 import { breakGate } from './bottlenecks.ts'
 import { attempt, type Outcome } from './tribulation.ts'
 import { refine } from './mastery.ts'
@@ -76,6 +77,7 @@ export function apply(
 
   switch (action.type) {
     case 'settle':   return same(toggleSettle(state))
+    case 'flame':    return same(takeFlame(state, action.id))
     case 'learn':    return same(learn(state, action.id))
     case 'equip':    return same(equip(state, action.id, slots))
     case 'unequip':  return same(unequip(state, action.id))
@@ -93,11 +95,6 @@ export function apply(
       const out = choose(state, action.index, now, roll)
       if (out.state === state) return { state, event: {}, applied: false }
       return { state: out.state, event: { answered: out }, applied: true }
-    }
-
-    case 'flame': {
-      if (action.id === state.flame) return { state, event: {}, applied: false }
-      return { state: { ...state, flame: action.id }, event: {}, applied: true }
     }
 
     case 'attempt': {

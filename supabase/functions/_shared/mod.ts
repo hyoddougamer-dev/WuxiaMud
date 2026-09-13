@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
+import { migrate } from '../../../src/core/save.ts'
+import { verify, why } from '../../../src/core/verify.ts'
 import type { PlayerState } from '../../../src/core/state.ts'
 
 /**
@@ -40,62 +42,43 @@ export async function userId(req: Request): Promise<string | null> {
   return data.user?.id ?? null
 }
 
-const ms = (t: string | null) => (t ? new Date(t).getTime() : 0)
-
-/** Rows are the storage shape; PlayerState is the game shape. One place to translate. */
+/**
+ * Rows are the storage shape; PlayerState is the game shape.
+ *
+ * There is almost nothing to translate now, and that is the point. This used to map
+ * forty columns by hand and had drifted fourteen fields behind the engine — `version: 2`
+ * and a `huntReadyAt` that was deleted when hunting moved to charges — so every call
+ * threw before it reached a write. A translation layer that has to be kept in step with
+ * a type is a translation layer that will fall behind it.
+ *
+ * Reading runs the same migrate() the phone runs, so a row stored three versions ago
+ * comes back current. Writing runs the same verify(), so the one writer in the system
+ * cannot persist a cultivator the rules do not allow — which is the property rankings
+ * will rest on.
+ */
 export function toState(row: Record<string, unknown>): PlayerState {
-  return {
-    version: 2,
-    path: row.path as PlayerState['path'],
-    realm: row.realm as number,
-    qi: row.qi as number,
-    insight: row.insight as number,
-    learned: (row.learned ?? []) as string[],
-    equipped: (row.equipped ?? []) as string[],
-    flame: (row.flame ?? null) as string | null,
-    seenBeasts: (row.seen_beasts ?? []) as string[],
-    turmoil: row.turmoil as number,
-    settling: row.settling as boolean,
-    satchel: (row.satchel ?? {}) as PlayerState['satchel'],
-    pills: (row.pills ?? {}) as PlayerState['pills'],
-    pillPrimed: row.pill_primed as boolean,
-    injuredUntil: ms(row.injured_until as string | null),
-    huntReadyAt: ms(row.hunt_ready_at as string | null),
-    lastSeenAt: ms(row.last_seen_at as string),
-    lastOpenedAt: ms(row.last_opened_at as string),
-    lastBreakthroughAt: ms(row.last_breakthrough_at as string),
-    createdAt: ms(row.created_at as string),
-    totalBreakthroughs: row.total_breakthroughs as number,
-    failedTribulations: row.failed_tribulations as number,
-    activeSeconds: row.active_seconds as number,
-  }
+  const raw = row.state as Record<string, unknown> | null
+  if (!raw) throw new Error('That row holds no cultivator.')
+  const s = migrate(raw)
+  if (!s) throw new Error('That cultivator is older than this version can carry forward.')
+  return s
 }
 
 const iso = (t: number) => (t > 0 ? new Date(t).toISOString() : null)
 
 export function toRow(s: PlayerState): Record<string, unknown> {
+  const v = verify(s, Date.now())
+  if (!v.ok) {
+    // The server is the only writer. If it is about to store something unreachable,
+    // the bug is here and the write must not happen — a corrupt row outlives the
+    // request that made it and would be handed to a leaderboard later.
+    throw new Error(`Refusing to store a cultivator the rules do not allow. ${why(v)}`)
+  }
   return {
-    path: s.path,
+    state: s,
     realm: s.realm,
-    qi: s.qi,
-    insight: s.insight,
-    turmoil: s.turmoil,
-    settling: s.settling,
-    learned: s.learned,
-    equipped: s.equipped,
-    flame: s.flame,
-    seen_beasts: s.seenBeasts,
-    satchel: s.satchel,
-    pills: s.pills,
-    pill_primed: s.pillPrimed,
-    last_seen_at: iso(s.lastSeenAt),
-    last_opened_at: iso(s.lastOpenedAt),
-    last_breakthrough_at: iso(s.lastBreakthroughAt),
-    injured_until: iso(s.injuredUntil),
-    hunt_ready_at: iso(s.huntReadyAt),
     total_breakthroughs: s.totalBreakthroughs,
-    failed_tribulations: s.failedTribulations,
-    active_seconds: s.activeSeconds,
+    last_seen_at: iso(s.lastSeenAt),
   }
 }
 
