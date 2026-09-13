@@ -48,7 +48,7 @@ test('an inherited art costs no upkeep', () => {
   const plain = { ...newPlayer('sword', T0) }
   const heir = {
     ...newPlayer('sword', T0),
-    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'sword' as const, artName: 'X' },
+    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'sword' as const, artName: 'X', mastery: 0 },
   }
   assert.equal(modifiers(heir).upkeep, modifiers(plain).upkeep, 'the ancestor carries it')
   assert.ok(modifiers(heir).rate > modifiers(plain).rate, 'and it still does something')
@@ -57,7 +57,7 @@ test('an inherited art costs no upkeep', () => {
 test('an art inherited across paths is worth more', () => {
   const same = {
     ...newPlayer('sword', T0),
-    inherited: { techniqueId: 'frost', from: 'A', fromPath: 'sword' as const, artName: 'X' },
+    inherited: { techniqueId: 'frost', from: 'A', fromPath: 'sword' as const, artName: 'X', mastery: 0 },
   }
   const cross = { ...same, inherited: { ...same.inherited!, fromPath: 'blade' as const } }
   const gain = modifiers(cross).rate - modifiers(same).rate

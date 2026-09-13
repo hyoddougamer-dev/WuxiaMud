@@ -21,8 +21,9 @@ const veteran = (over: Partial<PlayerState> = {}): PlayerState => ({
 })
 
 const forebears: Ancestor[] = [
-  { id: 'a1', name: 'First', seal: '道', path: 'sword', realm: 9, artName: 'Old Frost',
-    techniqueId: 'frost', mastery: 3, days: 40, meridians: 6, sealedAt: T0 - 100 * DAY } as Ancestor,
+  { id: 'a1', name: 'First', seal: '道', path: 'sword', realm: 9, generation: 1,
+    artName: 'Old Frost', techniqueId: 'frost', mastery: 3, meridians: 6,
+    ascendedAt: T0 - 100 * DAY },
 ]
 
 test('a cultivator survives the round trip exactly', () => {

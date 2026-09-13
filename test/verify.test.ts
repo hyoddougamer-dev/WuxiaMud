@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { newPlayer, SAVE_VERSION, type PlayerState } from '../src/core/state.ts'
 import { verify, why, earliestSeconds } from '../src/core/verify.ts'
+import { relic } from '../src/core/relics.ts'
 import { apply, type Action } from '../src/core/actions.ts'
 import { advance, canBreakThrough, openSession } from '../src/core/progress.ts'
 import { canBreakGate } from '../src/core/bottlenecks.ts'
@@ -101,7 +102,7 @@ test('a real climb never trips the verifier, not once, at any step', () => {
       for (const slot of ['implement', 'robe', 'charm'] as const) {
         const p = PATTERNS.find((x) => x.slot === slot && forgeLevel(s.forged, x.id) > 0)
         if (p && s.wearing[slot] !== p.id) act({ type: 'wear', id: p.id, slot }, 'wearing something forged')
-        const r = s.relics.find((id) => !s.wearing[slot])
+        const r = s.relics.find((id) => relic(id)?.slot === slot)
         if (r) act({ type: 'wear', id: r, slot }, 'wearing a relic')
       }
 

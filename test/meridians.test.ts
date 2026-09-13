@@ -92,7 +92,7 @@ test('the extraordinary vessels show up in the tribulation as their own line', (
 test('the line hands down a third of the best set of meridians ever opened', () => {
   const forebear = (n: number): Ancestor => ({
     id: 'a', name: 'Yuwen Bai', seal: '玄', path: 'sword', realm: V1_CEILING,
-    generation: 1, techniqueId: 'frost', artName: 'Nine Winters Palm',
+    generation: 1, techniqueId: 'frost', artName: 'Nine Winters Palm', mastery: 0,
     meridians: n, ascendedAt: T0,
   })
   assert.deepEqual(inheritedMeridians([]), [])

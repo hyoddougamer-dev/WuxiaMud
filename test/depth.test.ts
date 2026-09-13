@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { newPlayer } from '../src/core/state.ts'
+import { newPlayer, type PlayerState } from '../src/core/state.ts'
 import {
   advance, brew, equip, grossPerSecond, learn, modifiers, ratePerSecond,
   takePill, toggleSettle, turmoilFactor, TURMOIL_FREE, TURMOIL_MAX, INJURY_RATE,
@@ -188,7 +188,7 @@ test('brewing without the materials changes nothing', () => {
 })
 
 test('a tribulation pill cannot be stacked with itself', () => {
-  let s = { ...newPlayer('sword', T0), pills: { tribulation: 2 } }
+  let s: PlayerState = { ...newPlayer('sword', T0), pills: { tribulation: 2 } }
   s = takePill(s, 'tribulation', T0)
   assert.equal(s.pillPrimed, true)
   const again = takePill(s, 'tribulation', T0)

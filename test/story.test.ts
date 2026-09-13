@@ -57,7 +57,7 @@ test('what never leaves names the origin trait and the path, always', () => {
 test('a second-generation cultivator is told what the line gave them', () => {
   const s = newPlayer('blade', T0, {
     origin: 'rogue', generation: 2, lineBonus: 0.04, meridians: ['lung'],
-    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'sword', artName: 'Nine Winters Palm' },
+    inherited: { techniqueId: 'frost', from: 'Yuwen Bai', fromPath: 'sword', artName: 'Nine Winters Palm', mastery: 0 },
   })
   const keeps = whatNeverLeaves(s)
   assert.ok(keeps.some((r) => r.v.includes('4%')), 'the line bonus is stated as a number')
