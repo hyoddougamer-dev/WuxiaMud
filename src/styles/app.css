@@ -696,3 +696,25 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--text-soft); background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 8px; padding: 9px 10px; resize: vertical; word-break: break-all;
 }
+
+/* ---------- 報 the switches ---------- */
+.toggles { display: flex; flex-direction: column; }
+.tg {
+  display: flex; align-items: center; gap: 12px; padding: 11px 2px; width: 100%;
+  border: 0; border-bottom: 1px solid var(--line); background: none;
+  font: inherit; color: inherit; text-align: left;
+}
+.tg:last-child { border-bottom: 0; }
+.tg .tb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tg .tn { font-size: 13px; }
+.tg .td { font-size: 11px; color: var(--text-faint); }
+.sw {
+  flex: 0 0 auto; width: 36px; height: 20px; border-radius: 999px;
+  background: var(--line); position: relative; transition: background .15s;
+}
+.sw.on { background: var(--jade-deep); }
+.sw::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--text-faint); transition: left .15s, background .15s;
+}
+.sw.on::after { left: 19px; background: var(--jade); }

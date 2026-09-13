@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useBackButton } from './ui/useBackButton.ts'
+import { useReminders } from './ui/useReminders.ts'
 import { Sprite } from './ui/art/Sprite.tsx'
 import { Figure } from './ui/art/Figure.tsx'
 import { Icon } from './ui/art/Icon.tsx'
@@ -76,6 +77,9 @@ export default function App() {
    * never sent anywhere — if the two disagree, the next sync simply overwrites it.
    */
   const shown = useMemo(() => (truth ? advance(truth, now).state : null), [truth, now])
+
+  // Booked on the way out, cancelled on the way in. Nothing on the web.
+  useReminders(shown, now)
 
   const sync = useCallback(async (announce: boolean) => {
     if (busy.current) return
