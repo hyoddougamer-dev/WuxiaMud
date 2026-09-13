@@ -34,19 +34,19 @@ export function encode(state: PlayerState, line: Ancestor[], now: number): strin
   return MARK + btoa(bin)
 }
 
-export function decode(text: string): Read {
+export function decode(text: string, now?: number): Read {
   const t = text.trim()
   if (!t) return { ok: false, why: 'Nothing was pasted.' }
   if (!t.startsWith(MARK)) {
     // A raw .json file is a perfectly good backup too, so try it before refusing.
     return t.startsWith('{')
-      ? read(t)
+      ? read(t, now)
       : { ok: false, why: 'That does not look like a Ninefold backup. It should begin with NINEFOLD1:' }
   }
   try {
     const bin = atob(t.slice(MARK.length).replace(/\s+/g, ''))
     const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
-    return read(new TextDecoder().decode(bytes))
+    return read(new TextDecoder().decode(bytes), now)
   } catch {
     return { ok: false, why: 'That backup was damaged in transit — some of it is missing.' }
   }

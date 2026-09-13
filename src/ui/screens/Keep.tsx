@@ -46,7 +46,7 @@ export function Keep({ state, line, now, onRestore }: {
 
   function offer(raw: string | null) {
     if (raw === null) return
-    const r = decode(raw)
+    const r = decode(raw, now)
     if (r.ok) { setPending(r.backup); setFailed(null); setSaid(null) }
     else { setPending(null); setFailed(r.why) }
   }

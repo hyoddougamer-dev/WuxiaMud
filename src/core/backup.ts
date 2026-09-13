@@ -1,4 +1,5 @@
 import { migrate } from './save.ts'
+import { verify, why } from './verify.ts'
 import { SAVE_VERSION, type PlayerState } from './state.ts'
 import type { Ancestor } from './ancestry.ts'
 
@@ -82,13 +83,29 @@ export type Read =
   | { ok: false; why: string }
 
 /**
+ * JSON can carry keys that object spread will happily copy onto a fresh object.
+ * V8 parses `__proto__` as an own property rather than a prototype, so this is not the
+ * pollution it looks like — but a state carrying keys the game never wrote is a state
+ * nobody should reason about, and a server running this code may not be V8.
+ */
+const SMUGGLED = ['__proto__', 'constructor', 'prototype']
+
+function scrub<T>(o: T): T {
+  if (!o || typeof o !== 'object') return o
+  for (const k of SMUGGLED) {
+    if (Object.prototype.hasOwnProperty.call(o, k)) delete (o as Record<string, unknown>)[k]
+  }
+  return o
+}
+
+/**
  * Read a backup, and say plainly why not when it cannot be read.
  *
  * Every refusal names what is wrong in words a player can act on, because the moment
  * this function is being used is the moment someone has already lost their save once.
  * "Invalid file" is not a message, it is a shrug.
  */
-export function read(text: string): Read {
+export function read(text: string, now?: number): Read {
   let raw: unknown
   try {
     raw = JSON.parse(text.trim())
@@ -97,7 +114,7 @@ export function read(text: string): Read {
   }
   if (!raw || typeof raw !== 'object') return { ok: false, why: 'That backup is empty.' }
 
-  const b = raw as Partial<Backup>
+  const b = scrub(raw) as Partial<Backup>
   if (b.game !== 'ninefold') return { ok: false, why: 'That backup is from a different game.' }
   if (typeof b.format !== 'number' || b.format > BACKUP_FORMAT) {
     return { ok: false, why: 'That backup was written by a newer version of Ninefold. Update the app first.' }
@@ -110,12 +127,18 @@ export function read(text: string): Read {
   }
 
   // The same migration a stored save takes, so a backup made three versions ago opens.
-  const state = migrate(b.state as unknown as Record<string, unknown>)
+  const state = scrub(migrate(scrub(b.state as unknown as Record<string, unknown>)))
   if (!state) return { ok: false, why: 'That backup is older than this version can carry forward.' }
+
+  // The one door a hand-written state can walk through. It asks questions.
+  if (now !== undefined) {
+    const v = verify(state, now)
+    if (!v.ok) return { ok: false, why: `That backup is not a cultivator the rules allow. ${why(v)}` }
+  }
 
   return {
     ok: true,
-    backup: { ...(b as Backup), state, line },
+    backup: { ...(b as Backup), state, line: line.map(scrub) },
   }
 }
 
