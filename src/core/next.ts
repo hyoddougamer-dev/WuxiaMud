@@ -1,10 +1,10 @@
 import { GROUNDS, ground, quarryOf, openAt } from './grounds.ts'
-import { MATERIALS, MATERIAL_FOR_RANK, count, type MaterialId } from './materials.ts'
+import { MATERIALS, MATERIAL_FOR_RANK, type MaterialId } from './materials.ts'
 import { bottleneckAt, canBreakGate, checklist, passed } from './bottlenecks.ts'
-import { canBreakThrough, heldAtGate, breakthroughCost, ratePerSecond, meridiansAt, TURMOIL_FREE } from './progress.ts'
+import { canBreakThrough, breakthroughCost, ratePerSecond, meridiansAt, TURMOIL_FREE } from './progress.ts'
 import { canHunt, huntCharges, maxCharges, trailAt } from './hunt.ts'
 import { canChallenge, wardenOf } from './wardens.ts'
-import { PATTERNS, canTemper, levelOf, temperCost, TEMPER_MAX } from './forge.ts'
+import { PATTERNS, canTemper, levelOf } from './forge.ts'
 import { refineCost, levelOf as masteryOf, MASTERY_MAX } from './mastery.ts'
 import { TECHNIQUES, technique, type Technique } from './techniques.ts'
 import { V1_CEILING } from './realms.ts'
@@ -228,35 +228,4 @@ function pickLearnable(s: PlayerState): Technique | null {
     if (!best || t.cost > best.cost) best = t
   }
   return best
-}
-
-/** Everything worth doing, for a screen that wants a list rather than one line. */
-export function agenda(s: PlayerState, now: number): Step[] {
-  const out: Step[] = [nextStep(s, now)]
-  const charges = huntCharges(s, now)
-  if (!out.some((x) => x.where === 'hunt') && charges > 0 && canHunt(s, now)) {
-    const t = trailAt(s.ground, now)
-    out.push({
-      say: `${charges} hunt${charges > 1 ? 's' : ''} banked`,
-      why: t ? `${t.name} is on the trail in ${ground(s.ground).name}.` : `In ${ground(s.ground).name}.`,
-      where: 'hunt', urgent: false,
-    })
-  }
-  const unfinished = PATTERNS.filter((p) => s.realm >= p.realm && levelOf(s.forged, p.id) < TEMPER_MAX)
-  if (!out.some((x) => x.where === 'gear') && unfinished.length > 0) {
-    const p = unfinished[0]
-    const lv = levelOf(s.forged, p.id)
-    const need = temperCost(p, lv)[p.mat] ?? 0
-    out.push({
-      say: lv === 0 ? `${p.name} not forged yet` : `${p.name} is at ${lv} of ${TEMPER_MAX}`,
-      why: `Needs ${need} ${materialName(p.mat)}. You have ${count(s.satchel, p.mat)}.`,
-      where: 'gear', urgent: false,
-    })
-  }
-  return out
-}
-
-/** Whether the gate, rather than the qi, is what is holding this realm shut. */
-export function stuckAtGate(s: PlayerState): boolean {
-  return heldAtGate(s)
 }

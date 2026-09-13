@@ -81,11 +81,6 @@ export function courseOf(course: Course): Meridian[] {
   return MERIDIANS.filter((m) => m.course === course).sort((a, b) => a.step - b.step)
 }
 
-/** The next unopened meridian in each course — the three things you can save toward. */
-export function nextInCourse(open: readonly string[], course: Course): Meridian | undefined {
-  return courseOf(course).find((m) => !open.includes(m.id))
-}
-
 /**
  * A meridian is reachable when the one before it in its own course is open. Courses
  * do not gate each other, so the ordering decision is real rather than cosmetic.

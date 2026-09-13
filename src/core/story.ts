@@ -3,7 +3,7 @@ import { SEAL_MEANING, type Seal } from './names.ts'
 import { origin } from './origins.ts'
 import { realm, V1_CEILING } from './realms.ts'
 import { MATERIALS, count } from './materials.ts'
-import { breakthroughCost, ratePerSecond, modifiers } from './progress.ts'
+import { breakthroughCost, modifiers } from './progress.ts'
 import { huntCharges, huntCost } from './hunt.ts'
 import type { PlayerState } from './state.ts'
 
@@ -45,12 +45,6 @@ export interface Line {
   readonly v: string
   /** True when this line is a lasting rule rather than a one-off. */
   readonly keeps?: boolean
-}
-
-/** Seconds to the first breakthrough at the opening rate. An estimate, and said so. */
-export function secondsToFirstBreakthrough(s: PlayerState, now: number): number {
-  const rate = ratePerSecond(s, now)
-  return rate > 0 ? Math.max(0, (breakthroughCost(s) - s.qi) / rate) : Infinity
 }
 
 /**

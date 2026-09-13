@@ -75,10 +75,6 @@ export function ground(id: string): Ground {
 
 export const FIRST_GROUND = GROUNDS[0].id
 
-export function groundsAt(realmId: number): Ground[] {
-  return GROUNDS.filter((g) => g.realm <= realmId)
-}
-
 export function openAt(g: Ground, realmId: number): boolean {
   return realmId >= g.realm
 }
@@ -95,8 +91,4 @@ export function quarryOf(g: Ground): Beast[] {
  */
 export function groundOf(beastId: string): Ground | undefined {
   return GROUNDS.find((g) => g.beasts.includes(beastId))
-}
-
-export function beastRealm(beastId: string): number {
-  return groundOf(beastId)?.realm ?? 1
 }

@@ -20,10 +20,6 @@ export function randomName(roll: () => number): string {
   return `${s} ${g}`
 }
 
-export function randomSeal(roll: () => number): Seal {
-  return SEALS[Math.floor(roll() * SEALS.length)]
-}
-
 /** Names are shown to nobody but the player for now, and still get sanitised —
  *  because the day the line reaches other players, this text goes with it. */
 export function cleanName(raw: string): string {

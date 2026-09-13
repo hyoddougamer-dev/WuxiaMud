@@ -1,5 +1,5 @@
 import { technique, type Technique } from './techniques.ts'
-import { realm, V1_CEILING } from './realms.ts'
+import { V1_CEILING } from './realms.ts'
 import { MERIDIANS } from './meridians.ts'
 import { levelOf, MASTERY_STEP } from './mastery.ts'
 import type { PathId } from './paths.ts'
@@ -65,11 +65,6 @@ export function inheritedMeridians(line: Line): string[] {
   return BY_PRICE.slice(0, Math.floor(best / INHERITED_MERIDIAN_SHARE)).map((m) => m.id)
 }
 
-/** An inherited art costs no upkeep — the ancestor is carrying it, not you. */
-export function inheritedUpkeep(): number {
-  return 0
-}
-
 /**
  * Inheriting across paths is the interesting case: your master was not chosen by you,
  * so the art rarely matches your own way of fighting. The mismatch is rewarded rather
@@ -125,7 +120,3 @@ export function canAscend(s: PlayerState): boolean {
 
 /** The top of the ladder. A life ends where the ninth realm begins. */
 export const ASCEND_REALM = V1_CEILING
-
-export function ascensionSummary(s: PlayerState): string {
-  return `${s.name} · ${realm(s.realm).name}`
-}

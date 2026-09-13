@@ -63,6 +63,18 @@ interface Run {
   hunts: number
   /** Rank points brought home. Attention buys better picks, so this is what it buys. */
   rankTaken: number
+  /**
+   * 新 Novelty, by week.
+   *
+   * The honest measure of whether a game is monotonous is not how much content it has,
+   * it is how often something happens that has never happened before. Every entry here
+   * is a first: a realm reached, a gate broken, a meridian opened, an art learned, a
+   * beast recorded, a ground entered, a warden put down, a relic taken, a pattern
+   * forged, an 奇遇 met. Count them per week and the shape of the run is visible —
+   * a curve that collapses after week three is a game that gets boring in week four,
+   * and no amount of total content changes that.
+   */
+  firstsByWeek: number[]
   settles: number
   artsLearned: number
   meridians: number
@@ -216,6 +228,22 @@ function worthACharge(s: PlayerState, now: number, backIn: number): boolean {
   if (need && MATERIAL_FOR_RANK[here.rank] === need) return true
   // Otherwise hold out for something better than the commonest thing in the world.
   return here.rank >= 2
+}
+
+/** Everything this cultivator has met at least once, as one comparable set. */
+function met(s: PlayerState): Set<string> {
+  const out = new Set<string>()
+  out.add(`realm:${s.realm}`)
+  for (const g of s.gates) out.add(`gate:${g}`)
+  for (const m of s.meridians) out.add(`mer:${m}`)
+  for (const a of s.learned) out.add(`art:${a}`)
+  for (const b of s.seenBeasts) out.add(`beast:${b}`)
+  for (const w of s.wardens) out.add(`warden:${w}`)
+  for (const r of s.relics) out.add(`relic:${r}`)
+  for (const [id, lv] of Object.entries(s.forged)) if ((lv as number) > 0) out.add(`forge:${id}`)
+  if (s.lastEncounter) out.add(`enc:${s.lastEncounter}`)
+  out.add(`ground:${s.ground}`)
+  return out
 }
 
 /**
@@ -562,7 +590,7 @@ function simulate(path: PathId, origin: OriginId, seed: number,
   const roll = rng(seed)
   const tally: Run = {
     path, origin, days: 0, sessions: 0, breakthroughs: 0, failures: 0,
-    hunts: 0, rankTaken: 0, settles: 0, artsLearned: 0, meridians: 0, gates: 0,
+    hunts: 0, rankTaken: 0, firstsByWeek: [], settles: 0, artsLearned: 0, meridians: 0, gates: 0,
     travels: 0, beastsSeen: 0, encounters: 0, refines: 0, masteryTotal: 0,
     wardensBeaten: 0, wardenTries: 0, relicsWorn: 0, tempers: 0, forgeTotal: 0, matsLeft: '',
     insightLeft: 0, endRealm: 1, endRate: 0, activeMinutes: 0, reachedCeiling: false,
@@ -582,7 +610,12 @@ function simulate(path: PathId, origin: OriginId, seed: number,
     now = start + i * step
     s = advance(s, now).state
     s = openSession(s, now, roll())
+    const before = met(s)
     s = play(s, now, roll, tally, step)
+    const week = Math.floor((i - 1) / perDay / 7)
+    let fresh = 0
+    for (const k of met(s)) if (!before.has(k)) fresh++
+    tally.firstsByWeek[week] = (tally.firstsByWeek[week] ?? 0) + fresh
     tally.sessions++
     s = { ...s, activeSeconds: s.activeSeconds + SESSION_SECONDS }
     tally.days = Math.ceil(i / perDay)
@@ -659,6 +692,27 @@ if (done.length) {
  * and someone who looks is choosing which beast they spend a charge on.
  */
 const DAYS = 30
+/**
+ * 新 The novelty curve. Weeks across, firsts down, averaged over every run that finished.
+ * This is the monotony question answered with a number instead of a feeling.
+ */
+{
+  const weeks = Math.max(...done.map((r) => r.firstsByWeek.length))
+  const avg = Array.from({ length: weeks }, (_, w) =>
+    done.reduce((a, r) => a + (r.firstsByWeek[w] ?? 0), 0) / done.length)
+  const peak = Math.max(...avg)
+  console.log(`\nNovelty — things that had never happened before, by week\n`)
+  for (let w = 0; w < weeks; w++) {
+    const n = avg[w]
+    const bar = '█'.repeat(Math.round((n / peak) * 42))
+    console.log(`  week ${String(w + 1).padStart(2)}  ${n.toFixed(1).padStart(5)}  ${bar}`)
+  }
+  const first3 = avg.slice(0, 3).reduce((a, b) => a + b, 0)
+  const rest = avg.slice(3).reduce((a, b) => a + b, 0)
+  console.log(`\n  first three weeks: ${first3.toFixed(0)} firsts · everything after: ${rest.toFixed(0)}`)
+  console.log(`  ${((first3 / (first3 + rest)) * 100).toFixed(0)}% of everything new happens in the first three weeks.`)
+}
+
 console.log(`\nThe same thirty days, opened once a day against four times a day\n`)
 console.log('path   origin      opens/day  realm  hunts  avg rank  forge  mastery  insight  h/c/e left')
 console.log('─'.repeat(96))

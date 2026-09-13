@@ -1,4 +1,3 @@
-import { realm } from './realms.ts'
 import { breakthroughCost, canBreakThrough, modifiers, TURMOIL_MAX } from './progress.ts'
 import { relicValue } from './relics.ts'
 import type { PlayerState } from './state.ts'
@@ -111,8 +110,4 @@ export function attempt(s: PlayerState, now: number, roll: number): Outcome {
     },
     succeeded: false, roll, chance,
   }
-}
-
-export function realmName(id: number): string {
-  return realm(id).name
 }

@@ -227,10 +227,6 @@ export function openMeridian(s: PlayerState, id: string): PlayerState {
   }
 }
 
-export function canOpenMeridian(s: PlayerState, id: string): boolean {
-  return openMeridian(s, id) !== s
-}
-
 /** Everything a meridian asks for, so the UI can grey the right line. */
 export function meridiansAt(s: PlayerState) {
   return MERIDIANS.map((v) => ({

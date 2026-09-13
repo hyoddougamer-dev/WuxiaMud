@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { KIND_NAME, MOST_PER_DAY, type ReminderKind } from '../../core/reminders.ts'
-import { ask, prefs, preview, setPrefs } from '../useReminders.ts'
+import { ask, prefs, preview, setPrefs, worthAskingNow } from '../useReminders.ts'
 import { duration } from '../../core/format.ts'
 import type { PlayerState } from '../../core/state.ts'
 
@@ -17,6 +17,10 @@ const KINDS: ReminderKind[] = ['charges', 'tribulation', 'settled', 'injury']
 export function Reminders({ state, now }: { state: PlayerState; now: number }) {
   const [p, setP] = useState(prefs)
   const coming = p.granted ? preview(state, now) : []
+
+  // Nothing at all until the player has a reason to want to be told something. Asking on
+  // the first launch gets refused, and a refusal on Android is close to permanent.
+  if (!p.granted && !p.asked && !worthAskingNow(state)) return null
 
   return (
     <>

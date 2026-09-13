@@ -91,7 +91,3 @@ export function loadLine(): Ancestor[] {
 export function saveLine(line: Ancestor[]): void {
   try { localStorage.setItem(LINE_KEY, JSON.stringify(line)) } catch { /* ignore */ }
 }
-
-export function wipeLine(): void {
-  try { localStorage.removeItem(LINE_KEY) } catch { /* ignore */ }
-}

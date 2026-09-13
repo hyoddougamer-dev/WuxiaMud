@@ -71,14 +71,6 @@ export function realm(id: number): Realm {
  */
 export type Phase = 'wood' | 'fire' | 'earth' | 'metal' | 'water'
 
-export const PHASE_NAME: Record<Phase, { name: string; zh: string }> = {
-  wood:  { name: 'Wood',  zh: '木' },
-  fire:  { name: 'Fire',  zh: '火' },
-  earth: { name: 'Earth', zh: '土' },
-  metal: { name: 'Metal', zh: '金' },
-  water: { name: 'Water', zh: '水' },
-}
-
 /** Realm to phase. The one table this whole system rests on. */
 export const PHASE_OF: readonly Phase[] = [
   'wood', 'wood', 'fire', 'fire', 'earth', 'earth', 'metal', 'metal', 'water',

@@ -111,13 +111,6 @@ export function worn(s: PlayerState, slot: Slot): Relic | undefined {
   return id ? relic(id) : undefined
 }
 
-/** What is in the slot, of either kind, for a screen that just wants to name it. */
-export function wornName(s: PlayerState, slot: Slot): string | null {
-  const id = s.wearing[slot]
-  if (!id) return null
-  return relic(id)?.name ?? pattern(id)?.name ?? null
-}
-
 /**
  * Put it on, or take it off by wearing nothing. One to a slot, always.
  *

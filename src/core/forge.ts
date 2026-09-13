@@ -132,10 +132,6 @@ export function pattern(id: string): Pattern | undefined {
   return PATTERNS.find((p) => p.id === id)
 }
 
-export function patternsOf(slot: Slot): Pattern[] {
-  return PATTERNS.filter((p) => p.slot === slot)
-}
-
 /** What you have poured into each pattern. Absent means never forged. */
 export type Forged = Record<string, number>
 
