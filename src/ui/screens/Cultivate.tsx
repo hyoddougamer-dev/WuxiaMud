@@ -1,4 +1,5 @@
 import { Figure } from '../art/Figure.tsx'
+import { QiField } from '../art/QiField.tsx'
 import { REALMS, realm, realmColour, V1_CEILING } from '../../core/realms.ts'
 import { PATHS } from '../../core/paths.ts'
 import {
@@ -53,6 +54,10 @@ export function Cultivate({ state, now, onAttempt, onSettle, onAscend, onBreakGa
   return (
     <div className="screen lit">
       <div className="hero-fig">
+        {/* The field sits behind the figure and reads the realm's ramp off the app root,
+            so a breakthrough changes its colour without anything being passed down. */}
+        <QiField realm={state.realm} progress={pct / 100} settling={state.settling}
+                 speed={state.settling ? 0.45 : 1} />
         <Figure
           symbol={state.path === 'blade' ? 's-blade' : 's-meditate'}
           size={196}

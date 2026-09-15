@@ -718,3 +718,78 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 50%; background: var(--text-faint); transition: left .15s, background .15s;
 }
 .sw.on::after { left: 19px; background: var(--jade); }
+
+/* ---------- 氣場 the living layer ---------- */
+/* Behind everything on the hero, taking no input. The canvas owns the motion; this
+   only says where it lives and how big it is. */
+.qifield {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+}
+.hero-fig { position: relative; }
+.hero-fig > *:not(.qifield) { position: relative; z-index: 1; }
+
+/* ---------- 突破 the breakthrough ---------- */
+.bt {
+  position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+/* beat one: the light gathers inward */
+.bt-in {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 46%,
+    transparent 0%, color-mix(in srgb, var(--flame-lo) 55%, transparent) 62%, var(--abyss) 100%);
+  animation: bt-in 900ms cubic-bezier(.4,0,.75,.2) forwards;
+}
+/* beat two: it lets go */
+.bt-out {
+  position: absolute; left: 50%; top: 46%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border-radius: 50%; background: var(--flame-hi);
+  box-shadow: 0 0 40px 18px var(--flame-mid), 0 0 120px 60px var(--flame-lo);
+  opacity: 0; animation: bt-out 780ms 820ms cubic-bezier(.16,.9,.3,1) forwards;
+}
+.bt-ring {
+  position: absolute; left: 50%; top: 46%; width: 24px; height: 24px; margin: -12px 0 0 -12px;
+  border-radius: 50%; border: 2px solid var(--flame-hi);
+  opacity: 0; animation: bt-ring 1000ms 880ms cubic-bezier(.16,.9,.3,1) forwards;
+}
+.bt-name {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  opacity: 0; animation: bt-name 1300ms 1100ms ease-out forwards;
+}
+.bt-name .bt-zh {
+  font-size: 58px; color: var(--flame-hi); letter-spacing: .22em; text-indent: .22em;
+  text-shadow: 0 0 26px color-mix(in srgb, var(--flame-mid) 70%, transparent);
+}
+.bt-name .bt-en { font-size: 24px; color: var(--text); }
+.bt-name .bt-sub {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--text-soft); margin-top: 3px;
+}
+
+@keyframes bt-in   { from { opacity: 0 } to { opacity: 1 } }
+@keyframes bt-out  { 0% { opacity: 1; transform: scale(.4) } 100% { opacity: 0; transform: scale(46) } }
+@keyframes bt-ring { 0% { opacity: .9; transform: scale(1) } 100% { opacity: 0; transform: scale(30) } }
+@keyframes bt-name { 0% { opacity: 0; transform: translateY(14px) } 30%,80% { opacity: 1; transform: none }
+                     100% { opacity: 0; transform: translateY(-6px) } }
+
+/* The shake belongs to the shell, so the whole screen moves and not just the overlay. */
+.app.quake { animation: quake 420ms 820ms cubic-bezier(.36,.07,.19,.97); }
+@keyframes quake {
+  10%, 90% { transform: translate3d(-1px, 0, 0) }
+  20%, 80% { transform: translate3d(2px, 0, 0) }
+  30%, 50%, 70% { transform: translate3d(-4px, 1px, 0) }
+  40%, 60% { transform: translate3d(4px, -1px, 0) }
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* Reduced motion already kills every animation above; the breakthrough still has to
+   read, so it holds the name still instead of playing the burst. */
+@media (prefers-reduced-motion: reduce) {
+  .bt-in, .bt-out, .bt-ring { display: none; }
+  .bt-name { opacity: 1; }
+}

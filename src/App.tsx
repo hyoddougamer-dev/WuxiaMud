@@ -26,6 +26,7 @@ import type { PillId } from './core/pills.ts'
 import type { Ancestor } from './core/ancestry.ts'
 import { encounter } from './core/encounters.ts'
 import { AscendModal } from './ui/screens/Ascend.tsx'
+import { Breakthrough, useBreakthrough } from './ui/Breakthrough.tsx'
 import type { CreateOptions } from './net/session.ts'
 
 /**
@@ -70,6 +71,9 @@ export default function App() {
   const [ascended, setAscended] = useState<Ancestor | null>(null)
   const [answered, setAnswered] = useState<string | null>(null)
   const busy = useRef(false)
+
+  /** 突破 Fires once when the realm actually goes up — never on load. */
+  const { playing: broke, clear: clearBreak } = useBreakthrough(truth?.realm)
 
   /**
    * What the player sees between syncs: the last authoritative state, projected
@@ -225,7 +229,8 @@ export default function App() {
   return (
     <>
       <Sprite />
-      <div className="app" style={ramp}>
+      <div className={`app${broke ? ' quake' : ''}`} style={ramp}>
+        {broke !== null && <Breakthrough to={broke} onDone={clearBreak} />}
         {tab === 'cultivate' && (
           <Cultivate
             state={shown} now={now}
